@@ -1,36 +1,15 @@
-# Temporal Unet: Sample Level Action Recognition using WiFi
+# 문서 사용 가이드
 
-Data is [here](https://drive.google.com/open?id=1f2SrtotfBlWBrQIRRH-aM56cmJ2Tq9Iw), pre-trained model on action detection is [here](https://drive.google.com/open?id=1z4AEUkv5s9-d21xEJRF274qfkKIby6ts), and pre-trained model on action classification is [here](https://drive.google.com/open?id=1B3jZwoF5dmHCYGlwrf_LL2zSNY_pyzXL).
+`docs` 폴더는 배포/운영에 필요한 실행 문서만 유지합니다.
 
-## Data description
-### **train_data.mat**
-1. train_data_amp: CSI amplitude of training data: 1116x52x192, 1116 CSI series, each series has 52 carriers, and 192 samples
-2. train_label_instance: action labels, 1116x192, 1116 CSI series, each series and 192 samples that are labeld from 0 to 6 (background + 6 actions).
-3. train_label_mask: action labels, 1116x192, 1116 CSI series, each series has 192 samples that are binaryly labeled.
-4. train_label_time: start time and end time labels. 1116x2, 2 is for start and end.
+## 빠른 시작
 
-### **test_data.mat**
-similar to the above
+1. `배포_단일_매뉴얼.md`
+   - TX/AP + RX + Mac 수집기 + 변환까지 전체 절차 실행
+2. `실장비_값_입력_체크리스트.md`
+   - 장치/세션/빌드 값을 실장비 기준으로 교차 점검
 
-## Network
-Temporal operations including 1d convolutions, 1D maxpoolings, and 1D deconvolutions sweep along the time axis of CSI series.
-![network](figs/unet1d.png)
+## 문서 목록
 
-## AP Curves
-![network](figs/ap.png)
-
-
-## An example
-![network](figs/result.png)
-
-
-If this helps in your research, please kindly cite,  
-
-```
-@article{wang2019temporal,
-  title={Temporal Unet: Sample Level Human Action Recognition using WiFi},
-  author={Wang, Fei and Song, Yunpeng and Zhang, Jimuyang and Han, Jinsong and Huang, Dong},
-  journal={arXiv preprint arXiv:1904.11953},
-  year={2019}
-}
-```
+- `배포_단일_매뉴얼.md`: 배포/운영 통합 실행 문서
+- `실장비_값_입력_체크리스트.md`: 실험 전/후 점검 항목
