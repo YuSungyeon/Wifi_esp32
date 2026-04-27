@@ -1,0 +1,31 @@
+session_id: 1
+date: "2026-04-27"
+room:
+  width_m: 3.0
+  height_m: 3.0
+  description: "3m x 3m indoor room"
+
+network:
+  ssid: "WiSLAR_TX_AP"
+  channel: 6
+  collector_ip: "192.168.4.2"
+  #collector_ip: "192.168.45.110"
+  collector_port: 9999
+  protocol: "udp"
+
+experiment:
+  objective: "binary activity detection"
+  label_target: "mask"
+  split_strategy: "subject-wise"
+  preprocess_on_device:
+    moving_average_tap: 3
+    zscore: true
+    outlier_clip: [-3.0, 3.0]
+
+devices:
+  registry_file: "mac_collector/device_registry.csv"
+  expected_device_ids: [101, 102, 103]
+
+operator:
+  name: "operator_name"
+  notes: "record subject count, action protocol, and environment changes"
