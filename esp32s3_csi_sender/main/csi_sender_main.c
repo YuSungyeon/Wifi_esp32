@@ -50,8 +50,9 @@
 #define PAYLOAD_TYPE_CSI_AMP    1
 #define NOISE_FLOOR_UNKNOWN     (-128)
 
-#define MAX_AMP_SAMPLES         52
+#define MAX_AMP_SAMPLES         64  /* 20MHz OFDM FFT bins: 우선 64개 전송, 유효 톤 선별은 PC에서 수행 */
 #define CSI_BUFFER_MAX_BYTES    512
+#define SEND_INTERVAL_US        20000  /* 20ms */
 
 /* UDP 전송과 장치 시퀀스 관리를 위한 전역 상태값 */
 static const char *TAG = "CSI_SENDER";
@@ -59,6 +60,7 @@ static int g_udp_sock = -1;
 static struct sockaddr_in g_collector_addr;
 static uint32_t g_seq = 0;
 static uint32_t g_runtime_device_id = 0;
+static int64_t g_last_send_us = 0;
 
 #pragma pack(push, 1)
 typedef struct {
@@ -185,6 +187,12 @@ static void send_csi_packet(const wifi_csi_info_t *info)
         return;
     }
 
+    int64_t now_us = esp_timer_get_time();
+    if (g_last_send_us != 0 && (now_us - g_last_send_us) < SEND_INTERVAL_US) {
+        return;
+    }
+    g_last_send_us = now_us;
+
     float amp_raw[MAX_AMP_SAMPLES];
     float amp_ma[MAX_AMP_SAMPLES];
     size_t count = extract_amp_from_csi(info, amp_raw, MAX_AMP_SAMPLES);
@@ -212,7 +220,7 @@ static void send_csi_packet(const wifi_csi_info_t *info)
     hdr.session_id = SESSION_ID;
     hdr.device_id = g_runtime_device_id;
     hdr.seq = g_seq++;
-    hdr.timestamp_us = (uint64_t)esp_timer_get_time();
+    hdr.timestamp_us = (uint64_t)now_us;
     hdr.channel = info->rx_ctrl.channel;
     hdr.rssi_dbm = info->rx_ctrl.rssi;
     hdr.noise_floor_dbm = NOISE_FLOOR_UNKNOWN;
