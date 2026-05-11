@@ -1,6 +1,6 @@
-# ESP32-S3 TX/AP Node Firmware
+# ESP32-S3 TX/AP Node Firmware (MeshSense)
 
-TX/AP 노드 펌웨어 프로젝트입니다.
+MeshSense TX/AP 노드 펌웨어입니다.
 
 - SoftAP 생성
 - UDP broadcast 트래픽 주기 송신

@@ -52,7 +52,7 @@
 
 #define MAX_AMP_SAMPLES         64  /* 20MHz OFDM FFT bins: 우선 64개 전송, 유효 톤 선별은 PC에서 수행 */
 #define CSI_BUFFER_MAX_BYTES    512
-#define SEND_INTERVAL_US        20000  /* 20ms */
+#define SEND_INTERVAL_US        10000  /* 10ms */
 
 /* UDP 전송과 장치 시퀀스 관리를 위한 전역 상태값 */
 static const char *TAG = "CSI_SENDER";

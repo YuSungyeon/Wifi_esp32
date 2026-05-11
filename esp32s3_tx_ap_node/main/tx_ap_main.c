@@ -24,10 +24,10 @@
  * (SSID/채널/주기/세션ID 등을 코드 수정 없이 운용 가능)
  */
 #ifndef TX_AP_SSID
-#define TX_AP_SSID "WiSLAR_TX_AP"
+#define TX_AP_SSID "MeshSense_TX_AP"
 #endif
 #ifndef TX_AP_PASS
-#define TX_AP_PASS "wislartx123"
+#define TX_AP_PASS "meshsensetx123"
 #endif
 #ifndef TX_AP_CHANNEL
 #define TX_AP_CHANNEL 6
@@ -39,7 +39,7 @@
 #define TX_AP_BROADCAST_PORT 3333
 #endif
 #ifndef TX_AP_INTERVAL_MS
-#define TX_AP_INTERVAL_MS 20
+#define TX_AP_INTERVAL_MS 10
 #endif
 #ifndef TX_AP_PAYLOAD_BYTES
 #define TX_AP_PAYLOAD_BYTES 64

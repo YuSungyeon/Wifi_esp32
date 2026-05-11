@@ -35,11 +35,11 @@ for dev, items in buffers.items():
 
 
 # # ======================== ② 시간 동기화: 공통 시간축에 보간(interpolate) ========================
-# 50Hz 기준 타깃 timestamp 격자 생성 (20ms 간격)
+# 100Hz 기준 타깃 timestamp 격자 생성 (10ms 간격)
 RX_IDS  = [101, 102, 103]   # 사용자 환경에 맞춰 device_id 매핑
-F_S     = 50                # Hz
-WINDOW  = 100               # 2초
-STRIDE  = 50                # 1초
+F_S     = 100               # Hz
+WINDOW  = 200               # 2초
+STRIDE  = 100               # 1초
 N_SUB   = 52
 
 # 버퍼를 시간배열과 진폭배열 두 개로 분리.
@@ -52,7 +52,7 @@ def to_array(buf):
     amp = np.stack([a for _, a in buf]) # 시간별로 여러개의 amplitude 벡터를 2차원 배열로 쌓기
     return ts, amp
 
-# === 공통 시간축 (50Hz 격자) 생성 + 선형보간 ===
+# === 공통 시간축 (100Hz 격자) 생성 + 선형보간 ===
 rx_arrays = {
     dev: to_array(buffers[dev]) for dev in RX_IDS
 }
@@ -83,15 +83,15 @@ if len(t_grid) < WINDOW:
     print(f"  warning: WINDOW={WINDOW} requires at least {WINDOW} samples")
 
 
-# ======================== ③ 윈도잉 → (N, 3, 52, 100) ========================
+# ======================== ③ 윈도잉 → (N, 3, 52, 200) ========================
 T = aligned.shape[1]
 windows = []
 for start in range(0, T - WINDOW + 1, STRIDE):
-    w = aligned[:, start:start+WINDOW, :]   # (3, 100, 52)
-    w = w.transpose(0, 2, 1)                # (3, 52, 100)  ← 모델 입력 순서로
+    w = aligned[:, start:start+WINDOW, :]   # (3, 200, 52)
+    w = w.transpose(0, 2, 1)                # (3, 52, 200)  ← 모델 입력 순서로
     windows.append(w) # '리스트'에 추가
 
-X = np.stack(windows)    # (N, 3, 52, 100), 4차원 배열로 쌓기, N=윈도 개수
+X = np.stack(windows)    # (N, 3, 52, 200), 4차원 배열로 쌓기, N=윈도 개수
 y = np.random.randint(0, 3, size=len(windows))   # 가짜 라벨, 3-class
 
 print(f"\n[3단계] 윈도잉 결과")

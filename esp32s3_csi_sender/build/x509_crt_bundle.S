@@ -1,4 +1,4 @@
-/* * Data converted from /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/esp-idf/mbedtls/x509_crt_bundle
+/* * Data converted from /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/esp-idf/mbedtls/x509_crt_bundle
  */
 .data
 .section .rodata.embedded

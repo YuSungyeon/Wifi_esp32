@@ -10,18 +10,18 @@ if(NOT EXISTS "/Users/sungyeon_yu/esp/esp-idf/components/bootloader/subproject")
   file(MAKE_DIRECTORY "/Users/sungyeon_yu/esp/esp-idf/components/bootloader/subproject")
 endif()
 file(MAKE_DIRECTORY
-  "/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader"
-  "/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader-prefix"
-  "/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader-prefix/tmp"
-  "/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader-prefix/src/bootloader-stamp"
-  "/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader-prefix/src"
-  "/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader-prefix/src/bootloader-stamp"
+  "/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader"
+  "/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader-prefix"
+  "/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader-prefix/tmp"
+  "/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader-prefix/src/bootloader-stamp"
+  "/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader-prefix/src"
+  "/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader-prefix/src/bootloader-stamp"
 )
 
 set(configSubDirs )
 foreach(subDir IN LISTS configSubDirs)
-    file(MAKE_DIRECTORY "/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
+    file(MAKE_DIRECTORY "/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
 endforeach()
 if(cfgdir)
-  file(MAKE_DIRECTORY "/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
+  file(MAKE_DIRECTORY "/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
 endif()

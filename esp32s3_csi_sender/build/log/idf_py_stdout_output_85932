@@ -92,7 +92,7 @@ entry 0x403c9914
 [0;32mI (1704) wifi:Association refused temporarily, comeback time 1500 (TUs)[0m
 [0;32mI (3244) wifi:state: assoc -> assoc (0)[0m
 [0;32mI (3254) wifi:state: assoc -> run (10)[0m
-[0;32mI (3274) wifi:connected with WiSLAR_TX_AP, aid = 2, channel 6, 40U, bssid = 3c:0f:02:cf:7c:29[0m
+[0;32mI (3274) wifi:connected with MeshSense_TX_AP, aid = 2, channel 6, 40U, bssid = 3c:0f:02:cf:7c:29[0m
 [0;32mI (3274) wifi:security: WPA2-PSK, phy: bgn, rssi: -7[0m
 [0;32mI (3274) wifi:pm start, type: 1[0m
 

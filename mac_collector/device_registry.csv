@@ -1,4 +1,4 @@
 device_id,board_name,sta_mac,room_x_m,room_y_m,height_m,orientation_deg,firmware_version,notes
 101,RX1,AA:BB:CC:DD:EE:01,0.2,0.2,1.2,45,v0.1.0,left-bottom corner
 102,RX2,E8:F6:0A:8A:E4:F8,2.8,0.2,1.2,135,v0.1.0,right-bottom corner
-103,RX3,DC:B4:D9:03:47:00,1.5,2.8,1.2,225,v0.1.0,top side
+103,RX3,DC:B4:D9:03:47:00,1.5,2.8,1.2,225,v0.1.0,top-center

@@ -1,7 +1,7 @@
-[1/4] cd /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/partition_table/partition-table.bin /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/esp32s3_csi_sender.bin
+[1/4] cd /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/partition_table/partition-table.bin /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/esp32s3_csi_sender.bin
 esp32s3_csi_sender.bin binary size 0xb9980 bytes. Smallest app partition is 0x100000 bytes. 0x46680 bytes (28%) free.
 [2/4] Performing build step for 'bootloader'
-[1/1] cd /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader/bootloader.bin
+[1/1] cd /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader/bootloader.bin
 Bootloader binary size 0x5250 bytes. 0x2db0 bytes (36%) free.
 [3/4] No install step for 'bootloader'
 [4/4] Completed 'bootloader'

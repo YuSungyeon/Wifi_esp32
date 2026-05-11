@@ -1,6 +1,6 @@
-# ESP32-S3 CSI UDP Sender (MVP)
+# ESP32-S3 CSI UDP Sender (MeshSense MVP)
 
-ESP32-S3에서 CSI를 수집하고 1차 전처리(이동평균 + z-score + 이상치 클리핑) 후 Mac 수집기로 UDP 전송하는 ESP-IDF 프로젝트입니다.
+MeshSense: ESP32-S3에서 CSI를 수집하고 1차 전처리(이동평균 + z-score + 이상치 클리핑) 후 Mac 수집기로 UDP 전송하는 ESP-IDF 프로젝트입니다.
 
 ## 1) 사전 준비
 

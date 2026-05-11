@@ -40,6 +40,6 @@ endif()
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
 if(CMAKE_INSTALL_LOCAL_ONLY)
-  file(WRITE "/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/esp-idf/console/install_local_manifest.txt"
+  file(WRITE "/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/esp-idf/console/install_local_manifest.txt"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()

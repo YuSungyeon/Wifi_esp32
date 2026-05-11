@@ -1,6 +1,6 @@
 [1/963] Generating project_elf_src_esp32s3.c
-[2/963] Generating /Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/esp-idf/esp_system/ld/memory.ld linker script...
-[3/963] Generating /Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/esp-idf/esp_system/ld/sections.ld.in linker script...
+[2/963] Generating /Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/esp-idf/esp_system/ld/memory.ld linker script...
+[3/963] Generating /Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/esp-idf/esp_system/ld/sections.ld.in linker script...
 [4/963] Generating ../../partition_table/partition-table.bin
 Partition table binary generated. Contents:
 *******************************************************************************
@@ -977,7 +977,7 @@ factory,app,factory,0x10000,1M,
 -- Detecting CXX compile features
 -- Detecting CXX compile features - done
 -- Building ESP-IDF components for target esp32s3
--- Project sdkconfig file /Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/sdkconfig
+-- Project sdkconfig file /Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/sdkconfig
 -- Compiler supported targets: xtensa-esp-elf
 -- Looking for sys/types.h
 -- Looking for sys/types.h - found
@@ -999,7 +999,7 @@ factory,app,factory,0x10000,1M,
 -- Component paths: /Users/sungyeon_yu/esp/esp-idf/components/bootloader /Users/sungyeon_yu/esp/esp-idf/components/bootloader_support /Users/sungyeon_yu/esp/esp-idf/components/efuse /Users/sungyeon_yu/esp/esp-idf/components/esp_app_format /Users/sungyeon_yu/esp/esp-idf/components/esp_bootloader_format /Users/sungyeon_yu/esp/esp-idf/components/esp_common /Users/sungyeon_yu/esp/esp-idf/components/esp_hw_support /Users/sungyeon_yu/esp/esp-idf/components/esp_rom /Users/sungyeon_yu/esp/esp-idf/components/esp_system /Users/sungyeon_yu/esp/esp-idf/components/esptool_py /Users/sungyeon_yu/esp/esp-idf/components/freertos /Users/sungyeon_yu/esp/esp-idf/components/hal /Users/sungyeon_yu/esp/esp-idf/components/log /Users/sungyeon_yu/esp/esp-idf/components/bootloader/subproject/main /Users/sungyeon_yu/esp/esp-idf/components/bootloader/subproject/components/micro-ecc /Users/sungyeon_yu/esp/esp-idf/components/newlib /Users/sungyeon_yu/esp/esp-idf/components/partition_table /Users/sungyeon_yu/esp/esp-idf/components/soc /Users/sungyeon_yu/esp/esp-idf/components/spi_flash /Users/sungyeon_yu/esp/esp-idf/components/xtensa
 -- Configuring done (8.6s)
 -- Generating done (0.0s)
--- Build files have been written to: /Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader
+-- Build files have been written to: /Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader
 [956/963] Performing build step for 'bootloader'
 [1/112] Building C object esp-idf/esp_rom/CMakeFiles/__idf_esp_rom.dir/patches/esp_rom_crc.c.obj
 [2/112] Building ASM object esp-idf/esp_rom/CMakeFiles/__idf_esp_rom.dir/patches/esp_rom_longjmp.S.obj
@@ -1116,8 +1116,8 @@ esptool.py v4.11.0
 Creating esp32s3 image...
 Merged 2 ELF sections
 Successfully created esp32s3 image.
-Generated /Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader/bootloader.bin
-[112/112] cd /Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader/bootloader.bin
+Generated /Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader/bootloader.bin
+[112/112] cd /Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader/bootloader.bin
 Bootloader binary size 0x5250 bytes. 0x2db0 bytes (36%) free.
 [957/963] No install step for 'bootloader'
 [958/963] Completed 'bootloader'
@@ -1129,6 +1129,6 @@ esptool.py v4.11.0
 Creating esp32s3 image...
 Merged 2 ELF sections
 Successfully created esp32s3 image.
-Generated /Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/esp32s3_tx_ap_node.bin
-[963/963] cd /Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/partition_table/partition-table.bin /Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/esp32s3_tx_ap_node.bin
+Generated /Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/esp32s3_tx_ap_node.bin
+[963/963] cd /Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/partition_table/partition-table.bin /Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/esp32s3_tx_ap_node.bin
 esp32s3_tx_ap_node.bin binary size 0xb9db0 bytes. Smallest app partition is 0x100000 bytes. 0x46250 bytes (27%) free.

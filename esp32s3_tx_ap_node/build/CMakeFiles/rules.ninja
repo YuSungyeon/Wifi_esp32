@@ -1451,7 +1451,7 @@ rule C_STATIC_LIBRARY_LINKER____idf_main_
 # Rule for re-running cmake.
 
 rule RERUN_CMAKE
-  command = /opt/homebrew/bin/cmake --regenerate-during-build -S/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node -B/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build
+  command = /opt/homebrew/bin/cmake --regenerate-during-build -S/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node -B/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build
   description = Re-running CMake...
   generator = 1
 

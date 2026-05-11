@@ -2,34 +2,34 @@
 	"sources" : 
 	[
 		{
-			"file" : "/Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/CMakeFiles/bootloader"
+			"file" : "/Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/CMakeFiles/bootloader"
 		},
 		{
-			"file" : "/Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/CMakeFiles/bootloader.rule"
+			"file" : "/Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/CMakeFiles/bootloader.rule"
 		},
 		{
-			"file" : "/Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/CMakeFiles/bootloader-complete.rule"
+			"file" : "/Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/CMakeFiles/bootloader-complete.rule"
 		},
 		{
-			"file" : "/Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule"
+			"file" : "/Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule"
 		},
 		{
-			"file" : "/Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule"
+			"file" : "/Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule"
 		},
 		{
-			"file" : "/Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule"
+			"file" : "/Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule"
 		},
 		{
-			"file" : "/Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule"
+			"file" : "/Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule"
 		},
 		{
-			"file" : "/Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule"
+			"file" : "/Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule"
 		},
 		{
-			"file" : "/Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule"
+			"file" : "/Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule"
 		},
 		{
-			"file" : "/Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule"
+			"file" : "/Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule"
 		}
 	],
 	"target" : 

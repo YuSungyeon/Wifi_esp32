@@ -6,7 +6,7 @@ room:
   description: "3m x 3m indoor room"
 
 network:
-  ssid: "WiSLAR_TX_AP"
+  ssid: "MeshSense_TX_AP"
   channel: 6
   collector_ip: "192.168.4.2"
   #collector_ip: "192.168.45.110"

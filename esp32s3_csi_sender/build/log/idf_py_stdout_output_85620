@@ -90,7 +90,7 @@ entry 0x403c9914
 [0;32mI (1704) wifi:state: init -> auth (b0)[0m
 [0;32mI (1704) wifi:state: auth -> assoc (0)[0m
 [0;32mI (1714) wifi:state: assoc -> run (10)[0m
-[0;32mI (1724) wifi:connected with WiSLAR_TX_AP, aid = 2, channel 6, 40U, bssid = 3c:0f:02:cf:7c:29[0m
+[0;32mI (1724) wifi:connected with MeshSense_TX_AP, aid = 2, channel 6, 40U, bssid = 3c:0f:02:cf:7c:29[0m
 [0;32mI (1724) wifi:security: WPA2-PSK, phy: bgn, rssi: -5[0m
 [0;32mI (1734) wifi:pm start, type: 1[0m
 

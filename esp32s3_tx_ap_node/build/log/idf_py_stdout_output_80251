@@ -83,7 +83,7 @@ entry 0x403c9914
 [0;32mI (595) wifi:Total power save buffer number: 16[0m
 [0;32mI (595) wifi:Init max length of beacon: 752/752[0m
 [0;32mI (595) wifi:Init max length of beacon: 752/752[0m
-[0;32mI (595) TX_AP_NODE: SoftAP started ssid=WiSLAR_TX_AP channel=6 max_conn=4 auth=WPA2[0m
+[0;32mI (595) TX_AP_NODE: SoftAP started ssid=MeshSense_TX_AP channel=6 max_conn=4 auth=WPA2[0m
 [0;32mI (595) esp_netif_lwip: DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1[0m
 [0;32mI (615) TX_AP_NODE: Starting UDP broadcast: dst=192.168.4.255:3333 interval=20ms payload=64B[0m
 [0;32mI (625) TX_AP_NODE: tx heartbeat seq=0 bytes=92[0m

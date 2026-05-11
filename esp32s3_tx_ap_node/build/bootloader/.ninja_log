@@ -92,7 +92,7 @@
 1380	1427	1777219160492025419	esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32s3/usb_dwc_periph.c.obj	b31fa28db734860a
 1345	1428	1777219160457260413	esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32s3/touch_sensor_periph.c.obj	e7eda7ebc6470d69
 1416	1433	1777219160544039513	project_elf_src_esp32s3.c	cd0b616248bdffde
-1416	1433	1777219160544039513	/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader/project_elf_src_esp32s3.c	cd0b616248bdffde
+1416	1433	1777219160544039513	/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader/project_elf_src_esp32s3.c	cd0b616248bdffde
 1385	1434	1777219160496814689	esp-idf/xtensa/CMakeFiles/__idf_xtensa.dir/eri.c.obj	73ac72d8a5fc9c7d
 1384	1437	1777219160495921318	esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32s3/rtc_io_periph.c.obj	2f45772615e51afe
 1387	1442	1777219160499166678	esp-idf/xtensa/CMakeFiles/__idf_xtensa.dir/xt_trax.c.obj	eaaa10f82cb57838
@@ -111,12 +111,12 @@
 1883	1915	1777219160994619939	esp-idf/main/libmain.a	64e734a14587fe7b
 1915	1984	1777219161026963999	bootloader.elf	e2776416635a0461
 1984	2125	1777219161236631367	.bin_timestamp	cd57007698684d5c
-1984	2125	1777219161236631367	/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader/.bin_timestamp	cd57007698684d5c
+1984	2125	1777219161236631367	/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader/.bin_timestamp	cd57007698684d5c
 2125	2176	1777219161237421197	esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651
-2125	2176	1777219161237421197	/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader/esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651
+2125	2176	1777219161237421197	/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader/esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651
 6	54	1777219166186361298	esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651
-6	54	1777219166186361298	/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader/esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651
+6	54	1777219166186361298	/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader/esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651
 6	56	1777219859663021783	esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651
-6	56	1777219859663021783	/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader/esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651
+6	56	1777219859663021783	/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader/esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651
 4	58	1777219860406468819	esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651
-4	58	1777219860406468819	/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/bootloader/esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651
+4	58	1777219860406468819	/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/bootloader/esp-idf/esptool_py/CMakeFiles/bootloader_check_size	fe7c1398e5389651

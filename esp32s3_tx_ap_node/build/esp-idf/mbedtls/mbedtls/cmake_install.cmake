@@ -39,16 +39,16 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
-  include("/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/esp-idf/mbedtls/mbedtls/include/cmake_install.cmake")
-  include("/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/esp-idf/mbedtls/mbedtls/3rdparty/cmake_install.cmake")
-  include("/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/esp-idf/mbedtls/mbedtls/library/cmake_install.cmake")
-  include("/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/esp-idf/mbedtls/mbedtls/pkgconfig/cmake_install.cmake")
+  include("/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/esp-idf/mbedtls/mbedtls/include/cmake_install.cmake")
+  include("/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/esp-idf/mbedtls/mbedtls/3rdparty/cmake_install.cmake")
+  include("/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/esp-idf/mbedtls/mbedtls/library/cmake_install.cmake")
+  include("/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/esp-idf/mbedtls/mbedtls/pkgconfig/cmake_install.cmake")
 
 endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
 if(CMAKE_INSTALL_LOCAL_ONLY)
-  file(WRITE "/Users/sungyeon_yu/WiSLAR/esp32s3_tx_ap_node/build/esp-idf/mbedtls/mbedtls/install_local_manifest.txt"
+  file(WRITE "/Users/sungyeon_yu/Wifi_esp32/esp32s3_tx_ap_node/build/esp-idf/mbedtls/mbedtls/install_local_manifest.txt"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()

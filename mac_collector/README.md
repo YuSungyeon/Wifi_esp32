@@ -1,6 +1,6 @@
-# Mac Collector MVP
+# Mac Collector MVP (MeshSense)
 
-ESP32-S3에서 보낸 CSI UDP 패킷을 받아 JSONL로 저장하는 최소 수집기입니다.
+MeshSense 실험에서 ESP32-S3가 보낸 CSI UDP 패킷을 받아 JSONL로 저장하는 최소 수집기입니다.
 
 ## 포함 파일
 

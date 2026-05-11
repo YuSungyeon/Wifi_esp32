@@ -1,5 +1,5 @@
-[1/954] Generating /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/esp-idf/esp_system/ld/memory.ld linker script...
-[2/954] Generating /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/esp-idf/esp_system/ld/sections.ld.in linker script...
+[1/954] Generating /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/esp-idf/esp_system/ld/memory.ld linker script...
+[2/954] Generating /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/esp-idf/esp_system/ld/sections.ld.in linker script...
 [3/954] Building C object esp-idf/esp_http_server/CMakeFiles/__idf_esp_http_server.dir/src/httpd_ws.c.obj
 [4/954] Building C object esp-idf/esp_http_server/CMakeFiles/__idf_esp_http_server.dir/src/util/ctrl_sock.c.obj
 [5/954] Building C object esp-idf/esp_http_server/CMakeFiles/__idf_esp_http_server.dir/src/httpd_uri.c.obj
@@ -256,7 +256,7 @@
 [256/954] Performing build step for 'bootloader'
 [0/1] Re-running CMake...
 -- Building ESP-IDF components for target esp32s3
--- Project sdkconfig file /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/sdkconfig
+-- Project sdkconfig file /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/sdkconfig
 -- Compiler supported targets: xtensa-esp-elf
 -- Adding linker script /Users/sungyeon_yu/esp/esp-idf/components/soc/esp32s3/ld/esp32s3.peripherals.ld
 -- Bootloader project name: "bootloader" version: 1
@@ -270,8 +270,8 @@
 -- Component paths: /Users/sungyeon_yu/esp/esp-idf/components/bootloader /Users/sungyeon_yu/esp/esp-idf/components/bootloader_support /Users/sungyeon_yu/esp/esp-idf/components/efuse /Users/sungyeon_yu/esp/esp-idf/components/esp_app_format /Users/sungyeon_yu/esp/esp-idf/components/esp_bootloader_format /Users/sungyeon_yu/esp/esp-idf/components/esp_common /Users/sungyeon_yu/esp/esp-idf/components/esp_hw_support /Users/sungyeon_yu/esp/esp-idf/components/esp_rom /Users/sungyeon_yu/esp/esp-idf/components/esp_system /Users/sungyeon_yu/esp/esp-idf/components/esptool_py /Users/sungyeon_yu/esp/esp-idf/components/freertos /Users/sungyeon_yu/esp/esp-idf/components/hal /Users/sungyeon_yu/esp/esp-idf/components/log /Users/sungyeon_yu/esp/esp-idf/components/bootloader/subproject/main /Users/sungyeon_yu/esp/esp-idf/components/bootloader/subproject/components/micro-ecc /Users/sungyeon_yu/esp/esp-idf/components/newlib /Users/sungyeon_yu/esp/esp-idf/components/partition_table /Users/sungyeon_yu/esp/esp-idf/components/soc /Users/sungyeon_yu/esp/esp-idf/components/spi_flash /Users/sungyeon_yu/esp/esp-idf/components/xtensa
 -- Configuring done (5.8s)
 -- Generating done (0.2s)
--- Build files have been written to: /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader
-[1/2] cd /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/bootloader/bootloader.bin
+-- Build files have been written to: /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader
+[1/2] cd /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/bootloader/bootloader.bin
 Bootloader binary size 0x5250 bytes. 0x2db0 bytes (36%) free.
 [257/954] Linking C static library esp-idf/lwip/liblwip.a
 [258/954] Linking C static library esp-idf/vfs/libvfs.a
@@ -974,6 +974,6 @@ esptool.py v4.11.0
 Creating esp32s3 image...
 Merged 2 ELF sections
 Successfully created esp32s3 image.
-Generated /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/esp32s3_csi_sender.bin
-[954/954] cd /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/partition_table/partition-table.bin /Users/sungyeon_yu/WiSLAR/esp32s3_csi_sender/build/esp32s3_csi_sender.bin
+Generated /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/esp32s3_csi_sender.bin
+[954/954] cd /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/esp-idf/esptool_py && /Users/sungyeon_yu/.espressif/python_env/idf5.2_py3.14_env/bin/python /Users/sungyeon_yu/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/partition_table/partition-table.bin /Users/sungyeon_yu/Wifi_esp32/esp32s3_csi_sender/build/esp32s3_csi_sender.bin
 esp32s3_csi_sender.bin binary size 0xb9980 bytes. Smallest app partition is 0x100000 bytes. 0x46680 bytes (28%) free.
