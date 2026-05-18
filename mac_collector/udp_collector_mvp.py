@@ -11,20 +11,30 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 
+# 이 파일은 RX(ESP32-S3 CSI sender)가 controller로 보내는 UDP 패킷을 받는 프로그램입니다.
+# 흐름은 "UDP 수신 -> 헤더 파싱 -> 패킷 검증 -> CSI amplitude 파싱 -> JSONL 파일 저장"입니다.
+
 # 전송 스키마 상수:
-# ESP 송신 코드의 헤더 정의와 "완전히 동일"해야 파싱이 맞습니다.
+# ESP RX 코드(csi_sender_main.c)의 csi_udp_header_v1_t 정의와 "완전히 동일"해야 파싱이 맞습니다.
 MAGIC = 0x4353
 VERSION = 1
 HEADER_LEN = 40
 PAYLOAD_TYPE_CSI_AMP = 1
 NOISE_FLOOR_UNKNOWN = -128
 
-# little-endian
+# C 구조체 csi_udp_header_v1_t를 Python에서 읽기 위한 struct 포맷입니다.
+# '<'는 little-endian을 뜻합니다. ESP32가 보낸 바이트 순서와 맞춰야 합니다.
+# HBBBBHIIIQbbbBHHI =
+# uint16, uint8, uint8, uint8, uint8, uint16,
+# uint32, uint32, uint32, uint64,
+# int8, int8, int8, uint8, uint16, uint16, uint32
 HEADER_STRUCT = struct.Struct("<HBBBBHIIIQbbbBHHI")
 
 
 @dataclass
 class PacketHeader:
+    # UDP payload 앞쪽 40바이트에 들어있는 고정 헤더입니다.
+    # 뒤쪽 payload에는 float32 amplitude 배열이 sample_count개 이어집니다.
     magic: int
     version: int
     header_len: int
@@ -46,21 +56,23 @@ class PacketHeader:
 
 class DeviceStats:
     def __init__(self) -> None:
-        self.packets = 0
-        self.samples = 0
-        self.dropped_packets = 0
-        self.last_seq: Optional[int] = None
-        self.last_seen_unix_us: Optional[int] = None
+        self.packets = 0                    # 정상 수신한 UDP 패킷 수
+        self.samples = 0                    # 지금까지 받은 amplitude 샘플 총합
+        self.dropped_packets = 0            # seq 공백으로 추정한 누락 패킷 수
+        self.last_seq: Optional[int] = None # 직전에 받은 TX seq
+        self.last_seen_unix_us: Optional[int] = None # 이 장치의 마지막 수신 시각
 
     def update_seq(self, seq: int) -> None:
         # 장치별 seq 공백으로 유실 패킷 수를 추정합니다.
-        # 예: last=10, current=13 이면 11/12가 유실된 것으로 계산.
+        # 예: last=10, current=13 이면 11, 12가 유실된 것으로 계산.
         if self.last_seq is not None and seq > self.last_seq + 1:
             self.dropped_packets += seq - (self.last_seq + 1)
         self.last_seq = seq
 
 
 def now_us() -> int:
+    # 현재 controller PC 시간을 microsecond 단위 Unix time으로 반환합니다.
+    # ESP 내부 timestamp_us와 별개로, controller가 실제로 받은 시각을 기록하기 위한 값입니다.
     return int(time.time() * 1_000_000)
 
 
@@ -70,8 +82,8 @@ def parse_header(packet: bytes) -> Optional[PacketHeader]:
     if len(packet) < HEADER_STRUCT.size:
         return None
 
-    values = HEADER_STRUCT.unpack_from(packet, 0)
-    header = PacketHeader(*values)
+    values = HEADER_STRUCT.unpack_from(packet, 0) # packet[0:40]을 C 헤더 필드들로 변환
+    header = PacketHeader(*values) // C 헤더 필드들을 PacketHeader 객체로 매핑
     return header
 
 
@@ -90,6 +102,7 @@ def validate_packet(header: PacketHeader, packet_len: int) -> Tuple[bool, str]:
     if header.sample_count <= 0:
         return False, "invalid_sample_count"
 
+    # payload는 float32 배열이므로 샘플 1개당 4바이트입니다.
     expected_len = header.header_len + (header.sample_count * 4)
     if packet_len != expected_len:
         return False, "invalid_packet_len"
@@ -99,7 +112,8 @@ def validate_packet(header: PacketHeader, packet_len: int) -> Tuple[bool, str]:
 
 def parse_payload(packet: bytes, header: PacketHeader) -> List[float]:
     # payload는 float32 amplitude 배열이 연속 저장된 구조입니다.
-    fmt = "<" + ("f" * header.sample_count)
+    # header.header_len 위치부터 sample_count개 float를 little-endian으로 읽습니다.
+    fmt = "<" + ("f" * header.sample_count) # 예: sample_count=3이면 "<fff"가 됩니다.
     return list(struct.unpack_from(fmt, packet, header.header_len))
 
 
@@ -110,6 +124,7 @@ def build_record(
     addr: Tuple[str, int],
 ) -> Dict:
     # 후속 도구(라벨 생성, MAT 변환, 실시간 판정)가 공통으로 쓰는 JSON 스키마를 만듭니다.
+    # addr은 UDP 패킷을 보낸 RX의 source IP/port입니다.
     return {
         "received_at_unix_us": recv_unix_us,
         "source_ip": addr[0],
@@ -129,6 +144,7 @@ def build_record(
 def open_device_file(base_dir: Path, session_id: int, device_id: int):
     # 날짜/세션/장치 단위로 파일을 분리 저장해
     # 재현 실험, 재처리, 문제 재현(replay)을 쉽게 만듭니다.
+    # 예: mac_collector_output/raw/20260518/session_1/device_101.jsonl
     date_dir = time.strftime("%Y%m%d")
     out_dir = base_dir / "raw" / date_dir / f"session_{session_id}"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -137,8 +153,10 @@ def open_device_file(base_dir: Path, session_id: int, device_id: int):
 
 
 def print_stats(stats: Dict[int, DeviceStats], invalid_packets: int) -> None:
+    # 터미널에 현재 수집 상태를 주기적으로 출력합니다.
+    # 실제 데이터 저장과는 별개로, 실험 중 RX가 살아있는지 확인하는 용도입니다.
     print("\n[collector] current stats")
-    print(f"- invalid_packets: {invalid_packets}")
+    print(f"- invalid_packets: {invalid_packets}") // 전체 수신 패킷 중에서 헤더 검증에 실패한 패킷 수.
     if not stats:
         print("- no valid packets yet")
         return
@@ -153,6 +171,7 @@ def print_stats(stats: Dict[int, DeviceStats], invalid_packets: int) -> None:
 
 
 def parse_expected_device_ids(raw: str) -> Set[int]:
+    # CLI에서 받은 "101,102,103" 같은 문자열을 {101, 102, 103}으로 변환합니다.
     if not raw.strip():
         return set()
     out: Set[int] = set()
@@ -197,6 +216,9 @@ def maybe_copy_session_meta(session_meta: Optional[Path], output_dir: Path, sess
 
 
 def print_expected_health(expected_ids: Set[int], stats: Dict[int, DeviceStats], now_unix_us: int, stale_sec: int) -> None:
+    # 기대하는 RX 목록이 있을 때, 아직 안 보인 장치와 오래 멈춘 장치를 표시합니다.
+    # missing: 프로그램 시작 후 한 번도 정상 패킷을 받은 적이 없는 장치
+    # stale: 예전에는 보였지만 stale_sec 이상 새 패킷이 없는 장치
     if not expected_ids:
         return
     stale_us = stale_sec * 1_000_000
@@ -227,20 +249,21 @@ def run_collector(
     # 메인 루프 동작:
     # recv -> header/payload 검증 -> JSONL 저장 -> 장치 상태 갱신
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((host, port))
-    sock.settimeout(1.0)
+    sock.bind((host, port))     # 예: 0.0.0.0:9999에서 RX들의 UDP 패킷을 기다림
+    sock.settimeout(1.0)        # 1초마다 깨어나서 종료 신호/상태 출력 여부를 확인
 
     print(f"[collector] listening on udp://{host}:{port}")
     print(f"[collector] output directory: {output_dir}")
 
-    stats: Dict[int, DeviceStats] = {}
-    device_files: Dict[Tuple[int, int], object] = {}
-    invalid_packets = 0
-    last_print = time.time()
-    should_stop = False
-    session_meta_saved_for: Set[int] = set()
+    stats: Dict[int, DeviceStats] = {}             # device_id -> 통계
+    device_files: Dict[Tuple[int, int], object] = {} # (session_id, device_id) -> 열린 jsonl 파일
+    invalid_packets = 0                            # 검증 실패/불완전 패킷 수
+    last_print = time.time()                       # 마지막 상태 출력 시각
+    should_stop = False                            # SIGINT/SIGTERM 수신 시 True로 변경
+    session_meta_saved_for: Set[int] = set()       # 세션 메타 파일 중복 복사 방지
 
     def _stop_handler(signum, frame):
+        # Ctrl+C(SIGINT)나 종료 신호(SIGTERM)를 받으면 루프를 빠져나가도록 표시합니다.
         nonlocal should_stop
         should_stop = True
         print(f"\n[collector] received signal={signum}, shutting down...")
@@ -250,14 +273,19 @@ def run_collector(
 
     while not should_stop:
         try:
+            # RX가 보낸 UDP 패킷 1개를 받습니다.
+            # packet은 bytes, addr은 (source_ip, source_port)입니다.
             packet, addr = sock.recvfrom(4096)
         except socket.timeout:
+            # timeout은 오류가 아닙니다. 주기 출력과 종료 확인을 위해 일부러 발생시킵니다.
             packet = None
         except OSError:
+            # 소켓이 닫혔거나 OS 레벨 오류가 나면 수집 루프를 종료합니다.
             break
 
         now = time.time()
         if now - last_print >= print_every_sec:
+            # 데이터가 계속 들어오는지 주기적으로 터미널에 요약합니다.
             print_stats(stats, invalid_packets)
             print_expected_health(expected_device_ids, stats, now_us(), stale_sec)
             last_print = now
@@ -284,22 +312,26 @@ def run_collector(
 
         key = (header.session_id, header.device_id)
         if key not in device_files:
+            # session/device 조합별 파일을 처음 만났을 때만 open합니다.
             device_files[key] = open_device_file(output_dir, header.session_id, header.device_id)
         if header.session_id not in session_meta_saved_for:
+            # 세션 설명 파일이 있으면 같은 session 폴더에 한 번만 복사합니다.
             maybe_copy_session_meta(session_meta, output_dir, header.session_id)
             session_meta_saved_for.add(header.session_id)
 
         f = device_files[key]
+        # JSON Lines 형식: 한 줄에 UDP 패킷 하나씩 저장합니다.
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
         if header.device_id not in stats:
             stats[header.device_id] = DeviceStats()
         st = stats[header.device_id]
-        st.update_seq(header.seq)
+        st.update_seq(header.seq)          # seq 공백으로 누락 패킷 추정
         st.packets += 1
         st.samples += header.sample_count
         st.last_seen_unix_us = recv_unix_us
 
+    # 종료 직전 마지막 통계를 출력하고, 열려 있던 파일과 소켓을 정리합니다.
     print_stats(stats, invalid_packets)
     print_expected_health(expected_device_ids, stats, now_us(), stale_sec)
     for f in device_files.values():
@@ -313,6 +345,8 @@ def run_collector(
 
 
 def main() -> None:
+    # 커맨드라인 인자를 정의합니다.
+    # 예: python mac_collector/udp_collector_mvp.py --host 0.0.0.0 --port 9999
     parser = argparse.ArgumentParser(description="ESP32-S3 CSI UDP collector MVP")
     parser.add_argument("--host", default="0.0.0.0", help="UDP bind host")
     parser.add_argument("--port", type=int, default=9999, help="UDP bind port")
@@ -354,6 +388,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # 출력 루트 폴더가 없으면 생성합니다.
     args.output_dir.mkdir(parents=True, exist_ok=True)
     expected_device_ids = parse_expected_device_ids(args.expected_device_ids)
     if not expected_device_ids:
