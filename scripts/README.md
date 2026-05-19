@@ -2,6 +2,17 @@
 
 `device_registry.csv`(RX) · `tx_registry.csv`(TX) · **`meshsense_config.json`**(망 설정 SSOT).
 
+## 터미널 가이드 CLI (권장)
+
+실험 순서(TX → Wi-Fi → 수집기 → RX)를 단계별로 안내합니다.
+
+```bash
+python scripts/meshsense_cli.py          # 메인 메뉴 → [1] 전체 가이드
+python scripts/meshsense_cli.py --quick  # 가이드 없이 메뉴만
+```
+
+플래시·수집기는 내부에서 `flash_tx.py` / `flash_rx.py` / `udp_collector_mvp.py` 를 호출합니다.
+
 ## 최초 설정
 
 ```bash
@@ -77,5 +88,6 @@ python scripts/flash_rx.py -p /dev/cu.usbmodem102
 | `idf_env.py` / `idf_paths.py` | `export.sh` 환경·경로 |
 | `esptool_mac.py` | esptool로 USB MAC 읽기 |
 | `idf_util.py` | `idf.py` subprocess |
+| `meshsense_cli.py` | 터미널 메뉴·전체 가이드·플래시·수집기 |
 | `flash_rx.py` / `flash_tx.py` | bootstrap → registry → build·flash |
 | `device_registry.py` | RX registry CLI |
