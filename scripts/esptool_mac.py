@@ -18,15 +18,16 @@ MAC_LINE_RE = re.compile(
 )
 
 
-def _esptool_argv(port: str) -> List[str]:
-    if os.environ.get("IDF_PATH"):
-        idf_py = shutil.which("idf.py")
-        if idf_py:
-            return ["idf.py", "-p", port, "esptool", "read_mac"]
+def _esptool_argv_candidates(port: str) -> List[List[str]]:
+    """read_mac 시도 순서. idf.py esptool 서브커맨드는 프로젝트에 ninja target이 없어 실패할 수 있음."""
+    candidates: List[List[str]] = []
     esptool = shutil.which("esptool.py") or shutil.which("esptool")
     if esptool:
-        return [esptool, "--port", port, "read_mac"]
-    return [sys.executable, "-m", "esptool", "--port", port, "read_mac"]
+        candidates.append([esptool, "--port", port, "read_mac"])
+    candidates.append([sys.executable, "-m", "esptool", "--port", port, "read_mac"])
+    if os.environ.get("IDF_PATH") and shutil.which("idf.py"):
+        candidates.append(["idf.py", "-p", port, "esptool", "read_mac"])
+    return candidates
 
 
 def parse_mac_from_esptool_output(text: str) -> str:
@@ -40,17 +41,17 @@ def parse_mac_from_esptool_output(text: str) -> str:
 
 
 def read_mac(port: str, cwd: Optional[str] = None) -> str:
-    cmd = _esptool_argv(port)
-    proc = subprocess.run(
-        cmd,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"esptool failed (exit {proc.returncode}): {' '.join(cmd)}\n{combined.strip()}"
+    errors: List[str] = []
+    for cmd in _esptool_argv_candidates(port):
+        proc = subprocess.run(
+            cmd,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
         )
-    return parse_mac_from_esptool_output(combined)
+        combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
+        if proc.returncode == 0:
+            return parse_mac_from_esptool_output(combined)
+        errors.append(f"{' '.join(cmd)} (exit {proc.returncode}):\n{combined.strip()}")
+    raise RuntimeError("esptool read_mac failed:\n" + "\n---\n".join(errors))
