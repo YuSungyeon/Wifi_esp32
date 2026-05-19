@@ -1,8 +1,5 @@
-# ESP32-S3 TX/AP Node Firmware (MeshSense)
+# ESP32-S3 TX/AP Node
 
-MeshSense TX/AP 노드 펌웨어입니다.
+문서: [doc/firmware/tx-ap-node.md](../doc/firmware/tx-ap-node.md)
 
-- SoftAP 생성
-- UDP broadcast 트래픽 주기 송신
-
-상세 적용 절차는 루트 문서 `TX_AP_노드_적용_가이드.md`를 참고하세요.
+플래시: `python scripts/flash_tx.py -p <PORT>`

@@ -1,0 +1,55 @@
+# 빠른 시작
+
+실험 순서: **TX 플래시 → Mac이 SoftAP 접속 → 수집기 → RX 플래시 → 후처리**.
+
+## 0. 호스트 설정 (최초 1회)
+
+```bash
+cp scripts/meshsense_config.example.json scripts/meshsense_config.json
+# collector.ip = Mac on TX SoftAP (ipconfig getifaddr en0, often 192.168.4.2)
+```
+
+TX/RX 플래시·Wi-Fi·수집기 포트는 이 파일만 수정합니다.
+
+`mac_collector/session_meta.yaml`: **`session_id`**(run 구분, 수집기 SSOT) 및 `network:`를 config와 수동 일치 ([collector.md](../mac-collector/collector.md)).
+
+## 1. TX/AP 노드
+
+```bash
+python scripts/tx_registry.py add --port /dev/cu.usbmodem101 --board-name TX1
+python scripts/flash_tx.py -p /dev/cu.usbmodem101 --monitor
+```
+
+[tx-ap-node.md](../firmware/tx-ap-node.md)
+
+## 2. Mac 네트워크·수집기
+
+1. Mac Wi-Fi → TX SoftAP (`meshsense_config.json` → `ap.ssid`)  
+2. 수집기 (`collector.port`와 CLI `--port` 일치):
+
+```bash
+python mac_collector/udp_collector_mvp.py \
+  --host 0.0.0.0 --port 9999 \
+  --output-dir mac_collector_output \
+  --device-registry-csv mac_collector/device_registry.csv \
+  --session-meta mac_collector/session_meta.yaml
+```
+
+## 3. RX 노드
+
+```bash
+python scripts/device_registry.py verify
+python scripts/flash_rx.py -p /dev/cu.usbmodem102 --monitor
+```
+
+[rx-csi-sender.md](../firmware/rx-csi-sender.md)
+
+## 4. 후처리
+
+[`add/main.py`](../../add/main.py) 상단 `SESSION_DIR`·`RX_IDS`를 수집 경로에 맞게 수정한 뒤:
+
+```bash
+python add/main.py
+```
+
+[pipeline.md](../postprocessing/pipeline.md)

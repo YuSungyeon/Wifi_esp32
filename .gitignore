@@ -43,4 +43,16 @@ dist/
 *.ppt
 *.docx
 *.doc
+*.pdf
 ~$*
+
+# --- 수집 데이터 (로컬 실험 산출물) ---
+mac_collector_output/
+
+# --- 발표·보고 (presentations/로 이동) ---
+presentations/
+
+# --- 플래시 스크립트 로컬 설정 ---
+scripts/meshsense_config.json
+
+docs/

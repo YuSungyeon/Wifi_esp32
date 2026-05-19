@@ -25,21 +25,18 @@
  * - 이렇게 하면 RX1/RX2/...를 코드 수정 없이 같은 소스로 운용할 수 있습니다.
  */
 #ifndef WIFI_SSID
-#define WIFI_SSID               "YOUR_WIFI_SSID"
+#define WIFI_SSID               "MeshSense_TX_AP"
 #endif
 #ifndef WIFI_PASS
-#define WIFI_PASS               "YOUR_WIFI_PASSWORD"
+#define WIFI_PASS               "mstx1234"
 #endif
 #ifndef COLLECTOR_IP
-#define COLLECTOR_IP            "192.168.0.10"
+#define COLLECTOR_IP            "192.168.4.2"
 #endif
 #ifndef COLLECTOR_PORT
 #define COLLECTOR_PORT          9999
 #endif
 
-#ifndef SESSION_ID
-#define SESSION_ID              1
-#endif
 #ifndef DEVICE_ID
 #define DEVICE_ID               101
 #endif
@@ -217,7 +214,7 @@ static void send_csi_packet(const wifi_csi_info_t *info)
     hdr.header_len = HEADER_LEN;
     hdr.payload_type = PAYLOAD_TYPE_CSI_AMP;
     hdr.flags = 0;
-    hdr.session_id = SESSION_ID;
+    hdr.session_id = 0; /* v1 reserved: run ID is Mac session_meta SSOT */
     hdr.device_id = g_runtime_device_id;
     hdr.seq = g_seq++;
     hdr.timestamp_us = (uint64_t)now_us;
@@ -238,22 +235,6 @@ static void send_csi_packet(const wifi_csi_info_t *info)
         (struct sockaddr *)&g_collector_addr,
         sizeof(g_collector_addr)
     );
-}
-
-/* 장치 ID 정책:
- * - DEVICE_ID > 0: 고정 ID 사용(현장 운영 권장)
- * - DEVICE_ID == 0: STA MAC의 뒤 3바이트로 자동 ID 생성 */
-static uint32_t resolve_device_id(void)
-{
-    if (DEVICE_ID > 0) {
-        return (uint32_t)DEVICE_ID;
-    }
-
-    uint8_t mac[6] = {0};
-    esp_read_mac(mac, ESP_MAC_WIFI_STA);
-    uint32_t auto_id = ((uint32_t)mac[3] << 16) | ((uint32_t)mac[4] << 8) | (uint32_t)mac[5];
-    ESP_LOGI(TAG, "Auto device_id from MAC: %" PRIu32, auto_id);
-    return auto_id;
 }
 
 /* Wi-Fi CSI 콜백 진입점(핫패스) */
@@ -334,8 +315,8 @@ void app_main(void)
      * 3) 네트워크 경로 확보(STA + UDP)
      * 4) CSI 캡처 시작 */
     ESP_ERROR_CHECK(nvs_flash_init());
-    g_runtime_device_id = resolve_device_id();
-    ESP_LOGI(TAG, "session_id=%d device_id=%" PRIu32, SESSION_ID, g_runtime_device_id);
+    g_runtime_device_id = (uint32_t)DEVICE_ID;
+    ESP_LOGI(TAG, "device_id=%" PRIu32 " (run session_id on Mac)", g_runtime_device_id);
     init_wifi_sta();
     init_udp_sender();
     init_csi();
