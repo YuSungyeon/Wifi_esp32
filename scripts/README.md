@@ -5,19 +5,33 @@
 ## 최초 설정
 
 ```bash
+git clone --recursive <repo-url>   # esp-idf 서브모듈 포함
+cd Wifi_esp32
 cp scripts/meshsense_config.example.json scripts/meshsense_config.json
-# ap.pass, collector.ip 등 실험 환경에 맞게 수정 (Mac IP: ipconfig getifaddr en0 on TX SoftAP)
+# ap.pass, collector.ip 등 (Mac on TX SoftAP: ipconfig getifaddr en0)
+
+# ESP-IDF 툴체인 (최초 1회, 10–30분·수 GB)
+python scripts/idf_bootstrap.py -y
 ```
 
-### 사전 요구사항
+이미 clone 한 경우: `git submodule update --init esp-idf`
 
-1. **ESP-IDF v5.x** — `export.sh`로 `IDF_PATH`·`idf.py` 활성화 (빌드·플래시)
-2. **esptool** — USB로 **칩 MAC 읽기** (`flash_rx.py` / `flash_tx.py`, `registry add --port`)
-   - `IDF_PATH`가 있으면 `idf.py -p PORT esptool read_mac` 사용
-   - 없으면 PATH의 `esptool` / `esptool.py` 또는 `python -m esptool`
-   - 래퍼: [`esptool_mac.py`](esptool_mac.py)
+### ESP-IDF (프로젝트 로컬)
 
-플래시 본체는 `idf.py flash`(ESP-IDF 내장 esptool)입니다. 별도 `esp_tool` 패키지는 없습니다.
+| 경로 | 설명 |
+|------|------|
+| `esp-idf/` | git submodule 또는 bootstrap clone (`v5.2.4`) |
+| `~/.espressif/` | 툴체인·Python venv (ESP-IDF 기본, 전역) |
+
+`flash_rx.py` / `flash_tx.py`는 실행 시 `idf_bootstrap`으로 위 경로를 준비한 뒤 빌드·플래시합니다.  
+전역 `~/esp/esp-idf`만 쓰려면 `--skip-idf-bootstrap` (기존 `export.sh` 필요).
+
+수동: `python scripts/idf_bootstrap.py` · `MESHESENSE_IDF_PATH=/path/to/esp-idf`
+
+### 기타
+
+- **esptool** — USB MAC 읽기: [`esptool_mac.py`](esptool_mac.py) (`pip install esptool` 또는 IDF venv)
+- Mac 수집기·후처리는 ESP-IDF **불필요**
 
 ## TX 플래시
 
@@ -59,7 +73,9 @@ python scripts/flash_rx.py -p /dev/cu.usbmodem102
 | `meshsense_config.py` | 통합 설정 로드 |
 | `meshsense_config.example.json` | 설정 템플릿 |
 | `registry.py` / `tx_registry.py` | CSV 라이브러리 (+ TX CLI) |
+| `idf_bootstrap.py` | submodule + `install.sh esp32s3` → `.espressif/` |
+| `idf_env.py` / `idf_paths.py` | `export.sh` 환경·경로 |
 | `esptool_mac.py` | esptool로 USB MAC 읽기 |
-| `idf_util.py` | `idf.py` subprocess (`IDF_PATH` 필요) |
-| `flash_rx.py` / `flash_tx.py` | registry 조회 → build·flash |
+| `idf_util.py` | `idf.py` subprocess |
+| `flash_rx.py` / `flash_tx.py` | bootstrap → registry → build·flash |
 | `device_registry.py` | RX registry CLI |

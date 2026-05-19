@@ -5,11 +5,16 @@
 ## 0. 호스트 설정 (최초 1회)
 
 ```bash
+git clone --recursive <repo-url>
+cd Wifi_esp32
 cp scripts/meshsense_config.example.json scripts/meshsense_config.json
 # collector.ip = Mac on TX SoftAP (ipconfig getifaddr en0, often 192.168.4.2)
+
+python scripts/idf_bootstrap.py -y   # esp-idf/ + .espressif/ (최초만 오래 걸림)
 ```
 
-TX/RX 플래시·Wi-Fi·수집기 포트는 이 파일만 수정합니다.
+TX/RX 플래시·Wi-Fi·수집기 포트는 `meshsense_config.json`만 수정합니다.  
+플래시 스크립트가 툴체인이 없으면 bootstrap을 자동 호출합니다. 상세: [scripts/README.md](../../scripts/README.md).
 
 `mac_collector/session_meta.yaml`: **`session_id`**(run 구분, 수집기 SSOT) 및 `network:`를 config와 수동 일치 ([collector.md](../mac-collector/collector.md)).
 

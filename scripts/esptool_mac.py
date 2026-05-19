@@ -7,7 +7,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from registry import normalize_mac
 
@@ -40,12 +40,18 @@ def parse_mac_from_esptool_output(text: str) -> str:
     )
 
 
-def read_mac(port: str, cwd: Optional[str] = None) -> str:
+def read_mac(
+    port: str,
+    cwd: Optional[str] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> str:
     errors: List[str] = []
+    run_env = env if env is not None else None
     for cmd in _esptool_argv_candidates(port):
         proc = subprocess.run(
             cmd,
             cwd=cwd,
+            env=run_env,
             capture_output=True,
             text=True,
             check=False,

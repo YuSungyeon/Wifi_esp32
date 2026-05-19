@@ -20,7 +20,9 @@ WiFi CSI(Channel State Information) 기반 실내 행동 인식 시스템 문서
 ```text
 Wifi_esp32/
 ├── doc/                    ← 이 문서 트리
-├── scripts/                플래시·meshsense_config.json·registry
+├── esp-idf/                ESP-IDF (git submodule)
+├── .espressif/             IDF 툴체인 캐시 (gitignore)
+├── scripts/                플래시·bootstrap·meshsense_config·registry
 ├── esp32s3_tx_ap_node/     TX/AP 펌웨어
 ├── esp32s3_csi_sender/     RX CSI 펌웨어
 ├── mac_collector/          수집기·device_registry.csv (RX)·tx_registry.csv (TX)

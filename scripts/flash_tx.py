@@ -20,6 +20,7 @@ DEFAULT_TX_REGISTRY = REPO_ROOT / "mac_collector" / "tx_registry.csv"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 from esptool_mac import read_mac  # noqa: E402
+from idf_bootstrap import ensure_idf_ready  # noqa: E402
 from idf_util import run_idf  # noqa: E402
 from meshsense_config import DEFAULT_CONFIG_PATH, MeshSenseConfig, load_meshsense_config  # noqa: E402
 from tx_registry import lookup_tx_by_mac  # noqa: E402
@@ -64,7 +65,23 @@ def main() -> int:
     parser.add_argument("--monitor", action="store_true")
     parser.add_argument("-y", "--yes", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--skip-idf-bootstrap",
+        action="store_true",
+        help="Do not run submodule/install; use existing IDF_PATH",
+    )
     args = parser.parse_args()
+
+    if not args.dry_run:
+        try:
+            ensure_idf_ready(
+                REPO_ROOT,
+                yes=args.yes,
+                skip_bootstrap=args.skip_idf_bootstrap,
+            )
+        except (FileNotFoundError, RuntimeError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
 
     if args.build_only and args.flash_only:
         print("error: --build-only and --flash-only are mutually exclusive", file=sys.stderr)
@@ -100,16 +117,16 @@ def main() -> int:
 
     try:
         if args.clean and not args.flash_only:
-            run_idf(["fullclean"], cwd=TX_PROJECT, dry_run=args.dry_run)
+            run_idf(["fullclean"], cwd=TX_PROJECT, dry_run=args.dry_run, repo_root=REPO_ROOT)
 
         if not args.flash_only:
-            run_idf(["build", *defines], cwd=TX_PROJECT, dry_run=args.dry_run)
+            run_idf(["build", *defines], cwd=TX_PROJECT, dry_run=args.dry_run, repo_root=REPO_ROOT)
 
         if not args.build_only:
-            run_idf(["-p", args.port, "flash"], cwd=TX_PROJECT, dry_run=args.dry_run)
+            run_idf(["-p", args.port, "flash"], cwd=TX_PROJECT, dry_run=args.dry_run, repo_root=REPO_ROOT)
 
         if args.monitor and not args.build_only and not args.dry_run:
-            run_idf(["-p", args.port, "monitor"], cwd=TX_PROJECT, dry_run=False)
+            run_idf(["-p", args.port, "monitor"], cwd=TX_PROJECT, dry_run=False, repo_root=REPO_ROOT)
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

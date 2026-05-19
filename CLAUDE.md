@@ -31,24 +31,21 @@ Post-processing (add/)
 
 ## Build & Run Commands
 
-### ESP-IDF 펌웨어 (ESP-IDF v5.x, 타겟: ESP32-S3)
+### ESP-IDF 펌웨어 (ESP32-S3)
 
-빌드는 반드시 각 프로젝트 디렉터리 안에서 실행:
+프로젝트 로컬: `esp-idf/` (git submodule, `release/v5.2`) · 툴체인 `.espressif/` (gitignore).
 
 ```bash
-# 망 설정 (TX/RX 공통, 최초 1회)
-cp scripts/meshsense_config.example.json scripts/meshsense_config.json  # collector.ip 등
+git clone --recursive <repo>
+cp scripts/meshsense_config.example.json scripts/meshsense_config.json
+python scripts/idf_bootstrap.py -y          # 최초 1회 (submodule + install.sh esp32s3)
 
-# RX — USB MAC → device_registry.csv → idf build flash
 python scripts/device_registry.py verify
-python scripts/flash_rx.py -p /dev/tty.usbmodemXXXX --clean -y
+python scripts/flash_rx.py -p /dev/cu.usbmodemXXXX -y   # bootstrap 자동 포함
+python scripts/flash_tx.py -p /dev/cu.usbmodemXXXX -y
 
-# TX/AP — tx_registry.csv
-python scripts/tx_registry.py add --port /dev/tty.usbmodemXXXX --board-name TX1
-python scripts/flash_tx.py -p /dev/tty.usbmodemXXXX
-
-# 보드 전환 시 캐시 초기화
-idf.py fullclean
+# 전역 ~/esp/esp-idf 만 사용: --skip-idf-bootstrap
+# 보드 전환 시: python scripts/flash_rx.py ... --clean -y
 ```
 
 망 설정 SSOT: `scripts/meshsense_config.json` (`ap`, `collector`). RX/TX 플래시.

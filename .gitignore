@@ -14,6 +14,8 @@ Desktop.ini
 *~
 
 # --- ESP-IDF / CMake ---
+# esp-idf/ → git submodule (버전은 .gitmodules + 커밋으로 고정)
+.espressif/
 build/
 **/build/
 sdkconfig.old
