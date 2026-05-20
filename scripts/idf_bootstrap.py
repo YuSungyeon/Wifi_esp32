@@ -101,7 +101,9 @@ def run_install(repo_root: Path, idf_path: Path) -> None:
         f"{IDF_TARGET} (~/.espressif, may take 10–30 min)..."
     )
     _run(["bash", str(install_sh), IDF_TARGET], cwd=idf_path, env=env)
-    tools_ready_file(repo_root).write_text(f"idf={idf_path}\ntarget={IDF_TARGET}\n", encoding="utf-8")
+    ready_file = tools_ready_file(repo_root)
+    ready_file.parent.mkdir(parents=True, exist_ok=True)
+    ready_file.write_text(f"idf={idf_path}\ntarget={IDF_TARGET}\n", encoding="utf-8")
     print("[bootstrap] tools install finished.")
 
 
