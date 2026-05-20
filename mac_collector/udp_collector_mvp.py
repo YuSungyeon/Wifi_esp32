@@ -236,6 +236,7 @@ def run_collector(
     stale_sec: int,
     session_meta: Path,
     run_session_id: int,
+    duration_sec: float = 0,
 ) -> None:
     # 메인 루프 동작:
     # recv -> header/payload 검증 -> JSONL 저장 -> 장치 상태 갱신
@@ -246,6 +247,9 @@ def run_collector(
     print(f"[collector] listening on udp://{host}:{port}")
     print(f"[collector] output directory: {output_dir}")
     print(f"[collector] run session_id={run_session_id} (from {session_meta})")
+    started_at = time.time()
+    if duration_sec > 0:
+        print(f"[collector] auto-stop after {duration_sec:.0f}s")
 
     stats: Dict[int, DeviceStats] = {}
     device_files: Dict[int, object] = {}
@@ -264,6 +268,10 @@ def run_collector(
     signal.signal(signal.SIGTERM, _stop_handler)
 
     while not should_stop:
+        if duration_sec > 0 and (time.time() - started_at) >= duration_sec:
+            print(f"\n[collector] duration {duration_sec:.0f}s reached, stopping...")
+            break
+
         try:
             packet, addr = sock.recvfrom(4096)
         except socket.timeout:
@@ -376,6 +384,12 @@ def main() -> None:
         default=DEFAULT_SESSION_META,
         help="session meta yaml (run session_id SSOT, snapshot on start)",
     )
+    parser.add_argument(
+        "--duration-sec",
+        type=float,
+        default=0,
+        help="수집 시간(초). 0이면 Ctrl+C까지 (기본)",
+    )
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -403,6 +417,7 @@ def main() -> None:
         stale_sec=args.stale_sec,
         session_meta=args.session_meta,
         run_session_id=run_session_id,
+        duration_sec=args.duration_sec,
     )
 
 

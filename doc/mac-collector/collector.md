@@ -64,6 +64,20 @@ JSONL 1줄(레코드) 주요 필드:
 - `device_id`별 `seq` 누락 추정
 - 주기적 상태 로그 (패킷 수, drop 추정, 샘플 수)
 - 기대 RX 대비 `missing_devices`, `stale_devices`
+- **`--duration-sec N`**: N초 후 자동 종료 (`meshsense_cli` 수집기 메뉴에서도 시간 입력)
+
+## CSI 워터폴 PNG (수집 종료 후)
+
+`scripts/visualize_csi.py` — 세션 폴더의 `device_*.jsonl`을 100Hz 격자로 보간한 뒤 RX별 heatmap PNG 생성.
+
+```bash
+python scripts/visualize_csi.py --session-dir mac_collector_output/raw/YYYYMMDD/session_1
+# 또는 최신 session_<id> 자동 검색
+python scripts/visualize_csi.py --output-dir mac_collector_output --session-id 1
+```
+
+출력: `csi_waterfall.png` 1장 (RX `device_id`별 세로 서브플롯).  
+`meshsense_cli` → **[3] 수집기만** 종료 시 위 스크립트를 자동 호출합니다.
 
 ## 장치 등록표 (SSOT)
 

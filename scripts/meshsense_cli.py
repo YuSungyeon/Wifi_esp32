@@ -24,6 +24,7 @@ DEVICE_REGISTRY = REPO_ROOT / "mac_collector" / "device_registry.csv"
 TX_REGISTRY = REPO_ROOT / "mac_collector" / "tx_registry.csv"
 SESSION_META = REPO_ROOT / "mac_collector" / "session_meta.yaml"
 COLLECTOR_SCRIPT = REPO_ROOT / "mac_collector" / "udp_collector_mvp.py"
+VISUALIZE_SCRIPT = SCRIPT_DIR / "visualize_csi.py"
 OUTPUT_DIR = REPO_ROOT / "mac_collector_output"
 
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -195,6 +196,41 @@ def _flash_board(kind: str) -> bool:
     return True
 
 
+def _ask_collect_duration_sec() -> float:
+    """수집 시간(초). 0 = 수동 종료(Ctrl+C)만."""
+    while True:
+        raw = input("수집 시간(초, Enter=60, 0=수동 종료): ").strip()
+        if not raw:
+            return 60.0
+        try:
+            val = float(raw)
+        except ValueError:
+            print("  숫자를 입력하세요.")
+            continue
+        if val < 0:
+            print("  0 이상이어야 합니다.")
+            continue
+        return val
+
+
+def _run_visualize_after_collect(session_id: int) -> None:
+    if not VISUALIZE_SCRIPT.is_file():
+        print(f"[경고] 시각화 스크립트 없음: {VISUALIZE_SCRIPT}")
+        return
+    print("\n--- CSI 워터폴 PNG 생성 ---")
+    rc = _run_python(
+        VISUALIZE_SCRIPT,
+        [
+            "--output-dir",
+            str(OUTPUT_DIR),
+            "--session-id",
+            str(session_id),
+        ],
+    )
+    if rc != 0:
+        print("[경고] PNG 생성 실패 (JSONL·matplotlib 확인)")
+
+
 def _run_collector() -> bool:
     print("\n--- Mac 수집기 ---")
     if not _ensure_config_interactive():
@@ -209,18 +245,21 @@ def _run_collector() -> bool:
 
     print(f"\n[안내] Mac Wi-Fi를 TX SoftAP에 연결하세요: SSID = {cfg.ap_ssid}")
     print(f"  수집기 IP는 보통 SoftAP 대역 (예: ipconfig getifaddr en0 → {cfg.collector_ip})")
+    session_id = 1
     if SESSION_META.is_file():
         try:
             text = SESSION_META.read_text(encoding="utf-8")
             m = re.search(r"^session_id:\s*(\d+)\s*$", text, re.MULTILINE)
             if m:
-                print(f"  이번 run session_id (yaml): {m.group(1)}")
+                session_id = int(m.group(1))
+                print(f"  이번 run session_id (yaml): {session_id}")
         except OSError:
             pass
 
     if not _ask_yes_no("수집기를 지금 시작할까요?", default_no=False):
         return False
 
+    duration_sec = _ask_collect_duration_sec()
     args = [
         "--host",
         "0.0.0.0",
@@ -233,8 +272,14 @@ def _run_collector() -> bool:
         "--session-meta",
         str(SESSION_META),
     ]
-    print("\n[안내] 종료: Ctrl+C")
+    if duration_sec > 0:
+        args.extend(["--duration-sec", str(duration_sec)])
+        print(f"\n[안내] {duration_sec:.0f}초 후 자동 종료 (중단: Ctrl+C)")
+    else:
+        print("\n[안내] 종료: Ctrl+C")
     rc = _run_python(COLLECTOR_SCRIPT, args)
+    if rc == 0 or rc == 130:
+        _run_visualize_after_collect(session_id)
     return rc == 0
 
 
