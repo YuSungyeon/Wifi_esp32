@@ -33,7 +33,7 @@ Post-processing (add/)
 
 ### ESP-IDF 펌웨어 (ESP32-S3)
 
-프로젝트 로컬: `esp-idf/` (git submodule, `release/v5.2`) · 툴체인 `.espressif/` (gitignore).
+프로젝트 로컬: `esp-idf/` (git submodule, **v5.2.2**) · 툴체인 `~/.espressif` (gitignore).
 
 ```bash
 python scripts/meshsense_cli.py             # [1] 전체 가이드 (TX→수집기→RX)

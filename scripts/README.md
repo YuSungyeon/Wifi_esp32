@@ -31,7 +31,7 @@ python scripts/idf_bootstrap.py -y
 
 | 경로 | 설명 |
 |------|------|
-| `esp-idf/` | git submodule 또는 bootstrap clone (`v5.2.4`) |
+| `esp-idf/` | git submodule 또는 bootstrap clone (`v5.2.2`) |
 | `~/.espressif/` | 툴체인·Python venv (ESP-IDF 기본, 전역) |
 
 `flash_rx.py` / `flash_tx.py`는 실행 시 `idf_bootstrap`으로 위 경로를 준비한 뒤 빌드·플래시합니다.  

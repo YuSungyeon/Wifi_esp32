@@ -36,7 +36,7 @@ def _run(cmd: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> Non
 
 
 def clone_idf_source(repo_root: Path) -> None:
-    """esp-idf 소스가 없을 때 v5.2.4 태그로 clone (--recursive)."""
+    """esp-idf 소스가 없을 때 v5.2.2 태그로 clone (--recursive)."""
     dest = repo_idf_path(repo_root)
     if dest.exists():
         raise RuntimeError(f"refusing to clone over existing path: {dest}")

@@ -12,7 +12,7 @@ IDF_SUBMODULE_DIR = "esp-idf"
 TOOLS_DIR = ".espressif"
 TOOLS_READY_MARKER = ".meshsense_tools_ready"
 IDF_TARGET = "esp32s3"
-IDF_GIT_TAG = "v5.2.4"
+IDF_GIT_TAG = "v5.2.2"
 IDF_GIT_URL = "https://github.com/espressif/esp-idf.git"
 
 
