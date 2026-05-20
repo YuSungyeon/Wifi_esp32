@@ -33,7 +33,7 @@ Post-processing (add/)
 
 ### ESP-IDF 펌웨어 (ESP32-S3)
 
-프로젝트 로컬: `esp-idf/` (git submodule, **v5.2.2**) · 툴체인 `~/.espressif` (gitignore).
+프로젝트 로컬: `esp-idf/` (git submodule, **v5.2.2**) · 툴체인 `~/.espressif` · 마커 `프로젝트/.espressif/` (gitignore). 트러블슈팅: `doc/overview/esp-idf-troubleshooting.md`.
 
 ```bash
 python scripts/meshsense_cli.py             # [1] 전체 가이드 (TX→수집기→RX)
@@ -87,7 +87,7 @@ Python 환경: `.venv` (numpy, matplotlib). ESP-IDF는 별도 venv.
 | `CMakeLists.txt` (TX) | `TX_AP_INTERVAL_MS` | 10 | TX 브로드캐스트 주기 (ms) |
 | 펌웨어 UDP | `sample_count` | 최대 64 | RX CSI 진폭 개수 |
 | `add/main.py` | `F_S` | 100 | 샘플링 주파수 (Hz) |
-| `add/main.py` | `WINDOW` | 200 | 윈도우 크기 (2초) |
+| `add/main.py` | `WINDOW` | 300 | 윈도우 크기 (2초) |
 | `add/main.py` | `STRIDE` | 100 | 스트라이드 (1초) |
 | `add/main.py` | `N_SUB` | 52 | 후처리 OFDM 서브캐리어 수 |
 

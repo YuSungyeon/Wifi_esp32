@@ -128,7 +128,24 @@ def _preflight() -> bool:
     all_ok = all_ok and ok_cfg
 
     idf_export = REPO_ROOT / "esp-idf" / "export.sh"
-    print(f"  ESP-IDF: {'OK' if idf_export.is_file() else '없음'} ({idf_export})")
+    if not idf_export.is_file():
+        print(f"  ESP-IDF 소스: 없음 ({idf_export})")
+        print("    → git submodule update --init esp-idf")
+        all_ok = False
+    else:
+        try:
+            from idf_env import idf_py_works  # noqa: WPS433
+
+            if idf_py_works(REPO_ROOT):
+                print("  ESP-IDF: OK (idf.py 동작)")
+            else:
+                print("  ESP-IDF: export.sh 있음, idf.py 미동작")
+                print("    → python scripts/idf_bootstrap.py -y")
+                print("    → doc/overview/esp-idf-troubleshooting.md")
+                all_ok = False
+        except Exception as exc:
+            print(f"  ESP-IDF: 검사 실패 ({exc})")
+            all_ok = False
 
     for name, path in [
         ("RX registry", DEVICE_REGISTRY),

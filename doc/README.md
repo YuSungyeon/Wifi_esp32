@@ -7,6 +7,7 @@ WiFi CSI(Channel State Information) 기반 실내 행동 인식 시스템 문서
 | 경로 | 내용 |
 |------|------|
 | [overview/quickstart.md](overview/quickstart.md) | TX → RX → 수집기 → 후처리 빠른 시작 |
+| [overview/esp-idf-troubleshooting.md](overview/esp-idf-troubleshooting.md) | ESP-IDF bootstrap·`idf.py`·플래시 오류 |
 | [overview/architecture.md](overview/architecture.md) | 전체 파이프라인·상수·Python 환경 |
 | [firmware/tx-ap-node.md](firmware/tx-ap-node.md) | TX SoftAP, UDP 브로드캐스트, 빌드 |
 | [firmware/rx-csi-sender.md](firmware/rx-csi-sender.md) | RX CSI 수집, `device_id`, 플래시 |
@@ -21,7 +22,7 @@ WiFi CSI(Channel State Information) 기반 실내 행동 인식 시스템 문서
 Wifi_esp32/
 ├── doc/                    ← 이 문서 트리
 ├── esp-idf/                ESP-IDF (git submodule)
-├── .espressif/             IDF 툴체인 캐시 (gitignore)
+├── .espressif/             bootstrap 마커만 (gitignore; 툴체인은 ~/.espressif)
 ├── scripts/                플래시·bootstrap·meshsense_config·registry
 ├── esp32s3_tx_ap_node/     TX/AP 펌웨어
 ├── esp32s3_csi_sender/     RX CSI 펌웨어

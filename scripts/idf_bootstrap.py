@@ -13,6 +13,11 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
+
+# ESP-IDF v5.2.2 requirements checker ↔ 최신 ruamel.yaml metadata 불일치 완화
+RUAMEL_PINS = ("ruamel.yaml==0.17.21", "ruamel.yaml.clib==0.2.7")
+TROUBLESHOOTING_DOC = "doc/overview/esp-idf-troubleshooting.md"
 
 from idf_env import idf_py_works
 from idf_paths import (
@@ -22,7 +27,6 @@ from idf_paths import (
     REPO_ROOT,
     idf_export_sh,
     repo_idf_path,
-    repo_tools_path,
     resolve_idf_path,
     tools_ready_file,
 )
@@ -87,6 +91,60 @@ def tools_are_ready(repo_root: Path) -> bool:
     return idf_py_works(repo_root)
 
 
+def find_idf_venv_python() -> Optional[Path]:
+    """~/.espressif/python_env/idf5.2_py*_env/bin/python (없으면 None)."""
+    env_root = Path.home() / ".espressif" / "python_env"
+    if not env_root.is_dir():
+        return None
+    candidates = sorted(env_root.glob("idf5.2_py*_env/bin/python"))
+    for py in reversed(candidates):
+        if py.is_file():
+            return py
+    return None
+
+
+def repair_idf_python_env(*, quiet: bool = False) -> bool:
+    """ESP-IDF v5.2 venv에 ruamel.yaml 호환 버전 pin."""
+    py = find_idf_venv_python()
+    if py is None:
+        if not quiet:
+            print("[bootstrap] IDF Python venv not found under ~/.espressif/python_env")
+        return False
+    venv_name = py.parent.parent.name
+    print(f"[bootstrap] pinning ruamel.yaml for ESP-IDF v5.2 ({venv_name})...")
+    for spec in RUAMEL_PINS:
+        _run([str(py), "-m", "pip", "install", spec], cwd=Path.home())
+    return True
+
+
+def write_tools_ready_marker(repo_root: Path, idf_path: Path) -> None:
+    ready_file = tools_ready_file(repo_root)
+    ready_file.parent.mkdir(parents=True, exist_ok=True)
+    ready_file.write_text(f"idf={idf_path}\ntarget={IDF_TARGET}\n", encoding="utf-8")
+
+
+def idf_version_failure_message(repo_root: Path) -> str:
+    from idf_env import run_in_idf_shell
+
+    proc = run_in_idf_shell(["idf.py", "--version"], cwd=repo_root, repo_root=repo_root)
+    combined = f"{proc.stderr or ''}\n{proc.stdout or ''}".lower()
+    lines = [
+        "install finished but idf.py --version still fails.",
+        "  python scripts/idf_bootstrap.py -y",
+        f"  see {TROUBLESHOOTING_DOC}",
+    ]
+    if "ruamel" in combined:
+        py = find_idf_venv_python()
+        lines.insert(
+            2,
+            "  ruamel.yaml metadata mismatch — run bootstrap again or pin manually:",
+        )
+        if py:
+            specs = " ".join(f"'{s}'" for s in RUAMEL_PINS)
+            lines.insert(3, f"  {py} -m pip install {specs}")
+    return "\n".join(lines)
+
+
 def run_install(repo_root: Path, idf_path: Path) -> None:
     install_sh = idf_path / "install.sh"
     if not install_sh.is_file():
@@ -101,9 +159,8 @@ def run_install(repo_root: Path, idf_path: Path) -> None:
         f"{IDF_TARGET} (~/.espressif, may take 10–30 min)..."
     )
     _run(["bash", str(install_sh), IDF_TARGET], cwd=idf_path, env=env)
-    ready_file = tools_ready_file(repo_root)
-    ready_file.parent.mkdir(parents=True, exist_ok=True)
-    ready_file.write_text(f"idf={idf_path}\ntarget={IDF_TARGET}\n", encoding="utf-8")
+    repair_idf_python_env(quiet=True)
+    write_tools_ready_marker(repo_root, idf_path)
     print("[bootstrap] tools install finished.")
 
 
@@ -144,6 +201,13 @@ def ensure_idf_ready(
         print(f"[bootstrap] ESP-IDF ready: {idf_path}")
         return idf_path
 
+    if find_idf_venv_python() is not None:
+        repair_idf_python_env(quiet=True)
+        if tools_are_ready(repo_root):
+            write_tools_ready_marker(repo_root, idf_path)
+            print(f"[bootstrap] ESP-IDF ready (venv repair): {idf_path}")
+            return idf_path
+
     if skip_bootstrap:
         if allow_system_fallback:
             fallback = resolve_idf_path(repo_root)
@@ -168,7 +232,9 @@ def ensure_idf_ready(
 
     run_install(repo_root, idf_path)
     if not tools_are_ready(repo_root):
-        raise RuntimeError("install finished but idf.py --version still fails")
+        repair_idf_python_env()
+        if not tools_are_ready(repo_root):
+            raise RuntimeError(idf_version_failure_message(repo_root))
     print(f"[bootstrap] ESP-IDF ready: {idf_path}")
     return idf_path
 

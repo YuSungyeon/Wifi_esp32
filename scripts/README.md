@@ -33,8 +33,10 @@ python scripts/idf_bootstrap.py -y
 |------|------|
 | `esp-idf/` | git submodule 또는 bootstrap clone (`v5.2.2`) |
 | `~/.espressif/` | 툴체인·Python venv (ESP-IDF 기본, 전역) |
+| `.espressif/` (프로젝트 루트) | bootstrap 완료 마커 `.meshsense_tools_ready` (gitignore) |
 
 `flash_rx.py` / `flash_tx.py`는 실행 시 `idf_bootstrap`으로 위 경로를 준비한 뒤 빌드·플래시합니다.  
+오류 시: [doc/overview/esp-idf-troubleshooting.md](../doc/overview/esp-idf-troubleshooting.md).  
 전역 `~/esp/esp-idf`만 쓰려면 `--skip-idf-bootstrap` (기존 `export.sh` 필요).
 
 수동: `python scripts/idf_bootstrap.py` · `MESHESENSE_IDF_PATH=/path/to/esp-idf`
