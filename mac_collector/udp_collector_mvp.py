@@ -1,6 +1,7 @@
 import argparse
-import csv
 import json
+import re
+import sys
 import shutil
 import signal
 import socket
@@ -9,6 +10,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
+
+DEFAULT_SESSION_META = Path(__file__).resolve().parent / "session_meta.yaml"
 
 
 # 전송 스키마 상수:
@@ -103,18 +106,35 @@ def parse_payload(packet: bytes, header: PacketHeader) -> List[float]:
     return list(struct.unpack_from(fmt, packet, header.header_len))
 
 
+def load_session_id_from_meta(path: Path) -> int:
+    """session_meta.yaml 루트 session_id — run 구분 SSOT (Mac)."""
+    if not path.exists():
+        raise FileNotFoundError(f"session meta not found: {path}")
+    text = path.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = re.match(r"^session_id:\s*(\d+)\s*$", stripped)
+        if match:
+            return int(match.group(1))
+    raise ValueError(f"session_id not found in {path}")
+
+
 def build_record(
     header: PacketHeader,
     amp: List[float],
     recv_unix_us: int,
     addr: Tuple[str, int],
+    run_session_id: int,
 ) -> Dict:
     # 후속 도구(라벨 생성, MAT 변환, 실시간 판정)가 공통으로 쓰는 JSON 스키마를 만듭니다.
     return {
         "received_at_unix_us": recv_unix_us,
         "source_ip": addr[0],
         "source_port": addr[1],
-        "session_id": header.session_id,
+        "session_id": run_session_id,
+        "firmware_session_id": header.session_id,
         "device_id": header.device_id,
         "seq": header.seq,
         "timestamp_us": header.timestamp_us,
@@ -164,20 +184,12 @@ def parse_expected_device_ids(raw: str) -> Set[int]:
 
 
 def load_device_ids_from_registry(path: Path) -> Set[int]:
-    # 운영 편의 기능:
-    # CLI에 expected IDs를 매번 입력하지 않아도,
-    # 등록표(device_registry.csv)에서 자동 로드할 수 있습니다.
-    if not path.exists():
-        return set()
-    out: Set[int] = set()
-    with path.open("r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            raw_id = (row.get("device_id") or "").strip()
-            if not raw_id:
-                continue
-            out.add(int(raw_id))
-    return out
+    scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    from registry import load_device_ids  # noqa: WPS433
+
+    return load_device_ids(path)
 
 
 def maybe_copy_session_meta(session_meta: Optional[Path], output_dir: Path, session_id: int) -> None:
@@ -222,7 +234,8 @@ def run_collector(
     print_every_sec: int,
     expected_device_ids: Set[int],
     stale_sec: int,
-    session_meta: Optional[Path],
+    session_meta: Path,
+    run_session_id: int,
 ) -> None:
     # 메인 루프 동작:
     # recv -> header/payload 검증 -> JSONL 저장 -> 장치 상태 갱신
@@ -232,13 +245,15 @@ def run_collector(
 
     print(f"[collector] listening on udp://{host}:{port}")
     print(f"[collector] output directory: {output_dir}")
+    print(f"[collector] run session_id={run_session_id} (from {session_meta})")
 
     stats: Dict[int, DeviceStats] = {}
-    device_files: Dict[Tuple[int, int], object] = {}
+    device_files: Dict[int, object] = {}
     invalid_packets = 0
     last_print = time.time()
     should_stop = False
-    session_meta_saved_for: Set[int] = set()
+    legacy_session_warned = False
+    session_meta_snapshotted = False
 
     def _stop_handler(signum, frame):
         nonlocal should_stop
@@ -278,18 +293,27 @@ def run_collector(
                 print(f"[collector] dropped invalid packet reason={reason} from={addr}")
             continue
 
+        if header.session_id != 0 and not legacy_session_warned:
+            print(
+                "[collector] warning: packet firmware_session_id!=0 "
+                f"(got {header.session_id}); run uses session_meta session_id={run_session_id}. "
+                "Re-flash RX with session_id removed."
+            )
+            legacy_session_warned = True
+
         amp = parse_payload(packet, header)
         recv_unix_us = now_us()
-        record = build_record(header, amp, recv_unix_us, addr)
+        record = build_record(header, amp, recv_unix_us, addr, run_session_id)
 
-        key = (header.session_id, header.device_id)
-        if key not in device_files:
-            device_files[key] = open_device_file(output_dir, header.session_id, header.device_id)
-        if header.session_id not in session_meta_saved_for:
-            maybe_copy_session_meta(session_meta, output_dir, header.session_id)
-            session_meta_saved_for.add(header.session_id)
+        if header.device_id not in device_files:
+            device_files[header.device_id] = open_device_file(
+                output_dir, run_session_id, header.device_id
+            )
+        if not session_meta_snapshotted:
+            maybe_copy_session_meta(session_meta, output_dir, run_session_id)
+            session_meta_snapshotted = True
 
-        f = device_files[key]
+        f = device_files[header.device_id]
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
         if header.device_id not in stats:
@@ -349,12 +373,13 @@ def main() -> None:
     parser.add_argument(
         "--session-meta",
         type=Path,
-        default=None,
-        help="optional session meta yaml to snapshot into each session directory",
+        default=DEFAULT_SESSION_META,
+        help="session meta yaml (run session_id SSOT, snapshot on start)",
     )
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    run_session_id = load_session_id_from_meta(args.session_meta)
     expected_device_ids = parse_expected_device_ids(args.expected_device_ids)
     if not expected_device_ids:
         # fallback: CLI 입력이 없으면 등록표에서 expected device 목록을 자동 추정
@@ -377,6 +402,7 @@ def main() -> None:
         expected_device_ids=expected_device_ids,
         stale_sec=args.stale_sec,
         session_meta=args.session_meta,
+        run_session_id=run_session_id,
     )
 
 

@@ -1,0 +1,15 @@
+{
+  "ap": {
+    "ssid": "MeshSense_TX_AP",
+    "pass": "mstx1234",
+    "channel": 6,
+    "max_conn": 4,
+    "broadcast_port": 3333,
+    "interval_ms": 10,
+    "payload_bytes": 64
+  },
+  "collector": {
+    "ip": "192.168.4.2",
+    "port": 9999
+  }
+}
