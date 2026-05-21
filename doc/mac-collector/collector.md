@@ -71,15 +71,16 @@ JSONL 1줄(레코드) 주요 필드:
 `scripts/visualize_csi.py` — 세션 폴더의 `device_*.jsonl`을 100Hz 격자로 보간한 뒤 RX별 heatmap PNG 생성.
 
 ```bash
-source .venv/bin/activate   # numpy·matplotlib (ESP-IDF venv 와 별도)
-pip install numpy matplotlib
+python3 -m venv .venv
+source .venv/bin/activate   # ESP-IDF venv 와 별도
+pip install -r requirements-viz.txt
 python scripts/visualize_csi.py --session-dir mac_collector_output/raw/YYYYMMDD/session_1
 # 또는 최신 session_<id> 자동 검색
 python scripts/visualize_csi.py --output-dir mac_collector_output --session-id 1
 ```
 
 출력: `csi_waterfall.png` 1장 (RX `device_id`별 세로 서브플롯).  
-`meshsense_cli` → **[4] 수집기 실행** 종료 시 **`.venv/bin/python`** 으로 위 스크립트를 자동 호출합니다 (플래시·수집기는 기존 `python` 유지).
+`meshsense_cli` → **[4] 수집기 실행** 종료 시 **`.venv/bin/python`** 으로 자동 호출합니다. `.venv`·패키지가 없으면 생성·`pip install -r requirements-viz.txt` 를 물어봅니다 (플래시·수집기는 기존 `python` 유지). 사전 점검 **[5]** 에도 후처리 venv 상태가 표시됩니다.
 
 ## 장치 등록표 (SSOT)
 

@@ -52,8 +52,10 @@ python add/main.py
 ## Python 환경
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install numpy matplotlib
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-viz.txt
 ```
+
+`meshsense_cli` 사전 점검·수집 종료 후 PNG 생성 시 `.venv` 없으면 위 설치를 안내·선택 실행합니다.
 
 ESP-IDF 빌드용 Python venv와는 별도입니다. 개요: [architecture.md](../overview/architecture.md).

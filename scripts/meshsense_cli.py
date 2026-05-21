@@ -35,7 +35,9 @@ COLLECTOR_SCRIPT = REPO_ROOT / "mac_collector" / "udp_collector_mvp.py"
 VISUALIZE_SCRIPT = SCRIPT_DIR / "visualize_csi.py"
 OUTPUT_DIR = REPO_ROOT / "mac_collector_output"
 RX_PROJECT = REPO_ROOT / "esp32s3_csi_sender"
-VENV_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
+VENV_DIR = REPO_ROOT / ".venv"
+VENV_PYTHON = VENV_DIR / "bin" / "python"
+VIZ_REQUIREMENTS = REPO_ROOT / "requirements-viz.txt"
 
 BoardKind = Literal["tx", "rx"]
 
@@ -100,10 +102,85 @@ def _pick_port() -> Optional[str]:
 
 def _postprocess_venv_python() -> Optional[Path]:
     """후처리·시각화용 .venv Python (플래시/수집기는 sys.executable 유지)."""
-    for candidate in (VENV_PYTHON, REPO_ROOT / ".venv" / "bin" / "python3"):
+    for candidate in (VENV_PYTHON, VENV_DIR / "bin" / "python3"):
         if candidate.is_file():
             return candidate
     return None
+
+
+def _viz_venv_numpy_ok(py: Path) -> bool:
+    proc = subprocess.run(
+        [str(py), "-c", "import numpy, matplotlib"],
+        capture_output=True,
+        check=False,
+    )
+    return proc.returncode == 0
+
+
+def _viz_venv_status() -> Tuple[bool, str]:
+    py = _postprocess_venv_python()
+    if py is None:
+        return False, ".venv 없음"
+    if _viz_venv_numpy_ok(py):
+        return True, "numpy·matplotlib OK"
+    return False, ".venv 있음, 패키지 미설치"
+
+
+def _viz_venv_bootstrap_hint() -> str:
+    req = "requirements-viz.txt" if VIZ_REQUIREMENTS.is_file() else "numpy matplotlib"
+    return (
+        f"python3 -m venv .venv && .venv/bin/pip install -r {req}"
+        if VIZ_REQUIREMENTS.is_file()
+        else "python3 -m venv .venv && .venv/bin/pip install numpy matplotlib"
+    )
+
+
+def _pip_install_viz_deps(py: Path) -> bool:
+    args = [str(py), "-m", "pip", "install", "-q"]
+    if VIZ_REQUIREMENTS.is_file():
+        args.extend(["-r", str(VIZ_REQUIREMENTS)])
+    else:
+        args.extend(["numpy", "matplotlib"])
+    print("\n[실행]", " ".join(args))
+    proc = subprocess.run(args, cwd=str(REPO_ROOT))
+    return proc.returncode == 0 and _viz_venv_numpy_ok(py)
+
+
+def _ensure_postprocess_venv(*, interactive: bool) -> Optional[Path]:
+    """CSI PNG용 .venv. interactive=True 이면 없을 때 생성·pip 설치 제안."""
+    py = _postprocess_venv_python()
+    if py is not None and _viz_venv_numpy_ok(py):
+        return py
+
+    if not interactive:
+        return None
+
+    if py is None:
+        print("\n[안내] CSI 워터폴 PNG 는 프로젝트 .venv (numpy·matplotlib) 가 필요합니다.")
+        if not _ask_yes_no(".venv 후처리 환경을 지금 만들까요?", default_no=False):
+            return None
+        print("\n[실행]", sys.executable, "-m venv", str(VENV_DIR))
+        rc = subprocess.run(
+            [sys.executable, "-m", "venv", str(VENV_DIR)],
+            cwd=str(REPO_ROOT),
+            check=False,
+        )
+        if rc != 0:
+            print("[경고] venv 생성 실패")
+            return None
+        py = _postprocess_venv_python()
+        if py is None:
+            print("[경고] .venv/bin/python 을 찾지 못했습니다.")
+            return None
+
+    if not _viz_venv_numpy_ok(py):
+        if not _ask_yes_no("numpy·matplotlib 을 .venv 에 설치할까요?", default_no=False):
+            return None
+        if not _pip_install_viz_deps(py):
+            print("[경고] 패키지 설치 실패 —", _viz_venv_bootstrap_hint())
+            return None
+
+    return py
 
 
 def _run_python(
@@ -343,6 +420,17 @@ def _preflight() -> bool:
                 "mac_collector/ 경로 확인",
             )
         )
+
+    viz_ok, viz_detail = _viz_venv_status()
+    rows.append(
+        _PreflightRow(
+            "후처리 venv (CSI PNG)",
+            viz_ok,
+            viz_detail,
+            _viz_venv_bootstrap_hint(),
+            required=False,
+        )
+    )
 
     if ok_cfg:
         try:
@@ -770,11 +858,10 @@ def _run_visualize_after_collect(session_id: int) -> None:
     if not VISUALIZE_SCRIPT.is_file():
         print(f"[경고] 시각화 스크립트 없음: {VISUALIZE_SCRIPT}")
         return
-    venv_py = _postprocess_venv_python()
+    venv_py = _ensure_postprocess_venv(interactive=True)
     if venv_py is None:
-        print("\n[경고] CSI 워터폴 PNG 생략 — 프로젝트 .venv 없음")
-        print("  python3 -m venv .venv")
-        print("  source .venv/bin/activate && pip install numpy matplotlib")
+        print("\n[경고] CSI 워터폴 PNG 생략")
+        print(f"  {_viz_venv_bootstrap_hint()}")
         print(
             "  python scripts/visualize_csi.py "
             f"--output-dir {OUTPUT_DIR} --session-id {session_id}"
@@ -792,8 +879,8 @@ def _run_visualize_after_collect(session_id: int) -> None:
         python=venv_py,
     )
     if rc != 0:
-        print("[경고] PNG 생성 실패 — .venv에 numpy·matplotlib 설치 여부 확인")
-        print("  pip install numpy matplotlib")
+        print("[경고] PNG 생성 실패 — .venv 패키지 확인")
+        print(f"  {_viz_venv_bootstrap_hint()}")
 
 
 def _run_collector(*, skip_start_prompt: bool = False, skip_wifi_hint: bool = False) -> bool:

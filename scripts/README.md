@@ -13,6 +13,7 @@ python scripts/meshsense_cli.py --quick  # 가이드 없이 메뉴만
 
 플래시는 USB MAC으로 `tx_registry.csv` / `device_registry.csv` 를 조회해 TX·RX를 자동 분기합니다.  
 플래시 완료 여부는 `mac_collector/flash_state.json` (`flash_state.py`, ●/○)에 기록되며, 보드 관리 **목록·검증**에 표시됩니다.  
+CSI PNG용 Python: 프로젝트 `.venv` + 루트 `requirements-viz.txt` (사전 점검·수집 종료 시 자동 안내).  
 보드 등록·삭제는 메뉴 **[3] 보드 관리** 또는 `device_registry.py` / `tx_registry.py` CLI.  
 수집기는 `udp_collector_mvp.py` 를 호출합니다.
 

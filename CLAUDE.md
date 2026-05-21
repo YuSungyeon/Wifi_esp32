@@ -36,7 +36,7 @@ Post-processing (add/)
 프로젝트 로컬: `esp-idf/` (git submodule, **v5.2.2**) · 툴체인 `~/.espressif` · 마커 `프로젝트/.espressif/` (gitignore). 트러블슈팅: `doc/overview/esp-idf-troubleshooting.md`.
 
 ```bash
-python scripts/meshsense_cli.py             # [1] 전체 가이드 (TX→수집기→RX)
+python scripts/meshsense_cli.py             # [1] 전체 가이드 (TX→Wi-Fi→RX→수집)
 python scripts/meshsense_cli.py --guide     # 가이드 바로 시작
 
 git clone --recursive <repo>

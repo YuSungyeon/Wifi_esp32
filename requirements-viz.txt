@@ -1,0 +1,3 @@
+# 후처리·CSI 워터폴 PNG (프로젝트 .venv — ESP-IDF venv 와 별도)
+numpy
+matplotlib
