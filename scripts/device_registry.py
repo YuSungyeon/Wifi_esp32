@@ -157,6 +157,9 @@ def cmd_remove(registry: Path, device_id: int, force: bool) -> int:
             return 0
 
     save_registry(kept, registry)
+    from flash_state import clear_flashed  # noqa: WPS433
+
+    clear_flashed("rx", device_id)
     print(f"[ok] removed device_id={device_id}")
     return 0
 

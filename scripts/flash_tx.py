@@ -131,8 +131,13 @@ def main() -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    if not args.dry_run:
+    if not args.dry_run and not args.build_only:
+        from flash_state import mark_flashed  # noqa: WPS433
+
+        mark_flashed("tx", rec.tx_node_id)
         print(f"[ok] flashed tx_node_id={rec.tx_node_id} ({rec.board_name}) chip_mac={mac}")
+    elif not args.dry_run:
+        print(f"[ok] build done tx_node_id={rec.tx_node_id} ({rec.board_name}) chip_mac={mac}")
     return 0
 
 

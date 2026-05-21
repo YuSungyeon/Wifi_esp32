@@ -284,6 +284,9 @@ def _cmd_remove(registry: Path, tx_node_id: int, force: bool) -> int:
             return 0
 
     save_tx_registry(kept, registry)
+    from flash_state import clear_flashed  # noqa: WPS433
+
+    clear_flashed("tx", tx_node_id)
     print(f"[ok] removed tx_node_id={tx_node_id}")
     return 0
 

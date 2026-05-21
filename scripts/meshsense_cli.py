@@ -35,6 +35,7 @@ COLLECTOR_SCRIPT = REPO_ROOT / "mac_collector" / "udp_collector_mvp.py"
 VISUALIZE_SCRIPT = SCRIPT_DIR / "visualize_csi.py"
 OUTPUT_DIR = REPO_ROOT / "mac_collector_output"
 RX_PROJECT = REPO_ROOT / "esp32s3_csi_sender"
+VENV_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
 
 BoardKind = Literal["tx", "rx"]
 
@@ -97,11 +98,89 @@ def _pick_port() -> Optional[str]:
     return ports[idx]
 
 
-def _run_python(script: Path, args: List[str], *, cwd: Optional[Path] = None) -> int:
-    cmd = [sys.executable, str(script), *args]
+def _postprocess_venv_python() -> Optional[Path]:
+    """후처리·시각화용 .venv Python (플래시/수집기는 sys.executable 유지)."""
+    for candidate in (VENV_PYTHON, REPO_ROOT / ".venv" / "bin" / "python3"):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _run_python(
+    script: Path,
+    args: List[str],
+    *,
+    cwd: Optional[Path] = None,
+    python: Optional[Path] = None,
+) -> int:
+    cmd = [str(python or sys.executable), str(script), *args]
     print("\n[실행]", " ".join(cmd))
-    proc = subprocess.run(cmd, cwd=str(cwd or REPO_ROOT))
-    return proc.returncode
+    try:
+        proc = subprocess.run(cmd, cwd=str(cwd or REPO_ROOT))
+        return proc.returncode
+    except KeyboardInterrupt:
+        print("\n[중단] 실행 취소 (Ctrl+C)")
+        return 130
+
+
+def _mac_wifi_ipv4(iface: str) -> Optional[str]:
+    """ipconfig getifaddr <iface> — 실패·미연결 시 None."""
+    try:
+        result = subprocess.run(
+            ["ipconfig", "getifaddr", iface],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    ip = result.stdout.strip()
+    return ip or None
+
+
+def _verify_mac_softap_ip(*, expected_ip: str, ap_ssid: str) -> bool:
+    """Mac이 TX SoftAP에 붙어 collector.ip 와 일치하는지 확인. False=가이드 중단."""
+    ifaces = ("en0", "en1")
+    while True:
+        _pause("Wi-Fi 연결 후 Enter…")
+        found: List[Tuple[str, str]] = []
+        for iface in ifaces:
+            ip = _mac_wifi_ipv4(iface)
+            if ip:
+                found.append((iface, ip))
+
+        print("\n  Mac IP 확인 (meshsense_config collector.ip 기준)")
+        if not found:
+            print("    en0/en1: IP 없음 (SoftAP 미연결 또는 다른 인터페이스)")
+        else:
+            for iface, ip in found:
+                mark = "일치" if ip == expected_ip else "불일치"
+                print(f"    {iface}: {ip}  → {mark} (기대 {expected_ip})")
+
+        if any(ip == expected_ip for _, ip in found):
+            matched = next(iface for iface, ip in found if ip == expected_ip)
+            print(f"\n  [통과] {matched} = {expected_ip}")
+            return True
+
+        print(f"\n  [필요] Mac IP가 collector.ip ({expected_ip}) 와 같아야 합니다.")
+        print("  ① TX 보드 전원·SoftAP(SSID)가 켜져 있는지 확인")
+        print(f"  ② Mac Wi-Fi를 「{ap_ssid}」에 **먼저** 연결 (RX 플래시·수집기보다 우선)")
+        print("  ③ 터미널에서 확인: ipconfig getifaddr en0")
+        if found:
+            detail = ", ".join(f"{iface}={ip}" for iface, ip in found)
+            print(f"     현재: {detail}")
+            print(
+                "  IP가 다르면 scripts/meshsense_config.json 의 collector.ip 를"
+                " 실제 IP에 맞게 고친 뒤 RX를 다시 플래시하세요."
+            )
+        if not _ask_yes_no("Wi-Fi·IP 확인 후 다시 검사할까요?", default_no=False):
+            if _ask_yes_no("IP 확인 없이 다음 단계로 진행할까요? (비권장)", default_no=True):
+                return True
+            print("[중단] Mac 네트워크 확인 후 다시 가이드를 시작하세요.")
+            return False
 
 
 def _check_config() -> Tuple[bool, str]:
@@ -409,18 +488,57 @@ def _flash_board(*, kind: Optional[BoardKind] = None) -> bool:
     return True
 
 
+def _print_board_table(kind: BoardKind, records: Sequence[object]) -> None:
+    from flash_state import flash_symbol, prune_flash_state  # noqa: WPS433
+
+    if kind == "tx":
+        tx_ids = {r.tx_node_id for r in records}
+        prune_flash_state(tx_ids=tx_ids, rx_ids=set())
+        print(f"  {'id':>3}  {'board':<8}  {'chip_mac':<17}  {'플래시':^8}  notes")
+        print("  " + "-" * 58)
+        for rec in sorted(records, key=lambda r: r.tx_node_id):
+            note = rec.notes[:32] + ("…" if len(rec.notes) > 32 else "")
+            sym = flash_symbol("tx", rec.tx_node_id)
+            print(
+                f"  {rec.tx_node_id:3d}  {rec.board_name:<8}  {rec.chip_mac:<17}  "
+                f"{sym:^8}  {note}"
+            )
+    else:
+        rx_ids = {r.device_id for r in records}
+        prune_flash_state(tx_ids=set(), rx_ids=rx_ids)
+        print(f"  {'id':>4}  {'board':<8}  {'sta_mac':<17}  {'플래시':^8}  notes")
+        print("  " + "-" * 60)
+        for rec in sorted(records, key=lambda r: r.device_id):
+            note = rec.notes[:32] + ("…" if len(rec.notes) > 32 else "")
+            sym = flash_symbol("rx", rec.device_id)
+            print(
+                f"  {rec.device_id:4d}  {rec.board_name:<8}  {rec.sta_mac:<17}  "
+                f"{sym:^8}  {note}"
+            )
+    print("  (● 플래시됨  ○ 미플래시)")
+
+
 def _board_list_all() -> None:
-    from device_registry import cmd_list as rx_list  # noqa: WPS433
-    from tx_registry import _cmd_list as tx_list  # noqa: WPS433
+    from registry import load_registry  # noqa: WPS433
+    from tx_registry import load_tx_registry  # noqa: WPS433
 
     print("\n--- TX (tx_registry.csv) ---")
     try:
-        tx_list(TX_REGISTRY)
+        tx_records = load_tx_registry(TX_REGISTRY) if TX_REGISTRY.is_file() else []
+        if not tx_records:
+            print("  (비어 있음)")
+        else:
+            _print_board_table("tx", tx_records)
     except (FileNotFoundError, ValueError) as exc:
         print(f"  (없음 또는 오류: {exc})")
+
     print("\n--- RX (device_registry.csv) ---")
     try:
-        rx_list(DEVICE_REGISTRY)
+        rx_records = load_registry(DEVICE_REGISTRY) if DEVICE_REGISTRY.is_file() else []
+        if not rx_records:
+            print("  (비어 있음)")
+        else:
+            _print_board_table("rx", rx_records)
     except (FileNotFoundError, ValueError) as exc:
         print(f"  (없음 또는 오류: {exc})")
 
@@ -547,16 +665,48 @@ def _board_remove_interactive() -> None:
 
 def _board_verify_all() -> None:
     from device_registry import cmd_verify as rx_verify  # noqa: WPS433
-    from tx_registry import _cmd_verify as tx_verify  # noqa: WPS433
+    from flash_state import count_flashed, flash_symbol, prune_flash_state  # noqa: WPS433
+    from registry import load_registry  # noqa: WPS433
+    from tx_registry import _cmd_verify as tx_verify, load_tx_registry  # noqa: WPS433
+
+    tx_records: List[object] = []
+    rx_records: List[object] = []
 
     print("\n--- TX registry ---")
     tx_ok = tx_verify(TX_REGISTRY) == 0 if TX_REGISTRY.is_file() else None
     if tx_ok is None:
         print(f"  파일 없음: {TX_REGISTRY}")
+    elif tx_ok:
+        try:
+            tx_records = load_tx_registry(TX_REGISTRY)
+            tx_ids = {r.tx_node_id for r in tx_records}
+            prune_flash_state(tx_ids=tx_ids, rx_ids=set())
+            for rec in sorted(tx_records, key=lambda r: r.tx_node_id):
+                sym = flash_symbol("tx", rec.tx_node_id)
+                print(f"  {sym} id={rec.tx_node_id}  {rec.board_name}  {rec.chip_mac}")
+            done, total = count_flashed("tx", tx_ids)
+            print(f"  플래시: {done}/{total}")
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"  목록 표시 실패: {exc}")
+
     print("\n--- RX registry ---")
     rx_ok = rx_verify(DEVICE_REGISTRY) == 0 if DEVICE_REGISTRY.is_file() else None
     if rx_ok is None:
         print(f"  파일 없음: {DEVICE_REGISTRY}")
+    elif rx_ok:
+        try:
+            rx_records = load_registry(DEVICE_REGISTRY)
+            rx_ids = {r.device_id for r in rx_records}
+            prune_flash_state(tx_ids=set(), rx_ids=rx_ids)
+            for rec in sorted(rx_records, key=lambda r: r.device_id):
+                sym = flash_symbol("rx", rec.device_id)
+                print(f"  {sym} id={rec.device_id}  {rec.board_name}  {rec.sta_mac}")
+            done, total = count_flashed("rx", rx_ids)
+            print(f"  플래시: {done}/{total}")
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"  목록 표시 실패: {exc}")
+
+    print("  (● 플래시됨  ○ 미플래시)")
     if tx_ok is False or rx_ok is False:
         print("\n[결과] 일부 registry 검증 실패")
     elif tx_ok is None and rx_ok is None:
@@ -620,7 +770,17 @@ def _run_visualize_after_collect(session_id: int) -> None:
     if not VISUALIZE_SCRIPT.is_file():
         print(f"[경고] 시각화 스크립트 없음: {VISUALIZE_SCRIPT}")
         return
-    print("\n--- CSI 워터폴 PNG 생성 ---")
+    venv_py = _postprocess_venv_python()
+    if venv_py is None:
+        print("\n[경고] CSI 워터폴 PNG 생략 — 프로젝트 .venv 없음")
+        print("  python3 -m venv .venv")
+        print("  source .venv/bin/activate && pip install numpy matplotlib")
+        print(
+            "  python scripts/visualize_csi.py "
+            f"--output-dir {OUTPUT_DIR} --session-id {session_id}"
+        )
+        return
+    print("\n--- CSI 워터폴 PNG 생성 (.venv) ---")
     rc = _run_python(
         VISUALIZE_SCRIPT,
         [
@@ -629,12 +789,14 @@ def _run_visualize_after_collect(session_id: int) -> None:
             "--session-id",
             str(session_id),
         ],
+        python=venv_py,
     )
     if rc != 0:
-        print("[경고] PNG 생성 실패 (JSONL·matplotlib 확인)")
+        print("[경고] PNG 생성 실패 — .venv에 numpy·matplotlib 설치 여부 확인")
+        print("  pip install numpy matplotlib")
 
 
-def _run_collector() -> bool:
+def _run_collector(*, skip_start_prompt: bool = False, skip_wifi_hint: bool = False) -> bool:
     print("\n--- Mac 수집기 ---")
     if not _ensure_config_interactive():
         return False
@@ -646,8 +808,12 @@ def _run_collector() -> bool:
         print(f"설정 로드 실패: {exc}")
         return False
 
-    print(f"\n[안내] Mac Wi-Fi를 TX SoftAP에 연결하세요: SSID = {cfg.ap_ssid}")
-    print(f"  수집기 IP는 보통 SoftAP 대역 (예: ipconfig getifaddr en0 → {cfg.collector_ip})")
+    if not skip_wifi_hint:
+        print(f"\n[안내] Mac Wi-Fi를 TX SoftAP에 연결하세요: SSID = {cfg.ap_ssid}")
+        print(
+            f"  수집기 IP: {cfg.collector_ip} "
+            f"(확인: ipconfig getifaddr en0)"
+        )
     session_id = 1
     if SESSION_META.is_file():
         try:
@@ -659,7 +825,10 @@ def _run_collector() -> bool:
         except OSError:
             pass
 
-    if not _ask_yes_no("수집기를 지금 시작할까요?", default_no=False):
+    if not skip_start_prompt and not _ask_yes_no(
+        "수집기를 지금 시작할까요?",
+        default_no=False,
+    ):
         return False
 
     duration_sec = _ask_collect_duration_sec()
@@ -682,6 +851,8 @@ def _run_collector() -> bool:
         print("\n[안내] 종료: Ctrl+C")
     rc = _run_python(COLLECTOR_SCRIPT, args)
     if rc == 0 or rc == 130:
+        if rc == 130:
+            print("\n[안내] 수집기 중단됨 — 메인 메뉴로 돌아갑니다.")
         _run_visualize_after_collect(session_id)
     return rc == 0
 
@@ -691,7 +862,7 @@ def _guide_full() -> None:
     _banner()
     print(
         "\n[전체 가이드 모드]\n"
-        "권장 순서: 사전 설정 → TX 플래시 → Mac Wi-Fi → 수집기 → RX 플래시(여러 대)\n"
+        "권장 순서: 설정 → TX 플래시 → Mac Wi-Fi(IP 확인) → RX 플래시 → 수집기\n"
         "각 단계에서 건너뛰거나 중단할 수 있습니다."
     )
     _pause()
@@ -713,50 +884,56 @@ def _guide_full() -> None:
     print("\n" + "=" * 60)
     print("  단계 1 / 4 — TX/AP 노드 플래시")
     print("=" * 60)
-    print("  TX 보드만 USB에 연결하세요.")
+    print("  TX 보드만 USB에 연결하세요. 플래시 후 TX 전원·SoftAP를 켜 두세요.")
     if _ask_yes_no("TX 플래시를 진행할까요?", default_no=False):
         _flash_board(kind="tx")
-    if not _ask_yes_no("다음 단계(Mac 네트워크·수집기)로 진행할까요?", default_no=False):
+    if not _ask_yes_no("다음 단계(Mac Wi-Fi)로 진행할까요?", default_no=False):
         return
 
-    # 2. Mac + collector prep
+    # 2. Mac Wi-Fi + IP
     print("\n" + "=" * 60)
-    print("  단계 2 / 4 — Mac 네트워크")
+    print("  단계 2 / 4 — Mac Wi-Fi (SoftAP · IP 확인)")
     print("=" * 60)
     try:
         from meshsense_config import load_meshsense_config  # noqa: WPS433
 
         cfg = load_meshsense_config(CONFIG_PATH)
         print(f"  Mac Wi-Fi에서 SSID 「{cfg.ap_ssid}」 로 TX SoftAP에 접속하세요.")
-        print(f"  터미널에서 확인: ipconfig getifaddr en0  (보통 {cfg.collector_ip} 대역)")
-    except Exception:
-        print("  meshsense_config.json 을 확인하세요.")
-    _pause("Wi-Fi 연결 후 Enter…")
-
-    # 3. Collector
-    print("\n" + "=" * 60)
-    print("  단계 3 / 4 — 수집기 실행")
-    print("=" * 60)
-    print("  수집기는 이 터미널을 점유합니다. Ctrl+C 로 종료합니다.")
-    if _ask_yes_no("수집기를 지금 시작할까요?", default_no=False):
-        _run_collector()
-    else:
-        print("  나중에 메인 메뉴 [4] 수집기 실행 으로 시작할 수 있습니다.")
+        print(f"  자동 확인: ipconfig getifaddr en0/en1 == collector.ip ({cfg.collector_ip})")
+        if not _verify_mac_softap_ip(expected_ip=cfg.collector_ip, ap_ssid=cfg.ap_ssid):
+            return
+    except Exception as exc:
+        print(f"  meshsense_config.json 오류: {exc}")
+        return
 
     if not _ask_yes_no("다음 단계(RX 플래시)로 진행할까요?", default_no=False):
         return
 
-    # 4. RX loop
+    # 3. RX loop
     print("\n" + "=" * 60)
-    print("  단계 4 / 4 — RX 노드 플래시 (보드별 반복)")
+    print("  단계 3 / 4 — RX 노드 플래시 (보드별 반복)")
     print("=" * 60)
-    print("  수집기가 켜진 상태에서 RX를 하나씩 플래시하세요.")
+    print("  RX는 USB로 하나씩 연결해 플래시합니다. collector.ip 는 위 Wi-Fi 단계에서 확인한 값입니다.")
     while True:
         if not _ask_yes_no("RX 보드 1대를 플래시할까요?", default_no=False):
             break
         _flash_board()
         if not _ask_yes_no("다른 RX 보드도 더 플래시할까요?", default_no=True):
             break
+
+    if not _ask_yes_no("다음 단계(수집기 실행)로 진행할까요?", default_no=False):
+        return
+
+    # 4. Collector
+    print("\n" + "=" * 60)
+    print("  단계 4 / 4 — 수집기 실행")
+    print("=" * 60)
+    print("  모든 RX가 TX SoftAP에 붙은 뒤 수집을 시작하세요.")
+    print("  종료: Ctrl+C (CLI는 메인 메뉴로 돌아갑니다)")
+    if _ask_yes_no("수집기를 지금 시작할까요?", default_no=False):
+        _run_collector(skip_start_prompt=True, skip_wifi_hint=True)
+    else:
+        print("  나중에 메인 메뉴 [4] 수집기 실행 으로 시작할 수 있습니다.")
 
     print("\n" + "=" * 60)
     print("  전체 가이드 종료")
@@ -775,7 +952,7 @@ def _main_menu(quick: bool) -> None:
                 "  실험 처음이면 [1] 전체 가이드를 권장합니다."
             )
         options = [
-            "전체 가이드 (설정 → TX → Wi-Fi → 수집 → RX)",
+            "전체 가이드 (설정 → TX → Wi-Fi → RX → 수집)",
             "보드 플래시 (USB · MAC → TX/RX 자동)",
             "보드 관리 (registry 등록·검증)",
             "수집기 실행",
@@ -828,7 +1005,7 @@ def main() -> int:
         else:
             _main_menu(quick=args.quick)
     except KeyboardInterrupt:
-        print("\n\n[중단] Ctrl+C")
+        print("\n\n[중단] Ctrl+C — 메뉴를 종료합니다.")
         return 130
     return 0
 

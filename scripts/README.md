@@ -4,7 +4,7 @@
 
 ## 터미널 가이드 CLI (권장)
 
-실험 순서(TX → Wi-Fi → 수집기 → RX)를 단계별로 안내합니다.
+실험 순서(TX → Wi-Fi·IP 확인 → RX → 수집기)를 단계별로 안내합니다.
 
 ```bash
 python scripts/meshsense_cli.py          # 메인 메뉴 → [1] 전체 가이드
@@ -12,6 +12,7 @@ python scripts/meshsense_cli.py --quick  # 가이드 없이 메뉴만
 ```
 
 플래시는 USB MAC으로 `tx_registry.csv` / `device_registry.csv` 를 조회해 TX·RX를 자동 분기합니다.  
+플래시 완료 여부는 `mac_collector/flash_state.json` (`flash_state.py`, ●/○)에 기록되며, 보드 관리 **목록·검증**에 표시됩니다.  
 보드 등록·삭제는 메뉴 **[3] 보드 관리** 또는 `device_registry.py` / `tx_registry.py` CLI.  
 수집기는 `udp_collector_mvp.py` 를 호출합니다.
 
