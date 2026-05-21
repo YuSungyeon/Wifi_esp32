@@ -16,15 +16,19 @@ from pathlib import Path
 from typing import Optional
 
 # ESP-IDF v5.2.2 requirements checker ↔ 최신 ruamel.yaml metadata 불일치 완화
-RUAMEL_PINS = ("ruamel.yaml==0.17.21", "ruamel.yaml.clib==0.2.7")
+RUAMEL_YAML_PIN = "ruamel.yaml==0.17.21"
+RUAMEL_CLIB_PIN_LEGACY = "ruamel.yaml.clib==0.2.7"
+# ruamel.yaml.clib 0.2.7 소스 빌드는 Python 3.14+ 에서 실패 (ast.Str 제거)
+RUAMEL_CLIB_PIN_MODERN = "ruamel.yaml.clib>=0.2.12"
 TROUBLESHOOTING_DOC = "doc/overview/esp-idf-troubleshooting.md"
 
-from idf_env import idf_py_works
+from idf_env import augmented_subprocess_env, idf_diagnose, idf_py_works
 from idf_paths import (
     IDF_GIT_TAG,
     IDF_GIT_URL,
     IDF_TARGET,
     REPO_ROOT,
+    find_idf_venv_python,
     idf_export_sh,
     repo_idf_path,
     resolve_idf_path,
@@ -91,16 +95,46 @@ def tools_are_ready(repo_root: Path) -> bool:
     return idf_py_works(repo_root)
 
 
-def find_idf_venv_python() -> Optional[Path]:
-    """~/.espressif/python_env/idf5.2_py*_env/bin/python (없으면 None)."""
-    env_root = Path.home() / ".espressif" / "python_env"
-    if not env_root.is_dir():
-        return None
-    candidates = sorted(env_root.glob("idf5.2_py*_env/bin/python"))
-    for py in reversed(candidates):
-        if py.is_file():
-            return py
-    return None
+def _idf_venv_python_version(py: Path) -> tuple[int, int]:
+    proc = subprocess.run(
+        [str(py), "-c", "import sys; print(sys.version_info[0], sys.version_info[1])"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return (0, 0)
+    parts = proc.stdout.strip().split()
+    if len(parts) != 2:
+        return (0, 0)
+    return int(parts[0]), int(parts[1])
+
+
+def ruamel_pins_for(py: Path) -> tuple[str, ...]:
+    """IDF venv Python 버전에 맞는 ruamel pin 목록 (yaml 필수, clib 선택)."""
+    pins = [RUAMEL_YAML_PIN]
+    major, minor = _idf_venv_python_version(py)
+    if (major, minor) >= (3, 14):
+        pins.append(RUAMEL_CLIB_PIN_MODERN)
+    else:
+        pins.append(RUAMEL_CLIB_PIN_LEGACY)
+    return tuple(pins)
+
+
+def _pip_install(py: Path, spec: str, *, required: bool, quiet: bool) -> bool:
+    print("[cmd]", str(py), "-m", "pip", "install", spec)
+    proc = subprocess.run(
+        [str(py), "-m", "pip", "install", spec],
+        cwd=str(Path.home()),
+        check=False,
+    )
+    if proc.returncode == 0:
+        return True
+    if required:
+        raise RuntimeError(f"command failed (exit {proc.returncode}): pip install {spec}")
+    if not quiet:
+        print(f"[bootstrap] warning: optional pip install failed (continuing): {spec}")
+    return False
 
 
 def repair_idf_python_env(*, quiet: bool = False) -> bool:
@@ -112,8 +146,10 @@ def repair_idf_python_env(*, quiet: bool = False) -> bool:
         return False
     venv_name = py.parent.parent.name
     print(f"[bootstrap] pinning ruamel.yaml for ESP-IDF v5.2 ({venv_name})...")
-    for spec in RUAMEL_PINS:
-        _run([str(py), "-m", "pip", "install", spec], cwd=Path.home())
+    pins = ruamel_pins_for(py)
+    _pip_install(py, pins[0], required=True, quiet=quiet)
+    for spec in pins[1:]:
+        _pip_install(py, spec, required=False, quiet=quiet)
     return True
 
 
@@ -126,12 +162,19 @@ def write_tools_ready_marker(repo_root: Path, idf_path: Path) -> None:
 def idf_version_failure_message(repo_root: Path) -> str:
     from idf_env import run_in_idf_shell
 
-    proc = run_in_idf_shell(["idf.py", "--version"], cwd=repo_root, repo_root=repo_root)
+    proc = run_in_idf_shell(
+        ["idf.py", "--version"],
+        cwd=repo_root,
+        repo_root=repo_root,
+        capture_output=True,
+    )
     combined = f"{proc.stderr or ''}\n{proc.stdout or ''}".lower()
     lines = [
         "install finished but idf.py --version still fails.",
         "  python scripts/idf_bootstrap.py -y",
         f"  see {TROUBLESHOOTING_DOC}",
+        "",
+        idf_diagnose(repo_root),
     ]
     if "ruamel" in combined:
         py = find_idf_venv_python()
@@ -140,8 +183,13 @@ def idf_version_failure_message(repo_root: Path) -> str:
             "  ruamel.yaml metadata mismatch — run bootstrap again or pin manually:",
         )
         if py:
-            specs = " ".join(f"'{s}'" for s in RUAMEL_PINS)
+            specs = " ".join(f"'{s}'" for s in ruamel_pins_for(py))
             lines.insert(3, f"  {py} -m pip install {specs}")
+    if "env: python" in combined or "py3.9_env" in combined or "doesn't exist" in combined:
+        lines.insert(
+            2,
+            "  Mac PATH/python 이슈 — scripts/idf_env.py 가 venv·Homebrew PATH 를 앞에 둡니다.",
+        )
     return "\n".join(lines)
 
 
@@ -150,9 +198,8 @@ def run_install(repo_root: Path, idf_path: Path) -> None:
     if not install_sh.is_file():
         raise FileNotFoundError(f"install.sh not found: {install_sh}")
 
-    env = os.environ.copy()
+    env = augmented_subprocess_env()
     env["IDF_PATH"] = str(idf_path)
-    # 툴체인·Python venv는 기본 ~/.espressif (IDF_TOOLS_PATH 미설정)
 
     print(
         "[bootstrap] installing ESP-IDF tools for "

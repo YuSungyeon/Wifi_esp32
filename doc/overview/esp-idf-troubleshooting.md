@@ -14,6 +14,29 @@ python scripts/idf_bootstrap.py -y   # 플래시 전 최초 1회 (10–30분)
 
 `flash_rx.py` / `flash_tx.py` / CLI 플래시도 툴이 없으면 위 bootstrap을 자동 호출합니다.
 
+### 다른 MacBook 에서 처음 셋업 (환경 차이)
+
+Mac·Python 설치 방식이 달라도 동일하게 동작하도록 `scripts/idf_env.py` / `idf_paths.py` 가 다음을 처리합니다.
+
+| 환경 | 대응 |
+|------|------|
+| Homebrew Apple Silicon (`/opt/homebrew`) / Intel (`/usr/local`) | `python3` 경로를 PATH 앞에 추가 |
+| 시스템 `/usr/bin/python3` 만 있는 경우 | **IDF venv** (`~/.espressif/python_env/idf5.2_py*_env`) 를 PATH 최우선 → `export.sh` 가 3.9 venv 를 찾지 않게 함 |
+| pyenv / conda | `~/.pyenv/shims`, `$CONDA_PREFIX/bin` 를 PATH 에 포함 |
+| `python` 명령 없음 (`python3` 만) | `idf.py` 를 venv `python …/tools/idf.py` 로 직접 실행 (shebang 우회) |
+| `IDF_TOOLS_PATH` 사용자 지정 | `~/.espressif` 대신 해당 경로에서 venv 탐색 |
+
+**다른 Mac 에서 권장 순서**
+
+```bash
+git clone --recursive <repo>
+cd Wifi_esp32
+python3 scripts/idf_bootstrap.py -y    # meshsense_cli 플래시 전 1회
+python3 scripts/meshsense_cli.py       # [5] 사전 점검 → ESP-IDF OK 확인 후 [2] 플래시
+```
+
+`python` 이 없으면 `python3` 를 사용하세요. meshsense_cli 가 호출하는 플래시·bootstrap 은 동일한 `idf_env` 를 씁니다.
+
 ---
 
 ## 문제 1: `.meshsense_tools_ready` 생성 실패 (해결됨)
@@ -55,8 +78,20 @@ ESP-IDF v5.2.2의 requirements 검사기가, pip가 설치한 **최신 `ruamel.y
 
 `install.sh` 직후 bootstrap이 IDF venv에 호환 버전을 pin 합니다:
 
-- `ruamel.yaml==0.17.21`
-- `ruamel.yaml.clib==0.2.7`
+- `ruamel.yaml==0.17.21` (필수)
+- `ruamel.yaml.clib==0.2.7` (Python 3.12 이하 IDF venv)
+- `ruamel.yaml.clib>=0.2.12` (Python 3.14+ — `0.2.7` 소스 빌드가 `ast.Str` 제거로 실패)
+
+`clib` 설치가 실패해도 `ruamel.yaml`만 맞으면 `idf.py`는 동작할 수 있습니다. bootstrap은 `clib` 실패 시 경고만 내고 계속합니다.
+
+### Python 3.14에서 `ruamel.yaml.clib` 빌드 실패
+
+```text
+ImportError: cannot import name 'Str' from 'ast'
+ERROR: Failed to build 'ruamel.yaml.clib' when getting requirements to build wheel
+```
+
+→ 저장소 최신 `scripts/idf_bootstrap.py`로 재실행하거나, venv에 `ruamel.yaml==0.17.21`과 `ruamel.yaml.clib>=0.2.12`(미리 빌드된 wheel)를 설치합니다.
 
 ### 수동 조치
 
@@ -66,8 +101,13 @@ ESP-IDF v5.2.2의 requirements 검사기가, pip가 설치한 **최신 `ruamel.y
 # 예: 경로는 Mac·Python 버전마다 다름
 ls ~/.espressif/python_env/idf5.2_py*_env/bin/python
 
+# Python 3.12 예
 ~/.espressif/python_env/idf5.2_py3.12_env/bin/python -m pip install \
   'ruamel.yaml==0.17.21' 'ruamel.yaml.clib==0.2.7'
+
+# Python 3.14 예
+~/.espressif/python_env/idf5.2_py3.14_env/bin/python -m pip install \
+  'ruamel.yaml==0.17.21' 'ruamel.yaml.clib>=0.2.12'
 
 export IDF_PATH="$PWD/esp-idf"
 source "$IDF_PATH/export.sh"
@@ -82,7 +122,38 @@ ESP-IDF v5.2.2
 
 ---
 
-## 문제 3: pip 네트워크 실패 (환경 이슈)
+## 문제 3: `env: python: No such file or directory` (플래시·bootstrap 실패)
+
+### 증상
+
+`meshsense_cli` 플래시 또는 `ensure_idf_ready` 직후:
+
+```text
+env: python: No such file or directory
+error: install finished but idf.py --version still fails.
+```
+
+### 원인
+
+1. `idf.py` shebang이 `#!/usr/bin/env python` 인데, macOS 비대화형 셸 PATH에 `python` 이 없음 (Homebrew는 `python3` 만 제공하는 경우 많음).
+2. `export.sh` 가 시스템 `python3`(예: 3.9)를 잡아 존재하지 않는 `idf5.2_py3.9_env` 를 찾으려다 PATH 설정이 끊김.
+3. 예전 `idf_env.py` 가 `source export.sh` stderr 를 `/dev/null` 로 숨겨 위 오류가 가려짐.
+
+### 조치 (저장소)
+
+`scripts/idf_env.py` — 플래시 전 IDF venv·Homebrew `bin` 을 PATH 앞에 두고, `idf.py` 대신 `~/.espressif/.../bin/python tools/idf.py` 로 실행.
+
+수동 확인:
+
+```bash
+export IDF_PATH="$PWD/esp-idf"
+source "$IDF_PATH/export.sh"
+idf.py --version
+```
+
+---
+
+## 문제 4: pip 네트워크 실패 (환경 이슈)
 
 ### 증상
 
@@ -104,7 +175,7 @@ MeshSense CLI 버그가 아니라 **네트워크 차단** (Cursor 샌드박스, 
 
 ```text
 python3 scripts/meshsense_cli.py
-→ 플래시만 → RX CSI 노드
+→ [2] 플래시 (MAC → registry 자동 분기) 또는 [3] 보드 관리
 ```
 
 registry·`meshsense_config.json`이 맞으면 빌드 시 CMake에 AP/수집기/device_id가 주입됩니다.  

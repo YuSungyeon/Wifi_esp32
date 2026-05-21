@@ -77,7 +77,7 @@ python scripts/visualize_csi.py --output-dir mac_collector_output --session-id 1
 ```
 
 출력: `csi_waterfall.png` 1장 (RX `device_id`별 세로 서브플롯).  
-`meshsense_cli` → **[3] 수집기만** 종료 시 위 스크립트를 자동 호출합니다.
+`meshsense_cli` → **[4] 수집기 실행** 종료 시 위 스크립트를 자동 호출합니다.
 
 ## 장치 등록표 (SSOT)
 
