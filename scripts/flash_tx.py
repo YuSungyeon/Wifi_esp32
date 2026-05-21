@@ -38,7 +38,10 @@ def confirm_flash(
     print(f"  chip MAC:    {mac}")
     print(f"  tx_node_id:  {tx_node_id}  ({board_name or '?'})")
     print(f"  SoftAP:      {cfg.ap_ssid}  ch={cfg.ap_channel}")
-    print(f"  UDP:         :{cfg.ap_broadcast_port} every {cfg.ap_interval_ms}ms")
+    print(
+        f"  UDP:         :{cfg.ap_broadcast_port} every {cfg.ap_interval_ms}ms  "
+        f"beacon={cfg.ap_beacon_interval_tu}TU  espnow={cfg.ap_espnow_interval_ms}ms"
+    )
     print("  session:     (Mac session_meta.yaml — not in firmware)")
     answer = input("Proceed? [y/N]: ").strip().lower()
     return answer in ("y", "yes")

@@ -6,6 +6,8 @@
     "max_conn": 4,
     "broadcast_port": 3333,
     "interval_ms": 10,
+    "beacon_interval_tu": 100,
+    "espnow_interval_ms": 10,
     "payload_bytes": 64
   },
   "collector": {

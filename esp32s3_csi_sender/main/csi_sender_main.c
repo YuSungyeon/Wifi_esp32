@@ -15,15 +15,10 @@
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
 
-/* =========================
- * 런타임 설정(기본값)
- * =========================
- * - 아래 값은 "기본값"이고, 실제 운용에서는 CMake의 -D 옵션으로 덮어씁니다.
- * - 이렇게 하면 RX1/RX2/...를 코드 수정 없이 같은 소스로 운용할 수 있습니다.
- */
 #ifndef WIFI_SSID
 #define WIFI_SSID               "MeshSense_TX_AP"
 #endif
@@ -36,7 +31,6 @@
 #ifndef COLLECTOR_PORT
 #define COLLECTOR_PORT          9999
 #endif
-
 #ifndef DEVICE_ID
 #define DEVICE_ID               101
 #endif
@@ -47,17 +41,18 @@
 #define PAYLOAD_TYPE_CSI_AMP    1
 #define NOISE_FLOOR_UNKNOWN     (-128)
 
-#define MAX_AMP_SAMPLES         64  /* 20MHz OFDM FFT bins: 우선 64개 전송, 유효 톤 선별은 PC에서 수행 */
+#define MAX_AMP_SAMPLES         64
 #define CSI_BUFFER_MAX_BYTES    512
-#define SEND_INTERVAL_US        10000  /* 10ms */
+#define SEND_INTERVAL_US        10000  /* 10ms — 목표 100Hz */
+#define CSI_RAW_MAX_BYTES       256
+#define CSI_QUEUE_LEN           32
 
-/* UDP 전송과 장치 시퀀스 관리를 위한 전역 상태값 */
-static const char *TAG = "CSI_SENDER";
-static int g_udp_sock = -1;
-static struct sockaddr_in g_collector_addr;
-static uint32_t g_seq = 0;
-static uint32_t g_runtime_device_id = 0;
-static int64_t g_last_send_us = 0;
+typedef struct {
+    uint16_t raw_len;
+    uint8_t channel;
+    int8_t rssi;
+    int8_t raw[CSI_RAW_MAX_BYTES];
+} csi_raw_item_t;
 
 #pragma pack(push, 1)
 typedef struct {
@@ -81,24 +76,28 @@ typedef struct {
 } csi_udp_header_v1_t;
 #pragma pack(pop)
 
-/* CSI의 복소수 샘플(I/Q)을 진폭(amplitude)으로 변환합니다.
- * 참고: info->buf는 [I0, Q0, I1, Q1, ...] 형태로 저장됩니다. */
+static const char *TAG = "CSI_SENDER";
+static int g_udp_sock = -1;
+static struct sockaddr_in g_collector_addr;
+static uint32_t g_seq = 0;
+static uint32_t g_runtime_device_id = 0;
+static int64_t g_last_send_us = 0;
+static QueueHandle_t g_csi_queue = NULL;
+static volatile uint32_t g_csi_queue_drop = 0;
+
 static float to_amplitude(const int8_t i, const int8_t q)
 {
     return sqrtf((float)(i * i + q * q));
 }
 
-/* CSI 콜백 버퍼에서 진폭 벡터만 추출합니다.
- * 반환값은 실제 추출된 샘플 수이며, max_count를 넘지 않습니다. */
-static size_t extract_amp_from_csi(const wifi_csi_info_t *info, float *amp_out, size_t max_count)
+static size_t extract_amp_from_raw(const int8_t *raw, size_t raw_len, float *amp_out, size_t max_count)
 {
-    if (!info || !amp_out || max_count == 0 || info->len < 2) {
+    if (!raw || !amp_out || max_count == 0 || raw_len < 2) {
         return 0;
     }
 
-    size_t complex_count = info->len / 2;
+    size_t complex_count = raw_len / 2;
     size_t out_count = complex_count < max_count ? complex_count : max_count;
-    const int8_t *raw = info->buf;
 
     for (size_t i = 0; i < out_count; ++i) {
         int8_t i_part = raw[2 * i];
@@ -109,7 +108,6 @@ static size_t extract_amp_from_csi(const wifi_csi_info_t *info, float *amp_out, 
     return out_count;
 }
 
-/* 3-tap 이동평균으로 프레임 간 흔들림(jitter)을 완화합니다. */
 static size_t moving_average_3tap(const float *in, float *out, size_t n)
 {
     if (!in || !out || n == 0) {
@@ -129,8 +127,6 @@ static size_t moving_average_3tap(const float *in, float *out, size_t n)
     return n;
 }
 
-/* 프레임 단위 z-score 정규화:
- * 수신 이득 변화(AGC 등)로 인한 스케일 드리프트를 줄여줍니다. */
 static void zscore_inplace(float *x, size_t n)
 {
     if (!x || n == 0) {
@@ -156,8 +152,6 @@ static void zscore_inplace(float *x, size_t n)
     }
 }
 
-/* 이상치 클리핑:
- * 극단값을 잘라 후단 임계값 로직/전송 안정성을 높입니다. */
 static void clip_outlier_inplace(float *x, size_t n, float lo, float hi)
 {
     if (!x) {
@@ -172,15 +166,9 @@ static void clip_outlier_inplace(float *x, size_t n, float lo, float hi)
     }
 }
 
-/* CSI 콜백이 들어올 때마다 UDP 패킷 1개를 만들어 전송합니다.
- * 처리 순서:
- * 1) raw CSI(I/Q) -> amplitude 변환
- * 2) 이동평균 + 정규화 + 클리핑
- * 3) 헤더 + float payload 패킹
- * 4) Mac 수집기로 sendto() 전송 */
-static void send_csi_packet(const wifi_csi_info_t *info)
+static void send_csi_from_raw(const csi_raw_item_t *item)
 {
-    if (!info || g_udp_sock < 0) {
+    if (!item || g_udp_sock < 0) {
         return;
     }
 
@@ -192,7 +180,7 @@ static void send_csi_packet(const wifi_csi_info_t *info)
 
     float amp_raw[MAX_AMP_SAMPLES];
     float amp_ma[MAX_AMP_SAMPLES];
-    size_t count = extract_amp_from_csi(info, amp_raw, MAX_AMP_SAMPLES);
+    size_t count = extract_amp_from_raw(item->raw, item->raw_len, amp_raw, MAX_AMP_SAMPLES);
     if (count == 0) {
         return;
     }
@@ -214,12 +202,12 @@ static void send_csi_packet(const wifi_csi_info_t *info)
     hdr.header_len = HEADER_LEN;
     hdr.payload_type = PAYLOAD_TYPE_CSI_AMP;
     hdr.flags = 0;
-    hdr.session_id = 0; /* v1 reserved: run ID is Mac session_meta SSOT */
+    hdr.session_id = 0;
     hdr.device_id = g_runtime_device_id;
     hdr.seq = g_seq++;
     hdr.timestamp_us = (uint64_t)now_us;
-    hdr.channel = info->rx_ctrl.channel;
-    hdr.rssi_dbm = info->rx_ctrl.rssi;
+    hdr.channel = item->channel;
+    hdr.rssi_dbm = item->rssi;
     hdr.noise_floor_dbm = NOISE_FLOOR_UNKNOWN;
     hdr.sample_count = (uint16_t)count;
     hdr.crc32 = 0;
@@ -237,14 +225,65 @@ static void send_csi_packet(const wifi_csi_info_t *info)
     );
 }
 
-/* Wi-Fi CSI 콜백 진입점(핫패스) */
+static void csi_worker_task(void *arg)
+{
+    (void)arg;
+    csi_raw_item_t item;
+
+    while (1) {
+        if (xQueueReceive(g_csi_queue, &item, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+        send_csi_from_raw(&item);
+    }
+}
+
 static void wifi_csi_cb(void *ctx, wifi_csi_info_t *info)
 {
     (void)ctx;
-    send_csi_packet(info);
+    if (!info || !info->buf || info->len < 2 || g_csi_queue == NULL) {
+        return;
+    }
+
+    csi_raw_item_t item = {0};
+    item.raw_len = (uint16_t)(info->len > CSI_RAW_MAX_BYTES ? CSI_RAW_MAX_BYTES : info->len);
+    memcpy(item.raw, info->buf, item.raw_len);
+    item.channel = info->rx_ctrl.channel;
+    item.rssi = info->rx_ctrl.rssi;
+
+    if (xQueueSend(g_csi_queue, &item, 0) != pdTRUE) {
+        g_csi_queue_drop++;
+    }
 }
 
-/* UDP 목적지(Mac 수집기) 소켓/주소 초기화 */
+static void init_csi_pipeline(void)
+{
+    g_csi_queue = xQueueCreate(CSI_QUEUE_LEN, sizeof(csi_raw_item_t));
+    if (g_csi_queue == NULL) {
+        ESP_LOGE(TAG, "CSI queue alloc failed");
+        return;
+    }
+
+    xTaskCreate(csi_worker_task, "csi_worker", 4096, NULL, 5, NULL);
+
+    wifi_csi_config_t csi_config = {
+        .lltf_en = true,
+        .htltf_en = true,
+        .stbc_htltf2_en = true,
+        .ltf_merge_en = true,
+        .channel_filter_en = true,
+        .manu_scale = false,
+        .shift = false,
+    };
+
+    ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
+    ESP_ERROR_CHECK(esp_wifi_set_csi_config(&csi_config));
+    ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(wifi_csi_cb, NULL));
+    ESP_ERROR_CHECK(esp_wifi_set_csi(true));
+
+    ESP_LOGI(TAG, "CSI enabled (queue=%d, worker offload)", CSI_QUEUE_LEN);
+}
+
 static void init_udp_sender(void)
 {
     g_udp_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
@@ -261,8 +300,25 @@ static void init_udp_sender(void)
     ESP_LOGI(TAG, "UDP target: %s:%d", COLLECTOR_IP, COLLECTOR_PORT);
 }
 
-/* 인프라 Wi-Fi에 STA로 접속:
- * RX 노드가 Mac 수집기(IP)까지 도달 가능하도록 네트워크를 엽니다. */
+static void disable_wifi_power_save(void)
+{
+    esp_err_t err = esp_wifi_set_ps(WIFI_PS_NONE);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Wi-Fi power save disabled (CSI target 100Hz)");
+    } else {
+        ESP_LOGW(TAG, "esp_wifi_set_ps(WIFI_PS_NONE) failed: %s", esp_err_to_name(err));
+    }
+}
+
+static void wifi_sta_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+{
+    (void)arg;
+    (void)event_data;
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
+        disable_wifi_power_save();
+    }
+}
+
 static void init_wifi_sta(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
@@ -272,56 +328,38 @@ static void init_wifi_sta(void)
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(
+        WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_sta_event_handler, NULL, NULL));
 
     wifi_config_t wifi_config = {0};
     strncpy((char *)wifi_config.sta.ssid, WIFI_SSID, sizeof(wifi_config.sta.ssid) - 1);
     strncpy((char *)wifi_config.sta.password, WIFI_PASS, sizeof(wifi_config.sta.password) - 1);
     wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+    wifi_config.sta.listen_interval = 1;
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
+    disable_wifi_power_save();
     ESP_ERROR_CHECK(esp_wifi_connect());
 
     ESP_LOGI(TAG, "Wi-Fi STA start/connect requested");
 }
 
-/* CSI 수집 활성화 및 콜백 등록 */
-static void init_csi(void)
-{
-    wifi_csi_config_t csi_config = {
-        .lltf_en = true,
-        .htltf_en = true,
-        .stbc_htltf2_en = true,
-        .ltf_merge_en = true,
-        .channel_filter_en = true,
-        .manu_scale = false,
-        .shift = false,
-    };
-
-    ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
-    ESP_ERROR_CHECK(esp_wifi_set_csi_config(&csi_config));
-    ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(wifi_csi_cb, NULL));
-    ESP_ERROR_CHECK(esp_wifi_set_csi(true));
-
-    ESP_LOGI(TAG, "CSI enabled");
-}
-
 void app_main(void)
 {
-    /* 부팅 순서가 중요합니다.
-     * 1) NVS 초기화
-     * 2) 장치 ID 확정
-     * 3) 네트워크 경로 확보(STA + UDP)
-     * 4) CSI 캡처 시작 */
     ESP_ERROR_CHECK(nvs_flash_init());
     g_runtime_device_id = (uint32_t)DEVICE_ID;
     ESP_LOGI(TAG, "device_id=%" PRIu32 " (run session_id on Mac)", g_runtime_device_id);
     init_wifi_sta();
     init_udp_sender();
-    init_csi();
+    init_csi_pipeline();
 
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        uint32_t drops = g_csi_queue_drop;
+        if (drops > 0) {
+            ESP_LOGW(TAG, "CSI queue drops (total): %" PRIu32, drops);
+        }
     }
 }

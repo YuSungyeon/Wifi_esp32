@@ -4,11 +4,11 @@
 
 ```text
 TX/AP Node (esp32s3_tx_ap_node)
-  └─ SoftAP + 10ms 주기 UDP heartbeat 브로드캐스트 (포트 3333)
+  └─ SoftAP(100TU) + ESP-NOW 10ms + UDP heartbeat (포트 3333)
        │
 RX Nodes (esp32s3_csi_sender) × N대
   └─ TX/AP에 STA 접속 → CSI 콜백 수신
-  └─ 전처리(이동평균 → z-score → 이상치 클리핑) → UDP 전송 (10ms 간격, 100Hz)
+  └─ 전처리(이동평균 → z-score → 이상치 클리핑) → UDP 전송 (10ms 상한, 100Hz 목표)
        │
 Mac Collector (mac_collector/udp_collector_mvp.py)
   └─ UDP 수신 → 패킷 검증 → JSONL 저장
@@ -25,7 +25,9 @@ Post-processing (add/)
 
 | 위치 | 상수 | 값 | 의미 |
 |------|------|----|------|
-| `csi_sender_main.c` | `SEND_INTERVAL_US` | 10000 | RX 전송 주기 (10ms, 100Hz) |
+| `csi_sender_main.c` | `SEND_INTERVAL_US` | 10000 | RX 전송 상한 (10ms, 100Hz) |
+| TX CMake | `TX_AP_ESPNOW_INTERVAL_MS` | 10 | ESP-NOW (100Hz 목표) |
+| TX CMake | `TX_AP_BEACON_INTERVAL_TU` | 100 | SoftAP 비콘 |
 | `esp32s3_tx_ap_node/CMakeLists.txt` | `TX_AP_INTERVAL_MS` | 10 | TX UDP 브로드캐스트 주기 (ms) |
 | 펌웨어 UDP | `sample_count` | 최대 64 | RX CSI 진폭 개수 |
 | `add/main.py` | `F_S` | 100 | 후처리 샘플링 주파수 (Hz) |

@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_netif.h"
+#include "esp_now.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
@@ -20,8 +21,6 @@
 /* =========================
  * 런타임 설정(기본값)
  * =========================
- * 아래 값은 기본값이며 CMake -D 옵션으로 쉽게 바꿀 수 있습니다.
- * (SSID/채널/주기/세션ID 등을 코드 수정 없이 운용 가능)
  */
 #ifndef TX_AP_SSID
 #define TX_AP_SSID "MeshSense_TX_AP"
@@ -41,6 +40,12 @@
 #ifndef TX_AP_INTERVAL_MS
 #define TX_AP_INTERVAL_MS 10
 #endif
+#ifndef TX_AP_BEACON_INTERVAL_TU
+#define TX_AP_BEACON_INTERVAL_TU 100
+#endif
+#ifndef TX_AP_ESPNOW_INTERVAL_MS
+#define TX_AP_ESPNOW_INTERVAL_MS 10
+#endif
 #ifndef TX_AP_PAYLOAD_BYTES
 #define TX_AP_PAYLOAD_BYTES 64
 #endif
@@ -51,10 +56,8 @@
 #define TX_PACKET_MAGIC 0x5458u /* "TX" */
 #define TX_PACKET_VERSION 1u
 
-/* 디버깅/추적용 heartbeat 헤더
- * - RX가 이 패킷을 직접 파싱하는 구조는 아닙니다.
- * - 목적은 RF 트래픽을 일정하게 발생시키고,
- *   TX/AP 노드 상태(seq 증가)를 관찰하기 위함입니다. */
+static const uint8_t BROADCAST_MAC[ESP_NOW_ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
 typedef struct __attribute__((packed)) {
     uint16_t magic;
     uint8_t version;
@@ -68,10 +71,9 @@ typedef struct __attribute__((packed)) {
 } tx_heartbeat_header_t;
 
 static const char *TAG = "TX_AP_NODE";
-static uint32_t g_seq = 0;
+static uint32_t g_udp_seq = 0;
+static uint32_t g_enow_seq = 0;
 
-/* AP에 접속/해제되는 STA 이벤트를 로그로 남겨
- * AP 상태를 현장에서 빠르게 확인할 수 있게 합니다. */
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     (void)arg;
@@ -89,8 +91,23 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
     }
 }
 
-/* RX 노드가 붙을 SoftAP를 올립니다.
- * CSI 재현성을 위해 채널을 고정해서 운용하는 것을 기본으로 합니다. */
+static void init_esp_now(void)
+{
+    ESP_ERROR_CHECK(esp_now_init());
+
+    esp_now_peer_info_t peer = {0};
+    memcpy(peer.peer_addr, BROADCAST_MAC, ESP_NOW_ETH_ALEN);
+    peer.channel = (uint8_t)TX_AP_CHANNEL;
+    peer.ifidx = WIFI_IF_AP;
+    peer.encrypt = false;
+    ESP_ERROR_CHECK(esp_now_add_peer(&peer));
+
+    ESP_LOGI(TAG,
+             "ESP-NOW broadcaster ready ch=%d interval=%dms (CSI excitation, 100Hz target)",
+             TX_AP_CHANNEL,
+             TX_AP_ESPNOW_INTERVAL_MS);
+}
+
 static void init_softap(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
@@ -109,6 +126,8 @@ static void init_softap(void)
     ap_cfg.ap.channel = TX_AP_CHANNEL;
     ap_cfg.ap.max_connection = TX_AP_MAX_CONN;
     ap_cfg.ap.pmf_cfg.required = false;
+    /* 기본 100 TU(~102ms). 10 TU는 에어타임 붕괴로 CSI gap 유발 — ESP-NOW로 100Hz 유도 */
+    ap_cfg.ap.beacon_interval = (uint16_t)TX_AP_BEACON_INTERVAL_TU;
 
     if (strlen(TX_AP_PASS) >= 8) {
         ap_cfg.ap.authmode = WIFI_AUTH_WPA2_PSK;
@@ -121,16 +140,14 @@ static void init_softap(void)
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG,
-             "SoftAP started ssid=%s channel=%d max_conn=%d auth=%s",
+             "SoftAP started ssid=%s channel=%d max_conn=%d beacon=%dTU auth=%s",
              TX_AP_SSID,
              TX_AP_CHANNEL,
              TX_AP_MAX_CONN,
+             (int)ap_cfg.ap.beacon_interval,
              ap_cfg.ap.authmode == WIFI_AUTH_OPEN ? "OPEN" : "WPA2");
 }
 
-/* 더미 페이로드 생성:
- * 값 자체의 의미보다 "지속적인 무선 프레임 생성"이 목적입니다.
- * 즉, CSI 취득에 필요한 트래픽을 안정적으로 유지하기 위한 데이터입니다. */
 static void fill_payload(uint8_t *payload, uint16_t payload_len, uint32_t seq)
 {
     for (uint16_t i = 0; i < payload_len; ++i) {
@@ -138,8 +155,32 @@ static void fill_payload(uint8_t *payload, uint16_t payload_len, uint32_t seq)
     }
 }
 
-/* AP 서브넷 브로드캐스트 주소로 heartbeat를 주기 전송합니다.
- * 외부 공유기 없이도 TX/AP 노드 단독으로 트래픽 소스를 만들 수 있습니다. */
+/* ESP-NOW 브로드캐스트: RX CSI 콜백을 100Hz에 가깝게 유도 (L3 UDP보다 L2에 가까움) */
+static void esp_now_tx_task(void *arg)
+{
+    (void)arg;
+    uint32_t fail_streak = 0;
+
+    while (1) {
+        uint32_t payload = g_enow_seq++;
+        esp_err_t err = esp_now_send(BROADCAST_MAC, (const uint8_t *)&payload, sizeof(payload));
+        if (err != ESP_OK) {
+            if (++fail_streak == 1 || (fail_streak % 100) == 0) {
+                ESP_LOGW(TAG, "esp_now_send: %s (streak=%" PRIu32 ")", esp_err_to_name(err), fail_streak);
+            }
+        } else {
+            fail_streak = 0;
+        }
+
+        if ((payload % 100) == 0) {
+            ESP_LOGI(TAG, "esp_now seq=%" PRIu32, payload);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(TX_AP_ESPNOW_INTERVAL_MS));
+    }
+}
+
+/* 보조 L3 heartbeat (에어타임 점유 최소화를 위해 ESP-NOW보다 느리게 설정 가능) */
 static void tx_broadcast_task(void *arg)
 {
     (void)arg;
@@ -169,20 +210,18 @@ static void tx_broadcast_task(void *arg)
     }
 
     ESP_LOGI(TAG,
-             "Starting UDP broadcast: dst=192.168.4.255:%d interval=%dms payload=%dB",
+             "UDP broadcast: :%d every %dms payload=%dB",
              TX_AP_BROADCAST_PORT,
              TX_AP_INTERVAL_MS,
              payload_len);
 
     while (1) {
-        /* session/seq를 포함한 헤더를 구성해
-         * 나중에 로그 분석 시 세션 단위 추적이 가능하도록 합니다. */
         tx_heartbeat_header_t hdr = {0};
         hdr.magic = TX_PACKET_MAGIC;
         hdr.version = TX_PACKET_VERSION;
-        hdr.session_id = 0; /* v1 reserved: run ID is Mac session_meta SSOT */
+        hdr.session_id = 0;
         hdr.tx_node_id = (uint32_t)TX_AP_NODE_ID;
-        hdr.seq = g_seq++;
+        hdr.seq = g_udp_seq++;
         hdr.timestamp_us = (uint64_t)esp_timer_get_time();
         hdr.payload_len = payload_len;
 
@@ -195,19 +234,15 @@ static void tx_broadcast_task(void *arg)
             ESP_LOGW(TAG, "sendto failed");
         }
 
-        if ((hdr.seq % 100) == 0) {
-            ESP_LOGI(TAG, "tx heartbeat seq=%" PRIu32 " bytes=%d", hdr.seq, (int)packet_len);
-        }
-
         vTaskDelay(pdMS_TO_TICKS(TX_AP_INTERVAL_MS));
     }
 }
 
 void app_main(void)
 {
-    /* TX/AP 전용 노드의 최소 부팅 경로:
-     * NVS -> SoftAP -> heartbeat 송신 태스크 시작 */
     ESP_ERROR_CHECK(nvs_flash_init());
     init_softap();
-    xTaskCreate(tx_broadcast_task, "tx_broadcast_task", 4096, NULL, 5, NULL);
+    init_esp_now();
+    xTaskCreate(esp_now_tx_task, "esp_now_tx", 4096, NULL, 6, NULL);
+    xTaskCreate(tx_broadcast_task, "tx_udp", 4096, NULL, 4, NULL);
 }

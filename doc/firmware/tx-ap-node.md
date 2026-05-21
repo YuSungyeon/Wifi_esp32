@@ -3,7 +3,9 @@
 `esp32s3_tx_ap_node` — MeshSense TX/AP 노드.
 
 - SoftAP (`MeshSense_TX_AP` / `mstx1234` 기본 예시)
-- UDP broadcast (기본 **10ms**, 포트 **3333**)
+- **ESP-NOW** 브로드캐스트 (기본 **10ms**, `espnow_interval_ms`) — CSI 100Hz 유도용 주 트래픽
+- UDP broadcast (기본 **10ms**, 포트 **3333**) — 보조 heartbeat
+- SoftAP 비콘 (기본 **100 TU**, `beacon_interval_tu`) — 안정 AP; 짧은 TU(10)는 gap 유발
 
 ## 사전 준비
 
@@ -29,7 +31,7 @@ run `session_id`는 Mac `session_meta.yaml` (펌웨어 미사용).
 |----|--------|
 | `ap.ssid` / `ap.pass` | `TX_AP_SSID` / `TX_AP_PASS` |
 | `ap.channel` | `TX_AP_CHANNEL` |
-| `ap.broadcast_port`, `interval_ms`, … | TX UDP |
+| `ap.broadcast_port`, `interval_ms`, `beacon_interval_tu`, … | TX UDP·비콘 |
 
 ## RX와 맞출 것
 

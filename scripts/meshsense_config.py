@@ -20,6 +20,8 @@ class MeshSenseConfig:
     ap_max_conn: int
     ap_broadcast_port: int
     ap_interval_ms: int
+    ap_beacon_interval_tu: int
+    ap_espnow_interval_ms: int
     ap_payload_bytes: int
     collector_ip: str
     collector_port: int
@@ -41,6 +43,8 @@ class MeshSenseConfig:
             f"-DTX_AP_MAX_CONN={self.ap_max_conn}",
             f"-DTX_AP_BROADCAST_PORT={self.ap_broadcast_port}",
             f"-DTX_AP_INTERVAL_MS={self.ap_interval_ms}",
+            f"-DTX_AP_BEACON_INTERVAL_TU={self.ap_beacon_interval_tu}",
+            f"-DTX_AP_ESPNOW_INTERVAL_MS={self.ap_espnow_interval_ms}",
             f"-DTX_AP_PAYLOAD_BYTES={self.ap_payload_bytes}",
             f"-DTX_AP_NODE_ID={tx_node_id}",
         ]
@@ -74,6 +78,8 @@ def _parse_unified(data: Dict[str, Any]) -> MeshSenseConfig:
         ap_max_conn=req_int(ap, "max_conn", "ap"),
         ap_broadcast_port=req_int(ap, "broadcast_port", "ap"),
         ap_interval_ms=req_int(ap, "interval_ms", "ap"),
+        ap_beacon_interval_tu=int(ap.get("beacon_interval_tu", 100)),
+        ap_espnow_interval_ms=int(ap.get("espnow_interval_ms", 10)),
         ap_payload_bytes=req_int(ap, "payload_bytes", "ap"),
         collector_ip=req_str(collector, "ip", "collector"),
         collector_port=req_int(collector, "port", "collector"),

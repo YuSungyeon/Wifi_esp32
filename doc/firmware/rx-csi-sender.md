@@ -49,6 +49,15 @@ idf.py -DCSI_WIFI_SSID="MeshSense_TX_AP" -DCSI_WIFI_PASS="mstx1234" \
 idf.py -p /dev/tty.usbmodemXXXX flash monitor
 ```
 
+## CSI 샘플링 (목표 100Hz)
+
+- RX `SEND_INTERVAL_US` = **10ms** — 최대 100Hz UDP.
+- CSI 콜백은 **큐+워커**로 전처리·`sendto` 분리 (콜백 블로킹·gap 완화).
+- STA `WIFI_PS_NONE`, `listen_interval=1`.
+- TX **ESP-NOW 10ms** (`espnow_interval_ms`) + 비콘 **100 TU** (`beacon_interval_tu`).
+
+Hz 확인: `python scripts/measure_csi_hz.py mac_collector_output/raw/.../session_<id>`
+
 ## 트러블슈팅
 
 - **registry에 MAC 없음**: `device_registry.py add`
