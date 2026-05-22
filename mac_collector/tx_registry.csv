@@ -1,2 +1,2 @@
 tx_node_id,board_name,chip_mac,room_x_m,room_y_m,height_m,firmware_version,notes
-1,TX1,DC:B4:D9:03:47:00,1.5,1.5,1.2,v0.1.0, just one
+1,TX1,3C:0F:02:CF:7C:28,1.5,1.5,1.2,v0.1.0,

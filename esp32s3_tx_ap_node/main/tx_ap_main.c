@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -58,6 +59,51 @@
 
 static const uint8_t BROADCAST_MAC[ESP_NOW_ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
+/* 연결된 STA의 MAC을 ESP-NOW peer로 등록 → unicast로 보내 DTIM 게이팅 우회.
+ * SoftAP broadcast/multicast 프레임은 DTIM beacon마다 묶여 전송되므로 100Hz CSI 자극 불가.
+ * unicast는 즉시 전송. */
+#define MAX_STA_PEERS 4
+static uint8_t g_sta_peers[MAX_STA_PEERS][ESP_NOW_ETH_ALEN];
+static volatile int g_sta_peer_count = 0;
+
+static bool add_sta_peer(const uint8_t *mac)
+{
+    for (int i = 0; i < g_sta_peer_count; ++i) {
+        if (memcmp(g_sta_peers[i], mac, ESP_NOW_ETH_ALEN) == 0) {
+            return false;
+        }
+    }
+    if (g_sta_peer_count >= MAX_STA_PEERS) {
+        return false;
+    }
+    esp_now_peer_info_t peer = {0};
+    memcpy(peer.peer_addr, mac, ESP_NOW_ETH_ALEN);
+    peer.channel = (uint8_t)TX_AP_CHANNEL;
+    peer.ifidx = WIFI_IF_AP;
+    peer.encrypt = false;
+    esp_err_t err = esp_now_add_peer(&peer);
+    if (err != ESP_OK && err != ESP_ERR_ESPNOW_EXIST) {
+        return false;
+    }
+    memcpy(g_sta_peers[g_sta_peer_count], mac, ESP_NOW_ETH_ALEN);
+    g_sta_peer_count++;
+    return true;
+}
+
+static void remove_sta_peer(const uint8_t *mac)
+{
+    for (int i = 0; i < g_sta_peer_count; ++i) {
+        if (memcmp(g_sta_peers[i], mac, ESP_NOW_ETH_ALEN) == 0) {
+            esp_now_del_peer(mac);
+            for (int j = i; j + 1 < g_sta_peer_count; ++j) {
+                memcpy(g_sta_peers[j], g_sta_peers[j + 1], ESP_NOW_ETH_ALEN);
+            }
+            g_sta_peer_count--;
+            return;
+        }
+    }
+}
+
 typedef struct __attribute__((packed)) {
     uint16_t magic;
     uint8_t version;
@@ -73,6 +119,20 @@ typedef struct __attribute__((packed)) {
 static const char *TAG = "TX_AP_NODE";
 static uint32_t g_udp_seq = 0;
 static uint32_t g_enow_seq = 0;
+static volatile uint32_t g_enow_ok = 0;
+static volatile uint32_t g_enow_fail = 0;
+static volatile uint32_t g_enow_cb_ok = 0;
+static volatile uint32_t g_enow_cb_fail = 0;
+
+static void esp_now_send_cb(const uint8_t *mac, esp_now_send_status_t status)
+{
+    (void)mac;
+    if (status == ESP_NOW_SEND_SUCCESS) {
+        g_enow_cb_ok++;
+    } else {
+        g_enow_cb_fail++;
+    }
+}
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -84,16 +144,21 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 
     if (event_id == WIFI_EVENT_AP_STACONNECTED) {
         wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
-        ESP_LOGI(TAG, "STA connected: " MACSTR ", aid=%d", MAC2STR(event->mac), event->aid);
+        bool added = add_sta_peer(event->mac);
+        ESP_LOGI(TAG, "STA connected: " MACSTR ", aid=%d, peer_added=%d, peers=%d",
+                 MAC2STR(event->mac), event->aid, added, g_sta_peer_count);
     } else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
         wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
-        ESP_LOGI(TAG, "STA disconnected: " MACSTR ", aid=%d", MAC2STR(event->mac), event->aid);
+        remove_sta_peer(event->mac);
+        ESP_LOGI(TAG, "STA disconnected: " MACSTR ", aid=%d, peers=%d",
+                 MAC2STR(event->mac), event->aid, g_sta_peer_count);
     }
 }
 
 static void init_esp_now(void)
 {
     ESP_ERROR_CHECK(esp_now_init());
+    ESP_ERROR_CHECK(esp_now_register_send_cb(esp_now_send_cb));
 
     esp_now_peer_info_t peer = {0};
     memcpy(peer.peer_addr, BROADCAST_MAC, ESP_NOW_ETH_ALEN);
@@ -101,6 +166,10 @@ static void init_esp_now(void)
     peer.ifidx = WIFI_IF_AP;
     peer.encrypt = false;
     ESP_ERROR_CHECK(esp_now_add_peer(&peer));
+
+    /* ESP-NOW rate 강제는 사용하지 않음 (default 사용).
+     * - HT20 MCS0 / 11g 6M OFDM 강제 모두 RX CSI 콜백 또는 무선 송신 신뢰성을 악화시킴
+     * - default rate가 실측 가장 안정적 (cb 발생률 + tx 성공률 균형) */
 
     ESP_LOGI(TAG,
              "ESP-NOW broadcaster ready ch=%d interval=%dms (CSI excitation, 100Hz target)",
@@ -137,7 +206,11 @@ static void init_softap(void)
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
+    /* HT20 강제는 start 이전에 (이후에 호출하면 무시되는 경우 관측됨).
+     * HT40 secondary channel에서 ESP-NOW broadcast가 RX CSI 콜백을 일부 누락시키는 문제 회피. */
+    ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20));
     ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20));
 
     ESP_LOGI(TAG,
              "SoftAP started ssid=%s channel=%d max_conn=%d beacon=%dTU auth=%s",
@@ -163,17 +236,37 @@ static void esp_now_tx_task(void *arg)
 
     while (1) {
         uint32_t payload = g_enow_seq++;
-        esp_err_t err = esp_now_send(BROADCAST_MAC, (const uint8_t *)&payload, sizeof(payload));
-        if (err != ESP_OK) {
-            if (++fail_streak == 1 || (fail_streak % 100) == 0) {
-                ESP_LOGW(TAG, "esp_now_send: %s (streak=%" PRIu32 ")", esp_err_to_name(err), fail_streak);
+        int peers = g_sta_peer_count;
+        bool any_ok = false;
+        if (peers > 0) {
+            /* unicast 송신: DTIM 게이팅 우회 → 즉시 송출 → RX CSI 100Hz 자극 */
+            for (int i = 0; i < peers; ++i) {
+                esp_err_t err = esp_now_send(g_sta_peers[i], (const uint8_t *)&payload, sizeof(payload));
+                if (err == ESP_OK) {
+                    any_ok = true;
+                }
             }
         } else {
+            /* STA 미연결 시 fallback: broadcast (peer 등록 안 되어 있으면 실패) */
+            esp_err_t err = esp_now_send(BROADCAST_MAC, (const uint8_t *)&payload, sizeof(payload));
+            if (err == ESP_OK) {
+                any_ok = true;
+            }
+        }
+        if (!any_ok) {
+            g_enow_fail++;
+            if (++fail_streak == 1 || (fail_streak % 100) == 0) {
+                ESP_LOGW(TAG, "esp_now_send failed (streak=%" PRIu32 ", peers=%d)", fail_streak, peers);
+            }
+        } else {
+            g_enow_ok++;
             fail_streak = 0;
         }
 
-        if ((payload % 100) == 0) {
-            ESP_LOGI(TAG, "esp_now seq=%" PRIu32, payload);
+        if ((payload % 500) == 0) {
+            ESP_LOGI(TAG,
+                     "esp_now seq=%" PRIu32 " api(ok=%" PRIu32 " fail=%" PRIu32 ") tx_done(ok=%" PRIu32 " fail=%" PRIu32 ")",
+                     payload, g_enow_ok, g_enow_fail, g_enow_cb_ok, g_enow_cb_fail);
         }
 
         vTaskDelay(pdMS_TO_TICKS(TX_AP_ESPNOW_INTERVAL_MS));

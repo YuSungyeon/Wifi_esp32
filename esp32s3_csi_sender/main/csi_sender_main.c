@@ -43,7 +43,7 @@
 
 #define MAX_AMP_SAMPLES         64
 #define CSI_BUFFER_MAX_BYTES    512
-#define SEND_INTERVAL_US        10000  /* 10ms — 목표 100Hz */
+#define SEND_INTERVAL_US        9000   /* 9ms — 100Hz 상한 (jitter 허용) */
 #define CSI_RAW_MAX_BYTES       256
 #define CSI_QUEUE_LEN           32
 
@@ -84,6 +84,12 @@ static uint32_t g_runtime_device_id = 0;
 static int64_t g_last_send_us = 0;
 static QueueHandle_t g_csi_queue = NULL;
 static volatile uint32_t g_csi_queue_drop = 0;
+static volatile uint32_t g_csi_cb_count = 0;
+static volatile uint32_t g_csi_throttle_drop = 0;
+static volatile uint32_t g_csi_sent = 0;
+static volatile uint32_t g_csi_filter_drop = 0;
+static uint8_t g_ap_bssid[6] = {0};
+static bool g_ap_bssid_set = false;
 
 static float to_amplitude(const int8_t i, const int8_t q)
 {
@@ -174,9 +180,11 @@ static void send_csi_from_raw(const csi_raw_item_t *item)
 
     int64_t now_us = esp_timer_get_time();
     if (g_last_send_us != 0 && (now_us - g_last_send_us) < SEND_INTERVAL_US) {
+        g_csi_throttle_drop++;
         return;
     }
     g_last_send_us = now_us;
+    g_csi_sent++;
 
     float amp_raw[MAX_AMP_SAMPLES];
     float amp_ma[MAX_AMP_SAMPLES];
@@ -245,6 +253,15 @@ static void wifi_csi_cb(void *ctx, wifi_csi_info_t *info)
         return;
     }
 
+    g_csi_cb_count++;
+    /* 우리 AP BSSID에서 온 frame만 통과 — 주변 다른 네트워크 CSI 차단 */
+    if (g_ap_bssid_set) {
+        const uint8_t *src = info->mac;
+        if (memcmp(src, g_ap_bssid, 6) != 0) {
+            g_csi_filter_drop++;
+            return;
+        }
+    }
     csi_raw_item_t item = {0};
     item.raw_len = (uint16_t)(info->len > CSI_RAW_MAX_BYTES ? CSI_RAW_MAX_BYTES : info->len);
     memcpy(item.raw, info->buf, item.raw_len);
@@ -271,11 +288,13 @@ static void init_csi_pipeline(void)
         .htltf_en = true,
         .stbc_htltf2_en = true,
         .ltf_merge_en = true,
-        .channel_filter_en = true,
+        .channel_filter_en = false, /* HT40 secondary 등 모든 frame에서 CSI */
         .manu_scale = false,
         .shift = false,
     };
 
+    /* promiscuous 필수: STA 모드만으로는 ESP-NOW broadcast frame의 CSI 콜백이
+     * 거의 발생하지 않음(실측 0.2Hz). promiscuous로 모든 frame을 CSI 경로로 통과시킴. */
     ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
     ESP_ERROR_CHECK(esp_wifi_set_csi_config(&csi_config));
     ESP_ERROR_CHECK(esp_wifi_set_csi_rx_cb(wifi_csi_cb, NULL));
@@ -313,8 +332,11 @@ static void disable_wifi_power_save(void)
 static void wifi_sta_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     (void)arg;
-    (void)event_data;
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
+        wifi_event_sta_connected_t *ev = (wifi_event_sta_connected_t *)event_data;
+        memcpy(g_ap_bssid, ev->bssid, 6);
+        g_ap_bssid_set = true;
+        ESP_LOGI(TAG, "AP BSSID locked for CSI filter: " MACSTR, MAC2STR(g_ap_bssid));
         disable_wifi_power_save();
     }
 }
@@ -339,7 +361,10 @@ static void init_wifi_sta(void)
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    /* STA도 HT20 강제 → AP/STA 양쪽 HT20으로 협상되어 secondary-channel 누락 제거 */
+    ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20));
     ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20));
     disable_wifi_power_save();
     ESP_ERROR_CHECK(esp_wifi_connect());
 
@@ -355,11 +380,19 @@ void app_main(void)
     init_udp_sender();
     init_csi_pipeline();
 
+    uint32_t prev_cb = 0, prev_sent = 0;
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(5000));
-        uint32_t drops = g_csi_queue_drop;
-        if (drops > 0) {
-            ESP_LOGW(TAG, "CSI queue drops (total): %" PRIu32, drops);
-        }
+        uint32_t cb = g_csi_cb_count;
+        uint32_t sent = g_csi_sent;
+        uint32_t throttle = g_csi_throttle_drop;
+        uint32_t qdrop = g_csi_queue_drop;
+        ESP_LOGI(TAG,
+                 "5s: cb=%" PRIu32 " (+%" PRIu32 ", %.1fHz) sent=%" PRIu32 " (+%" PRIu32 ", %.1fHz) throttle_drop=%" PRIu32 " filter_drop=%" PRIu32 " qdrop=%" PRIu32,
+                 cb, cb - prev_cb, (cb - prev_cb) / 5.0f,
+                 sent, sent - prev_sent, (sent - prev_sent) / 5.0f,
+                 throttle, g_csi_filter_drop, qdrop);
+        prev_cb = cb;
+        prev_sent = sent;
     }
 }

@@ -39,6 +39,12 @@ VENV_DIR = REPO_ROOT / ".venv"
 VENV_PYTHON = VENV_DIR / "bin" / "python"
 VIZ_REQUIREMENTS = REPO_ROOT / "requirements-viz.txt"
 
+# 새 버전 (esp-csi 베이스 PoC) — doc/firmware/csi-poc.md 참고
+SEND_POC_PROJECT = REPO_ROOT / "esp32s3_csi_send_poc"
+RECV_POC_PROJECT = REPO_ROOT / "esp32s3_csi_recv_poc"
+SERIAL_READER_SCRIPT = SCRIPT_DIR / "csi_serial_reader.py"
+POC_LOG_DIR = Path.home() / "meshsense_logs"
+
 BoardKind = Literal["tx", "rx"]
 
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -803,6 +809,220 @@ def _board_verify_all() -> None:
         print("\n[결과] registry 검증 OK")
 
 
+def _flash_poc_board(*, kind: Optional[BoardKind] = None) -> bool:
+    """esp-csi PoC 펌웨어(esp32s3_csi_send_poc / esp32s3_csi_recv_poc) 플래시.
+
+    기존 device_registry / tx_registry 의 MAC 매핑은 그대로 쓰지만, 플래시 대상
+    프로젝트만 PoC 디렉터리로 교체한다. (flash_rx.py / flash_tx.py 는 production
+    펌웨어 전용이라 우회.)
+    """
+    from idf_env import run_in_idf_shell  # noqa: WPS433
+
+    print("\n--- [PoC] 보드 플래시 (esp-csi 베이스) ---")
+    print("  대상: " + (f"{kind.upper()} 전용" if kind else "MAC 자동 매칭"))
+    for p in (SEND_POC_PROJECT, RECV_POC_PROJECT):
+        if not (p / "CMakeLists.txt").is_file():
+            print(f"[중단] PoC 프로젝트 없음: {p}")
+            return False
+
+    port = _pick_port()
+    if not port:
+        print("취소되었습니다.")
+        return False
+
+    try:
+        mac = _read_usb_mac(port)
+    except RuntimeError as exc:
+        print(f"\n[실패] MAC 읽기: {exc}")
+        return False
+
+    print(f"  {_describe_board(mac)}")
+    resolved = kind or _resolve_board_kind(mac)
+    if resolved is None:
+        print("\n[안내] registry에 없습니다. 메인 메뉴 [3] 보드 관리에서 등록하세요.")
+        return False
+
+    project = SEND_POC_PROJECT if resolved == "tx" else RECV_POC_PROJECT
+    label = "csi_send_poc (TX)" if resolved == "tx" else "csi_recv_poc (RX)"
+    print(f"\n  → {label} 플래시 (project: {project.name}, port: {port})")
+
+    if _ask_yes_no("빌드 캐시를 지우고 fullclean 할까요? (느림)", default_no=True):
+        print("\n[실행] idf.py fullclean")
+        rc = run_in_idf_shell(["idf.py", "fullclean"], cwd=project, check=False)
+        if rc.returncode != 0:
+            print("[경고] fullclean 실패 — 빌드는 계속 시도합니다.")
+
+    print(f"\n[실행] idf.py -p {port} flash (project: {project.name})")
+    try:
+        rc = run_in_idf_shell(
+            ["idf.py", "-p", port, "flash"],
+            cwd=project,
+            check=False,
+        )
+    except KeyboardInterrupt:
+        print("\n[중단] Ctrl+C")
+        return False
+    if rc.returncode != 0:
+        print(f"\n[실패] 종료 코드 {rc.returncode}")
+        return False
+    print("\n[완료] PoC 플래시 성공")
+    if resolved == "rx":
+        print("  → 메뉴 [10-2] 수집으로 데이터 받기 (USB 시리얼)")
+    else:
+        print("  → TX는 USB 연결만 유지하면 100Hz로 ESP-NOW 송신 시작 (monitor 불필요)")
+    return True
+
+
+def _read_session_id_from_yaml() -> int:
+    if not SESSION_META.is_file():
+        return 1
+    try:
+        text = SESSION_META.read_text(encoding="utf-8")
+    except OSError:
+        return 1
+    m = re.search(r"^session_id:\s*(\d+)\s*$", text, re.MULTILINE)
+    return int(m.group(1)) if m else 1
+
+
+def _detect_rx_boards() -> List[Tuple[str, int]]:
+    """현재 USB 포트들에서 MAC 읽고 RX registry와 매칭된 (port, device_id) 만 반환."""
+    from registry import lookup_by_mac  # noqa: WPS433
+
+    found: List[Tuple[str, int]] = []
+    if not DEVICE_REGISTRY.is_file():
+        print(f"[경고] RX registry 없음: {DEVICE_REGISTRY}")
+        return found
+
+    for port in _list_usb_ports():
+        try:
+            mac = _read_usb_mac(port)
+        except RuntimeError as exc:
+            print(f"  {port}: MAC 읽기 실패 ({exc})")
+            continue
+        try:
+            rec = lookup_by_mac(mac, DEVICE_REGISTRY)
+        except (FileNotFoundError, ValueError):
+            rec = None
+        if rec is None:
+            print(f"  {port}: MAC {mac} — RX registry에 없음 (TX 또는 미등록, 건너뜀)")
+            continue
+        print(f"  {port}: MAC {mac} → RX device_id={rec.device_id} ({rec.board_name})")
+        found.append((port, rec.device_id))
+    return found
+
+
+def _collect_poc_interactive() -> bool:
+    """USB 시리얼로 연결된 RX 보드들에서 csi_serial_reader.py 병렬 실행."""
+    import signal as _signal
+    import time as _time
+
+    print("\n--- [PoC] USB 시리얼 수집 ---")
+    if not SERIAL_READER_SCRIPT.is_file():
+        print(f"[중단] reader 스크립트 없음: {SERIAL_READER_SCRIPT}")
+        return False
+
+    print("  연결된 USB 보드 스캔 + RX registry 매칭…")
+    boards = _detect_rx_boards()
+    if not boards:
+        print("\n[중단] 수집 대상 RX 보드를 찾지 못했습니다.")
+        print("  ① RX 보드가 USB로 연결되어 있고 PoC 펌웨어가 플래시되었는지 확인")
+        print("  ② mac_collector/device_registry.csv 에 등록되어 있는지 확인")
+        return False
+
+    session_id = _read_session_id_from_yaml()
+    print(f"\n  session_id = {session_id} (session_meta.yaml)")
+
+    duration_sec = _ask_collect_duration_sec()
+
+    POC_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = _time.strftime("%Y%m%d_%H%M%S")
+    procs: List[Tuple[int, "subprocess.Popen[bytes]", Path]] = []  # (device_id, proc, log_path)
+
+    for port, device_id in boards:
+        log_path = POC_LOG_DIR / f"reader_session{session_id}_dev{device_id}_{timestamp}.log"
+        cmd = [
+            sys.executable,
+            str(SERIAL_READER_SCRIPT),
+            "--port", port,
+            "--device-id", str(device_id),
+            "--session-id", str(session_id),
+            "--output-dir", str(OUTPUT_DIR),
+        ]
+        print(f"\n[실행] dev{device_id} ({port}) → log: {log_path}")
+        print("       " + " ".join(cmd))
+        log_fp = log_path.open("wb")
+        proc = subprocess.Popen(cmd, stdout=log_fp, stderr=subprocess.STDOUT, cwd=str(REPO_ROOT))
+        procs.append((device_id, proc, log_path))
+
+    if duration_sec > 0:
+        print(f"\n[안내] {duration_sec:.0f}초 후 자동 종료 (중간 Ctrl+C 도 가능)")
+    else:
+        print("\n[안내] 종료: Ctrl+C")
+
+    start = _time.monotonic()
+    try:
+        if duration_sec > 0:
+            _time.sleep(duration_sec)
+        else:
+            # 무한 대기: reader 중 하나라도 죽으면 종료
+            while all(p.poll() is None for _, p, _ in procs):
+                _time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("\n[중단] Ctrl+C — reader 종료 중…")
+
+    print("\n--- reader 종료 신호 송신 ---")
+    for device_id, proc, _ in procs:
+        if proc.poll() is None:
+            try:
+                proc.send_signal(_signal.SIGINT)
+            except ProcessLookupError:
+                pass
+
+    elapsed = _time.monotonic() - start
+    print(f"  {elapsed:.1f}초 수집됨. reader 정리 대기…")
+    for device_id, proc, log_path in procs:
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            print(f"  dev{device_id}: 응답 없음 → SIGTERM")
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        rc = proc.returncode
+        print(f"  dev{device_id} 종료 (rc={rc}, log: {log_path.name})")
+
+    print(f"\n[완료] 출력 디렉터리: {OUTPUT_DIR}/raw/$(date)/session_{session_id}/")
+    print(f"       reader 로그: {POC_LOG_DIR}/reader_session{session_id}_*_{timestamp}.log")
+    return True
+
+
+def _menu_poc() -> None:
+    """[10] 새로운 버전 — esp-csi 베이스 PoC (USB 시리얼 100Hz 파이프라인)."""
+    while True:
+        print("\n--- [10] 새로운 버전 (esp-csi PoC) ---")
+        print(f"  TX 프로젝트: {SEND_POC_PROJECT.name}")
+        print(f"  RX 프로젝트: {RECV_POC_PROJECT.name}")
+        print(f"  reader:    {SERIAL_READER_SCRIPT.name}")
+        idx = _choose(
+            "선택",
+            [
+                "보드 플래시 (PoC, MAC 자동 매칭)",
+                "수집 (USB 시리얼, 시간 입력)",
+                "돌아가기",
+            ],
+        )
+        if idx == 0:
+            _flash_poc_board()
+            _pause()
+        elif idx == 1:
+            _collect_poc_interactive()
+            _pause()
+        else:
+            break
+
+
 def _menu_board_management() -> None:
     while True:
         print("\n--- 보드 관리 (registry CRUD) ---")
@@ -1044,6 +1264,7 @@ def _main_menu(quick: bool) -> None:
             "보드 관리 (registry 등록·검증)",
             "수집기 실행",
             "사전 점검",
+            "[NEW] esp-csi PoC (100Hz USB 시리얼 파이프라인)",
             "종료",
         ]
         idx = _choose("선택", options)
@@ -1058,6 +1279,8 @@ def _main_menu(quick: bool) -> None:
         elif idx == 4:
             _preflight()
             _pause()
+        elif idx == 5:
+            _menu_poc()
         else:
             print("\n종료합니다.")
             break
