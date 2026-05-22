@@ -43,7 +43,7 @@ VIZ_REQUIREMENTS = REPO_ROOT / "requirements-viz.txt"
 SEND_POC_PROJECT = REPO_ROOT / "esp32s3_csi_send_poc"
 RECV_POC_PROJECT = REPO_ROOT / "esp32s3_csi_recv_poc"
 SERIAL_READER_SCRIPT = SCRIPT_DIR / "csi_serial_reader.py"
-POC_LOG_DIR = Path.home() / "meshsense_logs"
+POC_LOG_DIR = REPO_ROOT / "log"  # .gitignore 처리됨
 
 BoardKind = Literal["tx", "rx"]
 
@@ -957,6 +957,27 @@ def _detect_rx_boards() -> List[Tuple[str, int]]:
     return found
 
 
+def _tee_subprocess_lines(proc: "subprocess.Popen[bytes]", log_fp) -> None:
+    """proc의 stdout(stderr 병합)을 라인 단위로 읽어 터미널 + log_fp에 동시 출력 (tee).
+
+    부모 콘솔에는 reader가 이미 '[reader devN] ...' prefix를 붙여 출력하므로 그대로 흘림.
+    스레드 종료 조건: proc 가 끝나 pipe EOF.
+    """
+    if proc.stdout is None:
+        return
+    for line in iter(proc.stdout.readline, b""):
+        try:
+            log_fp.write(line)
+            log_fp.flush()
+        except OSError:
+            pass
+        try:
+            sys.stdout.buffer.write(line)
+            sys.stdout.buffer.flush()
+        except (OSError, ValueError):
+            pass
+
+
 def _collect_poc_interactive() -> bool:
     """USB 시리얼로 연결된 RX 보드들에서 csi_serial_reader.py 병렬 실행."""
     import signal as _signal
@@ -982,7 +1003,10 @@ def _collect_poc_interactive() -> bool:
 
     POC_LOG_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = _time.strftime("%Y%m%d_%H%M%S")
-    procs: List[Tuple[int, "subprocess.Popen[bytes]", Path]] = []  # (device_id, proc, log_path)
+    import threading
+
+    # (device_id, proc, log_path, log_fp, tee_thread)
+    procs: List[Tuple[int, "subprocess.Popen[bytes]", Path, object, threading.Thread]] = []
 
     for port, device_id in boards:
         log_path = POC_LOG_DIR / f"reader_session{session_id}_dev{device_id}_{timestamp}.log"
@@ -997,27 +1021,52 @@ def _collect_poc_interactive() -> bool:
         print(f"\n[실행] dev{device_id} ({port}) → log: {log_path}")
         print("       " + " ".join(cmd))
         log_fp = log_path.open("wb")
-        proc = subprocess.Popen(cmd, stdout=log_fp, stderr=subprocess.STDOUT, cwd=str(REPO_ROOT))
-        procs.append((device_id, proc, log_path))
+        # PIPE로 받아 tee 스레드가 터미널 + 로그 동시 출력
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
+            cwd=str(REPO_ROOT),
+        )
+        thr = threading.Thread(
+            target=_tee_subprocess_lines,
+            args=(proc, log_fp),
+            daemon=True,
+        )
+        thr.start()
+        procs.append((device_id, proc, log_path, log_fp, thr))
 
     if duration_sec > 0:
         print(f"\n[안내] {duration_sec:.0f}초 후 자동 종료 (중간 Ctrl+C 도 가능)")
     else:
         print("\n[안내] 종료: Ctrl+C")
+    print("=" * 60)
+    print("  ↓↓ reader 실시간 출력 (터미널 + log/ 동시 기록) ↓↓")
+    print("=" * 60)
 
     start = _time.monotonic()
     try:
         if duration_sec > 0:
-            _time.sleep(duration_sec)
+            # 단순 sleep — tee 스레드가 실시간 stdout/log 모두 처리
+            # reader가 조기 종료하면 빨리 빠져나오기 위해 0.5초 단위 폴링
+            deadline = start + duration_sec
+            while _time.monotonic() < deadline:
+                if any(p.poll() is not None for _, p, _, _, _ in procs):
+                    print("\n[경고] reader 중 일부가 조기 종료됨")
+                    break
+                _time.sleep(0.5)
         else:
             # 무한 대기: reader 중 하나라도 죽으면 종료
-            while all(p.poll() is None for _, p, _ in procs):
+            while all(p.poll() is None for _, p, _, _, _ in procs):
                 _time.sleep(0.5)
     except KeyboardInterrupt:
         print("\n[중단] Ctrl+C — reader 종료 중…")
 
-    print("\n--- reader 종료 신호 송신 ---")
-    for device_id, proc, _ in procs:
+    print("\n" + "=" * 60)
+    print("  reader 종료 신호 송신")
+    print("=" * 60)
+    for device_id, proc, _, _, _ in procs:
         if proc.poll() is None:
             try:
                 proc.send_signal(_signal.SIGINT)
@@ -1026,7 +1075,7 @@ def _collect_poc_interactive() -> bool:
 
     elapsed = _time.monotonic() - start
     print(f"  {elapsed:.1f}초 수집됨. reader 정리 대기…")
-    for device_id, proc, log_path in procs:
+    for device_id, proc, log_path, log_fp, thr in procs:
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
@@ -1036,6 +1085,12 @@ def _collect_poc_interactive() -> bool:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 proc.kill()
+        # tee 스레드가 pipe EOF로 자연 종료할 때까지 대기
+        thr.join(timeout=3)
+        try:
+            log_fp.close()
+        except OSError:
+            pass
         rc = proc.returncode
         print(f"  dev{device_id} 종료 (rc={rc}, log: {log_path.name})")
 

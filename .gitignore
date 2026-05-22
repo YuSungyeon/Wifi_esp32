@@ -6,6 +6,9 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
+# --- 로컬 실행 로그 (CLI [10] PoC 수집 reader 로그 등) ---
+log/
+
 # --- Editors / IDE ---
 .idea/
 .vscode/
