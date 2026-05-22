@@ -485,12 +485,43 @@ def _preflight() -> bool:
     return _print_preflight_report(rows)
 
 
+def _port_busy_hint(port: str) -> str:
+    """포트 점유 진단 + 해결 힌트. lsof 으로 잡고 있는 프로세스 한 줄 추출."""
+    holder = ""
+    try:
+        out = subprocess.run(
+            ["lsof", "-t", port],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        ).stdout.strip()
+        if out:
+            pids = out.splitlines()
+            holder = f" (점유 PID: {', '.join(pids)})"
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return (
+        f"\n[안내] {port} 가 다른 프로세스에 잡혀 있습니다{holder}.\n"
+        f"  ① 가장 흔한 원인: 이전에 열어둔 'idf.py monitor' 창 — 그 터미널에서 Ctrl+]\n"
+        f"  ② csi_serial_reader.py 가 백그라운드에 떠 있는지: ps aux | grep csi_serial_reader\n"
+        f"  ③ 점유 프로세스 확인: lsof {port}\n"
+        f"  ④ 강제 종료: kill <PID> (안 되면 kill -9 <PID>)\n"
+        f"  포트 점유 해제 후 다시 시도하세요."
+    )
+
+
 def _read_usb_mac(port: str) -> str:
     from esptool_mac import read_mac  # noqa: WPS433
 
     try:
         return read_mac(port)
-    except RuntimeError:
+    except RuntimeError as exc:
+        # 포트 점유는 두 번째 호출(cwd 바꿔서)로도 해결 안 되니 즉시 안내.
+        msg = str(exc)
+        if "Resource temporarily unavailable" in msg or "port is busy" in msg.lower():
+            raise RuntimeError(msg + _port_busy_hint(port)) from exc
+        # 그 외 오류는 기존처럼 두 번째 경로로 재시도 (드물게 cwd 의존 케이스)
         return read_mac(port, cwd=str(RX_PROJECT))
 
 
@@ -852,10 +883,24 @@ def _flash_poc_board(*, kind: Optional[BoardKind] = None) -> bool:
         if rc.returncode != 0:
             print("[경고] fullclean 실패 — 빌드는 계속 시도합니다.")
 
-    print(f"\n[실행] idf.py -p {port} flash (project: {project.name})")
+    # monitor 옵션:
+    # - TX: ESP_LOG로 부팅·송신 상태 확인용으로 유용 (기본 yes)
+    # - RX: PoC 펌웨어가 USB-Serial-JTAG로 바이너리 프레임을 흘리므로 monitor에서는 깨진 글자만 보임.
+    #       reader가 같은 포트를 점유해야 하므로 monitor는 닫아둬야 함. (기본 no, 경고 포함)
+    if resolved == "tx":
+        do_monitor = _ask_yes_no("플래시 후 시리얼 모니터를 열까요? (TX 부팅 로그 확인용)", default_no=False)
+    else:
+        print("\n  [주의] RX는 monitor를 열지 마세요 — 바이너리 스트림이 깨진 글자로 보이고")
+        print("         메뉴 [10-2] 수집 시 reader가 같은 포트를 점유해야 합니다.")
+        do_monitor = _ask_yes_no("그래도 monitor를 열까요? (디버그 용도만)", default_no=True)
+
+    flash_args = ["idf.py", "-p", port, "flash"]
+    if do_monitor:
+        flash_args.append("monitor")
+    print(f"\n[실행] {' '.join(flash_args)} (project: {project.name})")
     try:
         rc = run_in_idf_shell(
-            ["idf.py", "-p", port, "flash"],
+            flash_args,
             cwd=project,
             check=False,
         )
@@ -869,7 +914,8 @@ def _flash_poc_board(*, kind: Optional[BoardKind] = None) -> bool:
     if resolved == "rx":
         print("  → 메뉴 [10-2] 수집으로 데이터 받기 (USB 시리얼)")
     else:
-        print("  → TX는 USB 연결만 유지하면 100Hz로 ESP-NOW 송신 시작 (monitor 불필요)")
+        print("  → TX는 USB 연결만 유지하면 100Hz로 ESP-NOW 송신 시작")
+        print("    monitor 띄워두면 부팅 후 'csi_send: wifi_channel: 11, send_frequency: 100' 확인 가능")
     return True
 
 

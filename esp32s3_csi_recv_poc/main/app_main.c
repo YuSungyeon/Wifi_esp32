@@ -77,10 +77,12 @@ static uint32_t g_frame_seq = 0;
 #define CONFIG_WIFI_2G_PROTOCOL             WIFI_PROTOCOL_11N
 #define CONFIG_WIFI_5G_PROTOCOL             WIFI_PROTOCOL_11N
 #else
-#define CONFIG_WIFI_BANDWIDTH           WIFI_BW_HT40
+/* HT20: 64 OFDM 서브캐리어, raw CSI 128B. MeshSense 학습 모델이 64 SC 기준이라 사용.
+ * TX 측(esp32s3_csi_send_poc)도 동일 HT20으로 맞춰야 ESP-NOW peer rate 협상 일치. */
+#define CONFIG_WIFI_BANDWIDTH           WIFI_BW_HT20
 #endif
 
-#define CONFIG_ESP_NOW_PHYMODE           WIFI_PHY_MODE_HT40
+#define CONFIG_ESP_NOW_PHYMODE           WIFI_PHY_MODE_HT20
 #define CONFIG_ESP_NOW_RATE             WIFI_PHY_RATE_MCS0_LGI
 #define CONFIG_FORCE_GAIN                   0
 
@@ -375,11 +377,15 @@ static void wifi_csi_init()
         .reserved               = false
     };
 #else
+    /* MeshSense 모델은 64 SC 기준. ESP32-S3 CSI HW는 lltf+htltf 둘 다 켜면
+     * HT20에서도 LLTF(64) + HT-LTF(64)를 concatenate해 128 SC × I/Q = 256B를 낸다.
+     * → htltf 끔으로 LLTF 64 SC × I/Q = 128B (sample_count 64) 로 통일.
+     * 원래 MeshSense 펌웨어도 시각적으로 htltf_en=true였지만 코드에서 앞 64개만 잘랐던 패턴과 등가. */
     wifi_csi_config_t csi_config = {
         .lltf_en           = true,
-        .htltf_en          = true,
-        .stbc_htltf2_en    = true,
-        .ltf_merge_en      = true,
+        .htltf_en          = false,  /* HT-LTF 끔 → 64 SC LLTF only */
+        .stbc_htltf2_en    = false,
+        .ltf_merge_en      = false,
         .channel_filter_en = true,
         .manu_scale        = false,
         .shift             = false,

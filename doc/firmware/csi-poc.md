@@ -12,6 +12,8 @@
 - 프로젝트 이름과 `CMakeLists.txt` 단순화 (git_describe 제거)
 - `sdkconfig.defaults`에 `CONFIG_IDF_TARGET="esp32s3"` 명시
 - RX 측 `wifi_csi_rx_cb`에 카운터 1줄 추가, `hz_log_task`가 5초마다 `5s: cb=N (+delta, Hz)` 출력
+- **대역폭 HT20 (raw CSI 128B = 64 OFDM 서브캐리어 × I/Q 2B)** — upstream esp-csi 예제는 HT40(128 SC, raw 256~384B). MeshSense 학습 모델이 64 SC 기준이라 HT20 사용. TX/RX 양쪽에서 `CONFIG_WIFI_BANDWIDTH = WIFI_BW_HT20`, `CONFIG_ESP_NOW_PHYMODE = WIFI_PHY_MODE_HT20`. 채널 secondary는 `WIFI_SECOND_CHAN_NONE`로 BW20 조건문에서 자동 분기됨.
+- **RX CSI config는 `htltf_en=false` (LLTF only)** — ESP32-S3 CSI HW는 HT20에서도 `lltf_en+htltf_en` 둘 다 켜면 LLTF(64) + HT-LTF(64)를 concatenate해 raw 256B(=128 SC)를 낸다 (`ltf_merge_en=true`도 실제 평균 안 함). 64 SC 모델 호환을 위해 HT-LTF 캡처 비활성화. 원래 MeshSense 펌웨어도 코드에서 `MAX_AMP_SAMPLES=64`로 앞 64개만 잘랐던 패턴과 등가.
 
 ## 토폴로지 (현 MeshSense와 큰 차이)
 

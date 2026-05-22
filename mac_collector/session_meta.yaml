@@ -2,7 +2,7 @@
 # run 구분 SSOT: session_id 로 raw/.../session_<id>/ 경로·JSONL 라벨 결정
 
 # 실험 회차 ID — 바꾼 뒤 수집기 재시작
-session_id: 15
+session_id: 20
 
 # 실험일(의미 라벨). raw/YYYYMMDD 폴더명(수집기 실행일)과는 별개 — 수동으로 맞춤.
 date: "2026-05-21"

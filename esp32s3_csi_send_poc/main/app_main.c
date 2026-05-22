@@ -33,10 +33,12 @@
 #define CONFIG_WIFI_2G_PROTOCOL             WIFI_PROTOCOL_11N
 #define CONFIG_WIFI_5G_PROTOCOL             WIFI_PROTOCOL_11N
 #else
-#define CONFIG_WIFI_BANDWIDTH           WIFI_BW_HT40
+/* HT20: 64 OFDM 서브캐리어, raw CSI 128B. MeshSense 학습 모델이 64 SC 기준이라 사용.
+ * upstream esp-csi 예제는 HT40(128 SC, raw 256~384B) 기준. RX도 반드시 동일 BW로 맞춰야 함. */
+#define CONFIG_WIFI_BANDWIDTH           WIFI_BW_HT20
 #endif
 
-#define CONFIG_ESP_NOW_PHYMODE           WIFI_PHY_MODE_HT40
+#define CONFIG_ESP_NOW_PHYMODE           WIFI_PHY_MODE_HT20
 #define CONFIG_ESP_NOW_RATE             WIFI_PHY_RATE_MCS0_LGI
 #define CONFIG_SEND_FREQUENCY               100
 
