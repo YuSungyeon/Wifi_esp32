@@ -2,10 +2,10 @@
 # run 구분 SSOT: session_id 로 raw/.../session_<id>/ 경로·JSONL 라벨 결정
 
 # 실험 회차 ID — 바꾼 뒤 수집기 재시작
-session_id: 21
+session_id: 4
 
 # 실험일(의미 라벨). raw/YYYYMMDD 폴더명(수집기 실행일)과는 별개 — 수동으로 맞춤.
-date: "2026-05-21"
+date: "2026-06-15"
 
 # 실험 공간(방) 정보 — 후처리·논문·재현용 기록
 room:
@@ -13,19 +13,11 @@ room:
   height_m: 3.0     # 방 세로 (m)
   description: "3m x 3m indoor room"  # 배치·가구·특이사항 요약
 
-# 무선·수집 망 설정 — meshsense_config.json(ap, collector)과 수동 일치 권장
-network:
-  ssid: "MeshSense_TX_AP"       # TX SoftAP SSID
-  channel: 6                    # WiFi 채널 (고정)
-  collector_ip: "192.168.4.2"   # Mac 수집기 IP (TX AP 대역)
-  collector_port: 9999          # UDP 수집 포트
-  protocol: "udp"
-
 # ML·라벨링·데이터 분할 관련 실험 설계 기록
 experiment:
-  objective: "binary activity detection"  # 실험 목표(태스크)
-  label_target: "mask"                    # 라벨 형식/대상
-  split_strategy: "subject-wise"        # train/val/test 분할 방식
+  objective: "3-class activity classification"  # 실험 목표(태스크)
+  label_target: "empty"                    # 라벨 형식/대상
+  split_strategy: "train"        # train/val/test 분할 방식
   # RX 펌웨어 on-device 전처리(csi_sender_main.c)와 동일 조건 기록
   preprocess_on_device:
     moving_average_tap: 3       # 이동평균 탭 수
@@ -39,5 +31,5 @@ devices:
 
 # 운영자·현장 메모 (피험자 수, 동작 프로토콜, 환경 변화 등)
 operator:
-  name: "operator_name"
-  notes: "record subject count, action protocol, and environment changes"
+  name: "no person"
+  notes: "에어컨 off, 전등 on, 창문 열림, 피험자 없음"

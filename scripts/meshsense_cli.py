@@ -978,6 +978,40 @@ def _tee_subprocess_lines(proc: "subprocess.Popen[bytes]", log_fp) -> None:
             pass
 
 
+def _play_collection_complete_sound() -> None:
+    """시간 제한 수집 완료 알림. macOS 시스템 소리가 없으면 터미널 벨로 대체."""
+    sound = Path("/System/Library/Sounds/Glass.aiff")
+    if sound.is_file():
+        try:
+            subprocess.Popen(
+                ["afplay", str(sound)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return
+        except OSError:
+            pass
+    print("\a", end="", flush=True)
+
+
+def _snapshot_poc_session_meta(session_id: int, date_dir: str) -> None:
+    """PoC 수집 당시 session_meta.yaml을 데이터 디렉터리에 보존."""
+    import shutil
+
+    if not SESSION_META.is_file():
+        print(f"[경고] 세션 메타 없음: {SESSION_META}")
+        return
+    session_dir = OUTPUT_DIR / "raw" / date_dir / f"session_{session_id}"
+    target = session_dir / "session_meta_snapshot.yaml"
+    try:
+        session_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(SESSION_META, target)
+    except OSError as exc:
+        print(f"[경고] 세션 메타 스냅샷 저장 실패: {exc}")
+        return
+    print(f"  session meta snapshot → {target}")
+
+
 def _collect_poc_interactive() -> bool:
     """USB 시리얼로 연결된 RX 보드들에서 csi_serial_reader.py 병렬 실행."""
     import signal as _signal
@@ -1003,6 +1037,7 @@ def _collect_poc_interactive() -> bool:
 
     POC_LOG_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = _time.strftime("%Y%m%d_%H%M%S")
+    _snapshot_poc_session_meta(session_id, timestamp[:8])
     import threading
 
     # (device_id, proc, log_path, log_fp, tee_thread)
@@ -1046,6 +1081,7 @@ def _collect_poc_interactive() -> bool:
     print("=" * 60)
 
     start = _time.monotonic()
+    duration_reached = False
     try:
         if duration_sec > 0:
             # 단순 sleep — tee 스레드가 실시간 stdout/log 모두 처리
@@ -1056,6 +1092,8 @@ def _collect_poc_interactive() -> bool:
                     print("\n[경고] reader 중 일부가 조기 종료됨")
                     break
                 _time.sleep(0.5)
+            else:
+                duration_reached = True
         else:
             # 무한 대기: reader 중 하나라도 죽으면 종료
             while all(p.poll() is None for _, p, _, _, _ in procs):
@@ -1096,6 +1134,8 @@ def _collect_poc_interactive() -> bool:
 
     print(f"\n[완료] 출력 디렉터리: {OUTPUT_DIR}/raw/$(date)/session_{session_id}/")
     print(f"       reader 로그: {POC_LOG_DIR}/reader_session{session_id}_*_{timestamp}.log")
+    if duration_reached:
+        _play_collection_complete_sound()
     return True
 
 
