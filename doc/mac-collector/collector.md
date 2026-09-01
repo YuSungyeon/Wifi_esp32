@@ -1,5 +1,19 @@
 # Mac Collector
 
+> [!WARNING]
+> **이 경로는 deprecated 입니다 (2026-08-25).** 실측 수집률이 0.18~22.8Hz 로 100Hz 목표에
+> 못 미치고 `tx_seq` 유효 데이터가 한 건도 없습니다. 원인은 AP/STA association + DTIM
+> 게이팅 + 자극·데이터 채널 공유라는 구조적 문제입니다
+> ([csi-rate-troubleshooting.md](../overview/csi-rate-troubleshooting.md)).
+> 추가로 RX 온디바이스 z-score 가 시간축 진폭 변동(=움직임 신호 본체)을 지워버려
+> USB 경로 데이터와 스케일도 맞지 않습니다.
+>
+> - **학습 데이터 수집**: [USB 수집 파이프라인](../pipeline/usb-collection.md)
+> - **실시간 경로**: ESP-NOW 업링크 + USB 싱크 보드로 재설계 예정
+>   ([sprint/2026-08-collection-hardening.md](../sprint/2026-08-collection-hardening.md))
+>
+> 아래 내용은 기록용으로 남깁니다.
+
 `mac_collector/udp_collector_mvp.py` — **AP 실시간 파이프라인**에서 RX가 보낸 CSI UDP 패킷을
 검증하고 JSONL로 저장합니다. (USB 파이프라인은 `scripts/csi_serial_reader.py`가 같은 레이아웃으로 저장 —
 [usb-collection.md](../pipeline/usb-collection.md))

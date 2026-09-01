@@ -3,6 +3,22 @@
 구현: [`model_train/model/LSTM.py`](../../model_train/model/LSTM.py) ·
 전처리: [pipeline.md](pipeline.md)
 
+> [!NOTE]
+> **2026-08-25 이후 라벨·데이터셋 경로가 바뀌었습니다.** 이 문서 곳곳의
+> "라벨은 `Preprocessing.py --label`로 사람이 지정한다"는 서술은 옛 방식입니다.
+> 이제 라벨은 **수집 시점에 세션 매니페스트(`session.json`)에 박히고**, 학습은
+> `build_dataset.py`가 만든 `dataset.npz`(여러 세션 · 세션 단위 split)를 씁니다:
+>
+> ```bash
+> python model_train/model/build_dataset.py --out model_train/dataset.npz
+> python model_train/model/LSTM.py --dataset model_train/dataset.npz --epochs 20
+> ```
+>
+> §14의 개선 목록 중 "라벨을 세션 메타데이터에서 읽도록 변경"과 "train/validation split
+> 추가"는 이것으로 해결됐습니다. 남은 것은 **epoch마다 `X_val`로 검증하고 best 모델을
+> `torch.save`** 하는 부분입니다 (`LSTM.py`의 `TODO(모델 담당)` 주석).
+> 상세: [pipeline.md](pipeline.md) · [sprint/2026-08-collection-hardening.md](../sprint/2026-08-collection-hardening.md)
+
 > 이 문서의 shape 예시는 **RX 3대(feature 156)** 기준이다.
 > feature 수는 `RX수 × 52`로 결정되며(RX 1대면 52), 코드는 `X.shape[2]`에서 자동 파생한다.
 
