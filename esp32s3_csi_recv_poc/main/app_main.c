@@ -3,24 +3,29 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-/* Get Start Example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
+/* MeshSense RX — esp-csi csi_recv 예제 기반.
+ *
+ * CSI 콜백 → ring buffer → USB-Serial-JTAG 바이너리 프레임(v3) 스트리밍.
+ * 호스트 파서는 scripts/csi_store.py (프레임 규격 SSOT는 doc/pipeline/usb-collection.md).
+ *
+ * 이 파일의 불변식 3가지:
+ *  1. CSI 콜백 안에서 동기 I/O 금지 — ets_printf 계열을 넣으면 WiFi driver task가
+ *     백프레셔로 막혀 즉시 ~50Hz로 붕괴한다 (doc/overview/csi-rate-troubleshooting.md 결론부).
+ *  2. 진폭 계산·정규화를 보드에서 하지 않는다 — raw I/Q를 그대로 보내고 호스트가 처리한다.
+ *     (AP 파이프라인이 온디바이스 z-score로 시간축 진폭 변동을 지워버린 전례가 있다.)
+ *  3. HT20 + htltf_en=false 로 LLTF 64 SC(raw 128B) 고정.
+ */
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <stddef.h>
 
 #include "nvs_flash.h"
 
 #include "esp_mac.h"
-#include "rom/ets_sys.h"
+#include "esp_random.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
@@ -32,26 +37,41 @@
 #include "freertos/ringbuf.h"
 #include "driver/usb_serial_jtag.h"
 
-/* PoC: CSI 콜백 호출 카운터 (sender MAC 필터 통과 후 +1). 5초 태스크에서 Hz로 출력. */
-static volatile uint32_t g_csi_recv_count = 0;
-static volatile uint32_t g_uart_send_count = 0;
-static volatile uint32_t g_ringbuf_drop = 0;
+/* 진단 카운터 (5초 태스크에서 Hz로 출력) */
+static volatile uint32_t g_csi_recv_count = 0;   /* MAC 필터 통과한 CSI 콜백 수 */
+static volatile uint32_t g_uart_send_count = 0;  /* USB로 완전히 나간 프레임 수 */
+static volatile uint32_t g_ringbuf_drop = 0;     /* ring buffer full 로 버린 프레임 */
+static volatile uint32_t g_uart_partial = 0;     /* 부분 write 후 재전송한 횟수 */
 
-/* === Phase 2/3: 바이너리 CSI 프레임 UART 스트리밍 === */
+/* === 바이너리 CSI 프레임 스트리밍 (v3) === */
 #define CSI_FRAME_MAGIC          0x4353  /* 'CS' */
-#define CSI_FRAME_VERSION        2       /* v2: tx_seq 필드 추가 */
-#define CSI_MAX_RAW_BYTES        384     /* CSI raw bytes 안전 상한 (HT40 LTF ~ 384B 이하) */
+#define CSI_FRAME_VERSION        4       /* v4: gain_comp(f32) 추가, 헤더 44B */
+#define CSI_FRAME_TYPE_CSI       0
+#define CSI_FRAME_TYPE_IDENT     1
+#define CSI_MAX_RAW_BYTES        384     /* raw CSI 안전 상한 (HT40 LTF ~384B 이하) */
 #define CSI_RINGBUF_BYTES        (64 * 1024)  /* 64KB: 100Hz × ~320B × 2초 안전마진 */
 #define CSI_USJ_TX_BUF_BYTES     (16 * 1024)  /* USB-Serial-JTAG 드라이버 TX 버퍼 */
-#define CSI_TX_SEQ_OFFSET        15      /* ESP-NOW payload 내 uint32_t TX 카운터 위치 */
+
+/* ESP-NOW payload 내 uint32_t TX 카운터 위치.
+ * info->payload 는 vendor action frame body 시작 — Category 1 + OUI 3 + Random 4 + IE헤더 7 = 15.
+ * esp32s3_csi_send_poc 가 4바이트(uint32 count)를 실으므로 payload_len 은 정확히 19다.
+ * 즉 아래 길이 검사는 경계값에 딱 걸린다 — TX payload 크기를 줄이면 tx_seq 가 조용히 0이 된다. */
+#define CSI_TX_SEQ_OFFSET        15
+/* IDENT payload: MAC 6B + 펌웨어 문자열 10B + 진단 카운터 4×u32 = 32B.
+ * 진단을 프레임에 실어야 하는 이유: 이 프로젝트의 콘솔 primary 는 GPIO43 UART 이고
+ * (CONFIG_ESP_CONSOLE_UART_CUSTOM), USB-Serial-JTAG 드라이버를 직접 설치해 쓰기 때문에
+ * ESP_LOG 가 USB 로 나오지 않는다. 실측 확인(2026-08-25): 호스트에서 17초 캡처 중
+ * 로그 텍스트 0건. 즉 5초 로그만으로는 ringbuf_drop/partial 을 볼 방법이 없었다. */
+#define CSI_IDENT_PAYLOAD_LEN    32
+#define CSI_IDENT_PERIOD_MS      2000
 
 #pragma pack(push, 1)
 typedef struct {
     uint16_t magic;          /* 0x4353 */
-    uint8_t  version;        /* 2 */
-    uint8_t  reserved0;
-    uint16_t total_len;      /* 헤더 + raw 합산 길이 */
-    uint16_t raw_len;        /* raw[] 바이트 수 */
+    uint8_t  version;        /* 3 */
+    uint8_t  frame_type;     /* 0=CSI, 1=IDENT */
+    uint16_t total_len;      /* 헤더 + payload 합산 길이 */
+    uint16_t raw_len;        /* payload 바이트 수 (HT20 LLTF = 128) */
     uint32_t seq;            /* RX 부팅부터 단조 증가 (보드별 독립) */
     uint64_t timestamp_us;   /* RX esp_timer_get_time() (보드별 독립) */
     int8_t   rssi;
@@ -59,15 +79,92 @@ typedef struct {
     int8_t   noise_floor;
     uint8_t  rate;
     uint16_t sig_len;
-    uint16_t reserved1;
+    uint16_t boot_id;        /* 부팅마다 새 값 — seq 되감김(재부팅) vs 보드 혼입 구분용 */
     uint32_t tx_seq;         /* TX 송신 카운터 (모든 RX 공통 — cross-RX 동기화 키) */
-    /* raw[raw_len] tail */
+    uint8_t  agc_gain;       /* AGC gain (진단·재현용 원값) */
+    int8_t   fft_gain;       /* FFT gain */
+    uint16_t reserved;       /* 0 */
+    float    gain_comp;      /* 진폭 gain 보정 배율. 0 = baseline 미완성(첫 100패킷) */
+    uint32_t crc32;          /* 헤더(이 필드를 0으로 둔 상태) + payload 전체 */
+    /* payload[raw_len] tail */
 } csi_frame_header_t;
 #pragma pack(pop)
-_Static_assert(sizeof(csi_frame_header_t) == 32, "csi_frame_header_t must be 32 bytes");
+_Static_assert(sizeof(csi_frame_header_t) == 44, "csi_frame_header_t must be 44 bytes");
+/* 아래 오프셋은 scripts/csi_store.py 의 HEADER_DTYPE 과 짝이다. 한쪽만 고치면 여기서 터진다. */
+_Static_assert(offsetof(csi_frame_header_t, seq)          ==  8, "seq offset");
+_Static_assert(offsetof(csi_frame_header_t, timestamp_us) == 12, "timestamp_us offset");
+_Static_assert(offsetof(csi_frame_header_t, boot_id)      == 26, "boot_id offset");
+_Static_assert(offsetof(csi_frame_header_t, tx_seq)       == 28, "tx_seq offset");
+_Static_assert(offsetof(csi_frame_header_t, agc_gain)     == 32, "agc_gain offset");
+_Static_assert(offsetof(csi_frame_header_t, gain_comp)    == 36, "gain_comp offset");
+_Static_assert(offsetof(csi_frame_header_t, crc32)        == 40, "crc32 offset");
 
 static RingbufHandle_t g_csi_ringbuf = NULL;
 static uint32_t g_frame_seq = 0;
+static uint16_t g_boot_id = 0;
+static uint8_t  g_base_mac[6] = {0};
+
+/* zlib 호환 CRC-32 (reflected, poly 0xEDB88320), 16엔트리 니블 테이블.
+ * ROM의 esp_rom_crc32_le 는 IDF 버전마다 pre/post inversion 관례가 달라 호스트
+ * zlib.crc32 와 맞추기 까다로워 직접 구현한다. 168B × 100Hz 는 무시할 부하다. */
+static const uint32_t CRC32_NIBBLE[16] = {
+    0x00000000, 0x1DB71064, 0x3B6E20C8, 0x26D930AC,
+    0x76DC4190, 0x6B6B51F4, 0x4DB26158, 0x5005713C,
+    0xEDB88320, 0xF00F9344, 0xD6D6A3E8, 0xCB61B38C,
+    0x9B64C2B0, 0x86D3D2D4, 0xA00AE278, 0xBDBDF21C,
+};
+
+static uint32_t csi_crc32(const uint8_t *buf, size_t len)
+{
+    uint32_t crc = 0xFFFFFFFFu;
+    for (size_t i = 0; i < len; ++i) {
+        crc ^= buf[i];
+        crc = (crc >> 4) ^ CRC32_NIBBLE[crc & 0x0f];
+        crc = (crc >> 4) ^ CRC32_NIBBLE[crc & 0x0f];
+    }
+    return ~crc;
+}
+
+/* 헤더+payload 를 buf 에 조립하고 crc32 를 채운 뒤 ring buffer 로 push. */
+static void csi_frame_push(csi_frame_header_t *hdr, const void *payload, size_t payload_len)
+{
+    uint8_t buf[sizeof(csi_frame_header_t) + CSI_MAX_RAW_BYTES];
+    size_t total = sizeof(*hdr) + payload_len;
+
+    hdr->magic     = CSI_FRAME_MAGIC;
+    hdr->version   = CSI_FRAME_VERSION;
+    hdr->total_len = (uint16_t)total;
+    hdr->raw_len   = (uint16_t)payload_len;
+    hdr->boot_id   = g_boot_id;
+    hdr->reserved  = 0;
+    hdr->crc32     = 0;
+
+    memcpy(buf, hdr, sizeof(*hdr));
+    if (payload_len) {
+        memcpy(buf + sizeof(*hdr), payload, payload_len);
+    }
+    uint32_t crc = csi_crc32(buf, total);
+    memcpy(buf + offsetof(csi_frame_header_t, crc32), &crc, sizeof(crc));
+
+    /* 가득 차면 **가장 오래된 항목을 버리고** 새 프레임을 넣는다 (keep-newest).
+     * 기본 ringbuf 는 가득 차면 새 것을 버리는데, 그러면 호스트가 안 붙어 있는 동안
+     * 옛 프레임이 버퍼를 점유해 수집을 시작한 순간 수십 초 묵은 데이터가 먼저 흘러나온다.
+     * 실측(2026-08-25): 46초 방치 후 수집하니 앞부분이 통째로 옛 프레임이라
+     * tx_seq 격자에 4134스텝 구멍이 생겼다. */
+    for (int retry = 0; retry < 4; ++retry) {
+        if (xRingbufferSend(g_csi_ringbuf, buf, total, 0) == pdTRUE) {
+            return;
+        }
+        size_t old_len = 0;
+        void *old = xRingbufferReceive(g_csi_ringbuf, &old_len, 0);
+        if (!old) {
+            break;
+        }
+        vRingbufferReturnItem(g_csi_ringbuf, old);
+        g_ringbuf_drop++;
+    }
+    g_ringbuf_drop++;
+}
 
 #define CONFIG_LESS_INTERFERENCE_CHANNEL   11
 #if CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C61 || (CONFIG_IDF_TARGET_ESP32C6 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0))
@@ -85,10 +182,6 @@ static uint32_t g_frame_seq = 0;
 #define CONFIG_ESP_NOW_PHYMODE           WIFI_PHY_MODE_HT20
 #define CONFIG_ESP_NOW_RATE             WIFI_PHY_RATE_MCS0_LGI
 #define CONFIG_FORCE_GAIN                   0
-
-/* PoC: CSV 출력은 921600 baud로도 50Hz가 한계라 콜백을 막는다.
- * 진짜 cb 속도 측정에는 0(off), 데이터 검증에는 1로. */
-#define POC_DUMP_CSV 0
 
 #if CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C61
 #define CSI_FORCE_LLTF                      0
@@ -165,6 +258,9 @@ static void wifi_init()
     }
 #endif
 
+    /* STA MAC 을 송신자와 같은 값으로 맞추는 것은 esp-csi 예제의 association-free 트릭이다.
+     * RX 는 아무것도 송신하지 않으므로 충돌하지 않는다. 실시간 경로(ESP-NOW 업링크)로 갈 때는
+     * RX 마다 다른 MAC 을 줘야 서로의 업링크를 CSI 로 잡지 않는다. */
     ESP_ERROR_CHECK(esp_wifi_set_mac(WIFI_IF_STA, CONFIG_CSI_SEND_MAC));
 }
 
@@ -174,13 +270,12 @@ static void wifi_esp_now_init(esp_now_peer_info_t peer)
     ESP_ERROR_CHECK(esp_now_set_pmk((uint8_t *)"pmk1234567890123"));
     esp_now_rate_config_t rate_config = {
         .phymode = CONFIG_ESP_NOW_PHYMODE,
-        .rate = CONFIG_ESP_NOW_RATE,//  WIFI_PHY_RATE_MCS0_LGI,
+        .rate = CONFIG_ESP_NOW_RATE,
         .ersu = false,
         .dcm = false
     };
     ESP_ERROR_CHECK(esp_now_add_peer(&peer));
     ESP_ERROR_CHECK(esp_now_set_peer_rate_config(peer.peer_addr, &rate_config));
-
 }
 
 static void wifi_csi_rx_cb(void *ctx, wifi_csi_info_t *info)
@@ -193,115 +288,84 @@ static void wifi_csi_rx_cb(void *ctx, wifi_csi_info_t *info)
     if (memcmp(info->mac, CONFIG_CSI_SEND_MAC, 6)) {
         return;
     }
-    /* PoC Hz 측정용 카운터 */
     g_csi_recv_count++;
 
-    /* Phase 2: 바이너리 프레임을 ring buffer에 push. UART writer task가 drain. */
-    if (g_csi_ringbuf) {
-        size_t raw_len = info->len;
-        if (raw_len > CSI_MAX_RAW_BYTES) raw_len = CSI_MAX_RAW_BYTES;
-        size_t total = sizeof(csi_frame_header_t) + raw_len;
-
-        /* TX 송신 카운터: ESP-NOW payload[15..18]. payload_len 안전 확인. */
-        uint32_t tx_seq = 0;
-        if (info->payload && info->payload_len >= CSI_TX_SEQ_OFFSET + 4) {
-            memcpy(&tx_seq, info->payload + CSI_TX_SEQ_OFFSET, 4);
-        }
-
-        csi_frame_header_t hdr;
-        hdr.magic        = CSI_FRAME_MAGIC;
-        hdr.version      = CSI_FRAME_VERSION;
-        hdr.reserved0    = 0;
-        hdr.total_len    = (uint16_t)total;
-        hdr.raw_len      = (uint16_t)raw_len;
-        hdr.seq          = g_frame_seq++;
-        hdr.timestamp_us = (uint64_t)esp_timer_get_time();
-        hdr.rssi         = info->rx_ctrl.rssi;
-        hdr.channel      = info->rx_ctrl.channel;
-        hdr.noise_floor  = info->rx_ctrl.noise_floor;
-        hdr.rate         = (uint8_t)info->rx_ctrl.rate;
-        hdr.sig_len      = (uint16_t)info->rx_ctrl.sig_len;
-        hdr.reserved1    = 0;
-        hdr.tx_seq       = tx_seq;
-
-        /* 두 번 push: header → raw. ringbuf NoSplit 모드에서 안전 — 단,
-         * 한 번에 묶어 push하려면 stack 버퍼 사용 (HT40에서 최대 ~400B). */
-        uint8_t buf[sizeof(csi_frame_header_t) + CSI_MAX_RAW_BYTES];
-        memcpy(buf, &hdr, sizeof(hdr));
-        memcpy(buf + sizeof(hdr), info->buf, raw_len);
-        BaseType_t ok = xRingbufferSend(g_csi_ringbuf, buf, total, 0);
-        if (ok != pdTRUE) {
-            g_ringbuf_drop++;
-        }
+    if (!g_csi_ringbuf) {
+        return;
     }
 
-#if POC_DUMP_CSV
-    const wifi_pkt_rx_ctrl_t *rx_ctrl = &info->rx_ctrl;
-    static int s_count = 0;
-    float compensate_gain = 1.0f;
-    static uint8_t agc_gain = 0;
-    static int8_t fft_gain = 0;
+    size_t raw_len = info->len;
+    if (raw_len > CSI_MAX_RAW_BYTES) raw_len = CSI_MAX_RAW_BYTES;
+
+    uint32_t tx_seq = 0;
+    if (info->payload && info->payload_len >= CSI_TX_SEQ_OFFSET + 4) {
+        memcpy(&tx_seq, info->payload + CSI_TX_SEQ_OFFSET, 4);
+    }
+
+    /* AGC 가 게인을 바꾸면 raw 진폭이 계단식으로 뛴다 — 모델이 그걸 움직임으로 오인한다.
+     * 실측(RX103, 60초): AGC 5~7단계, FFT 8~23단계가 실제로 변한다.
+     * 보정 배율은 반드시 여기서 계산해야 한다. esp_csi_gain_ctrl 은 소스 없는 정적
+     * 라이브러리로만 배포되어 호스트에서 같은 식을 재현할 방법이 없다.
+     * 첫 100패킷은 baseline 수집 구간이라 gain_comp=0 (호스트가 "보정 불가"로 읽는다). */
+    uint8_t agc_gain = 0;
+    int8_t fft_gain = 0;
+    float gain_comp = 0.0f;
 #if CONFIG_GAIN_CONTROL
-    static uint8_t agc_gain_baseline = 0;
-    static int8_t fft_gain_baseline = 0;
-    esp_csi_gain_ctrl_get_rx_gain(rx_ctrl, &agc_gain, &fft_gain);
-    if (s_count < 100) {
+    esp_csi_gain_ctrl_get_rx_gain(&info->rx_ctrl, &agc_gain, &fft_gain);
+    static uint32_t s_gain_samples = 0;
+    if (s_gain_samples < 100) {
         esp_csi_gain_ctrl_record_rx_gain(agc_gain, fft_gain);
-    } else if (s_count == 100) {
-        esp_csi_gain_ctrl_get_rx_gain_baseline(&agc_gain_baseline, &fft_gain_baseline);
-#if CONFIG_FORCE_GAIN
-        esp_csi_gain_ctrl_set_rx_force_gain(agc_gain_baseline, fft_gain_baseline);
-        ESP_LOGD(TAG, "fft_force %d, agc_force %d", fft_gain_baseline, agc_gain_baseline);
-#endif
-    }
-    esp_csi_gain_ctrl_get_gain_compensation(&compensate_gain, agc_gain, fft_gain);
-    ESP_LOGI(TAG, "compensate_gain %f, agc_gain %d, fft_gain %d", compensate_gain, agc_gain, fft_gain);
-#endif
-
-    uint32_t rx_id = *(uint32_t *)(info->payload + 15);
-#if CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32C61
-    if (!s_count) {
-        ESP_LOGI(TAG, "================ CSI RECV ================");
-        ets_printf("type,seq,mac,rssi,rate,noise_floor,fft_gain,agc_gain,channel,local_timestamp,sig_len,rx_format,len,first_word,data\n");
-    }
-
-    ets_printf("CSI_DATA,%d," MACSTR ",%d,%d,%d,%d,%d,%d,%d,%d,%d",
-               rx_id, MAC2STR(info->mac), rx_ctrl->rssi, rx_ctrl->rate,
-               rx_ctrl->noise_floor, fft_gain, agc_gain,  rx_ctrl->channel,
-               rx_ctrl->timestamp, rx_ctrl->sig_len, rx_ctrl->cur_bb_format);
-#else
-    if (!s_count) {
-        ESP_LOGI(TAG, "================ CSI RECV ================");
-        ets_printf("type,id,mac,rssi,rate,sig_mode,mcs,bandwidth,smoothing,not_sounding,aggregation,stbc,fec_coding,sgi,noise_floor,ampdu_cnt,channel,secondary_channel,local_timestamp,ant,sig_len,rx_format,len,first_word,data\n");
-    }
-
-    ets_printf("CSI_DATA,%d," MACSTR ",%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
-               rx_id, MAC2STR(info->mac), rx_ctrl->rssi, rx_ctrl->rate, rx_ctrl->sig_mode,
-               rx_ctrl->mcs, rx_ctrl->cwb, rx_ctrl->smoothing, rx_ctrl->not_sounding,
-               rx_ctrl->aggregation, rx_ctrl->stbc, rx_ctrl->fec_coding, rx_ctrl->sgi,
-               rx_ctrl->noise_floor, rx_ctrl->ampdu_cnt, rx_ctrl->channel, rx_ctrl->secondary_channel,
-               rx_ctrl->timestamp, rx_ctrl->ant, rx_ctrl->sig_len, rx_ctrl->sig_mode);
-
-#endif
-#if (CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C61) && CSI_FORCE_LLTF
-    int16_t csi = ((int16_t)(((((uint16_t)info->buf[1]) << 8) | info->buf[0]) << 4) >> 4);
-    ets_printf(",%d,%d,\"[%d", (info->len - 2) / 2, info->first_word_invalid, (int16_t)(compensate_gain * csi));
-    for (int i = 2; i < (info->len - 2); i += 2) {
-        csi = ((int16_t)(((((uint16_t)info->buf[i + 1]) << 8) | info->buf[i]) << 4) >> 4);
-        ets_printf(",%d", (int16_t)(compensate_gain * csi));
-    }
-#else
-    ets_printf(",%d,%d,\"[%d", info->len, info->first_word_invalid, (int16_t)(compensate_gain * info->buf[0]));
-    for (int i = 1; i < info->len; i++) {
-        ets_printf(",%d", (int16_t)(compensate_gain * info->buf[i]));
+        s_gain_samples++;
+    } else if (esp_csi_gain_ctrl_get_gain_compensation(&gain_comp, agc_gain, fft_gain) != ESP_OK) {
+        gain_comp = 0.0f;
     }
 #endif
-    ets_printf("]\"\n");
-    s_count++;
-#endif /* POC_DUMP_CSV */
+
+    csi_frame_header_t hdr = {
+        .frame_type   = CSI_FRAME_TYPE_CSI,
+        .seq          = g_frame_seq++,
+        .timestamp_us = (uint64_t)esp_timer_get_time(),
+        .rssi         = info->rx_ctrl.rssi,
+        .channel      = info->rx_ctrl.channel,
+        .noise_floor  = info->rx_ctrl.noise_floor,
+        .rate         = (uint8_t)info->rx_ctrl.rate,
+        .sig_len      = (uint16_t)info->rx_ctrl.sig_len,
+        .tx_seq       = tx_seq,
+        .agc_gain     = agc_gain,
+        .fft_gain     = fft_gain,
+        .gain_comp    = gain_comp,
+    };
+    csi_frame_push(&hdr, info->buf, raw_len);
 }
 
-/* PoC: 5초마다 누적 카운트와 직전 5초 Hz를 로그. */
+/* 보드 자기소개. 호스트는 이 프레임의 eFuse base MAC 으로 device_id 를 결정하므로
+ * 수집 시작 전에 esptool 로 포트를 프로브(=보드 리셋)할 필요가 없다. */
+static void ident_task(void *arg)
+{
+    (void)arg;
+    uint8_t payload[CSI_IDENT_PAYLOAD_LEN] = {0};
+    memcpy(payload, g_base_mac, 6);
+    strncpy((char *)payload + 6, "meshsense", 10);
+
+    while (1) {
+        uint32_t counters[4] = {
+            g_csi_recv_count, g_uart_send_count, g_ringbuf_drop, g_uart_partial,
+        };
+        memcpy(payload + 16, counters, sizeof(counters));
+
+        csi_frame_header_t hdr = {
+            .frame_type   = CSI_FRAME_TYPE_IDENT,
+            .seq          = g_frame_seq,   /* IDENT 는 seq 를 증가시키지 않는다 */
+            .timestamp_us = (uint64_t)esp_timer_get_time(),
+        };
+        if (g_csi_ringbuf) {
+            csi_frame_push(&hdr, payload, sizeof(payload));
+        }
+        vTaskDelay(pdMS_TO_TICKS(CSI_IDENT_PERIOD_MS));
+    }
+}
+
+/* 5초마다 누적 카운트와 직전 5초 Hz를 로그. */
 static void hz_log_task(void *arg)
 {
     (void)arg;
@@ -310,13 +374,14 @@ static void hz_log_task(void *arg)
         vTaskDelay(pdMS_TO_TICKS(5000));
         uint32_t cb = g_csi_recv_count;
         uint32_t up = g_uart_send_count;
-        uint32_t drop = g_ringbuf_drop;
-        /* ESP_LOG는 UART0로 가지만 한 줄(<150B)이라 cb 100Hz 흐름에 영향 거의 없음 */
+        /* ESP_LOG 는 USB-Serial-JTAG 로도 나가 바이너리 스트림에 끼어든다
+         * (CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y). 호스트가 magic+CRC 로
+         * 재동기화하므로 무해하지만, 엄격히 하려면 CONFIG_LOG_DEFAULT_LEVEL_NONE=y. */
         ESP_LOGI(TAG, "5s: cb=%" PRIu32 " (+%" PRIu32 ", %.1fHz) uart=%" PRIu32
-                       " (+%" PRIu32 ", %.1fHz) ringbuf_drop=%" PRIu32,
+                       " (+%" PRIu32 ", %.1fHz) ringbuf_drop=%" PRIu32 " partial=%" PRIu32,
                  cb, cb - prev_cb, (cb - prev_cb) / 5.0f,
                  up, up - prev_uart, (up - prev_uart) / 5.0f,
-                 drop);
+                 g_ringbuf_drop, g_uart_partial);
         prev_cb = cb;
         prev_uart = up;
     }
@@ -331,9 +396,22 @@ static void uart_writer_task(void *arg)
         size_t len = 0;
         uint8_t *p = (uint8_t *)xRingbufferReceive(g_csi_ringbuf, &len, portMAX_DELAY);
         if (!p) continue;
-        int written = usb_serial_jtag_write_bytes(p, len, pdMS_TO_TICKS(100));
+
+        /* 부분 write 를 반드시 이어서 보낸다. 잔여분을 버리면 스트림에 잘린 프레임이
+         * 남아 호스트가 재동기화해야 하고, 그 과정에서 오탐 magic 위험이 커진다. */
+        size_t off = 0;
+        while (off < len) {
+            int w = usb_serial_jtag_write_bytes(p + off, len - off, pdMS_TO_TICKS(100));
+            if (w <= 0) {
+                break;      /* 호스트가 포트를 안 읽는 중 — 이 프레임은 포기 */
+            }
+            off += (size_t)w;
+            if (off < len) {
+                g_uart_partial++;
+            }
+        }
         vRingbufferReturnItem(g_csi_ringbuf, p);
-        if (written > 0) {
+        if (off == len) {
             g_uart_send_count++;
         }
     }
@@ -379,8 +457,7 @@ static void wifi_csi_init()
 #else
     /* MeshSense 모델은 64 SC 기준. ESP32-S3 CSI HW는 lltf+htltf 둘 다 켜면
      * HT20에서도 LLTF(64) + HT-LTF(64)를 concatenate해 128 SC × I/Q = 256B를 낸다.
-     * → htltf 끔으로 LLTF 64 SC × I/Q = 128B (sample_count 64) 로 통일.
-     * 원래 MeshSense 펌웨어도 시각적으로 htltf_en=true였지만 코드에서 앞 64개만 잘랐던 패턴과 등가. */
+     * → htltf 끔으로 LLTF 64 SC × I/Q = 128B 로 통일. */
     wifi_csi_config_t csi_config = {
         .lltf_en           = true,
         .htltf_en          = false,  /* HT-LTF 끔 → 64 SC LLTF only */
@@ -398,9 +475,6 @@ static void wifi_csi_init()
 
 void app_main()
 {
-    /**
-     * @brief Initialize NVS
-     */
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -408,15 +482,12 @@ void app_main()
     }
     ESP_ERROR_CHECK(ret);
 
-    /**
-     * @brief Initialize Wi-Fi
-     */
-    wifi_init();
+    /* IDENT 로 알릴 보드 고유 MAC. esp_wifi_set_mac 으로 덮어쓸 STA MAC 이 아니라
+     * eFuse base MAC 이어야 esptool read_mac / device_registry.csv 의 sta_mac 과 일치한다. */
+    ESP_ERROR_CHECK(esp_efuse_mac_get_default(g_base_mac));
+    g_boot_id = (uint16_t)(esp_random() & 0xFFFF);
 
-    /**
-     * @brief Initialize ESP-NOW
-     *        ESP-NOW protocol see: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_now.html
-     */
+    wifi_init();
 
     esp_now_peer_info_t peer = {
         .channel   = CONFIG_LESS_INTERFERENCE_CHANNEL,
@@ -424,24 +495,26 @@ void app_main()
         .encrypt   = false,
         .peer_addr = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
     };
-
     wifi_esp_now_init(peer);
 
-    /* Phase 2: USB-Serial-JTAG 드라이버 설치. ESP32-S3 dev 보드 USB-C가 여기로 연결됨. */
+    /* USB-Serial-JTAG 드라이버 설치. ESP32-S3 dev 보드 USB-C가 여기로 연결됨. */
     usb_serial_jtag_driver_config_t usj_cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
     usj_cfg.tx_buffer_size = CSI_USJ_TX_BUF_BYTES;
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usj_cfg));
 
-    /* 바이너리 CSI 프레임 스트리밍용 ring buffer + UART writer */
     g_csi_ringbuf = xRingbufferCreate(CSI_RINGBUF_BYTES, RINGBUF_TYPE_NOSPLIT);
     if (!g_csi_ringbuf) {
         ESP_LOGE(TAG, "ring buffer alloc failed");
     } else {
         xTaskCreate(uart_writer_task, "uart_writer", 4096, NULL, 5, NULL);
+        xTaskCreate(ident_task, "ident", 3072, NULL, 4, NULL);
     }
 
     wifi_csi_init();
 
-    /* PoC: 5초마다 Hz 출력 */
+    ESP_LOGI(TAG, "================ CSI RECV ================");
+    ESP_LOGI(TAG, "frame v%d, boot_id=%u, base_mac=" MACSTR,
+             CSI_FRAME_VERSION, g_boot_id, MAC2STR(g_base_mac));
+
     xTaskCreate(hz_log_task, "hz_log", 3072, NULL, 4, NULL);
 }
