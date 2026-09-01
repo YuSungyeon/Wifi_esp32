@@ -35,6 +35,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/ringbuf.h"
+#include "freertos/semphr.h"
 #include "driver/usb_serial_jtag.h"
 
 /* 진단 카운터 (5초 태스크에서 Hz로 출력) */
@@ -195,7 +196,18 @@ static void csi_frame_push(csi_frame_header_t *hdr, const void *payload, size_t 
 #define ESP_IF_WIFI_STA ESP_MAC_WIFI_STA
 #endif
 
+/* 역할별 MAC. 모두 같은 값을 쓰면 RX 가 업링크를 시작하는 순간 서로의 프레임을 CSI 로
+ * 잡아 자기오염된다. TX MAC 만 CSI 필터를 통과시킨다.
+ *   TX   1a:00:00:00:00:00   (자극원 — CSI 필터 기준)
+ *   RX   1a:00:00:00:00:<id> (CSI_RX_ID, 1~254)
+ *   SINK 1a:00:00:00:00:ff   (업링크 수신자) */
 static const uint8_t CONFIG_CSI_SEND_MAC[] = {0x1a, 0x00, 0x00, 0x00, 0x00, 0x00};
+#if CSI_UPLINK_ENABLED
+static const uint8_t CSI_SINK_MAC[] = {0x1a, 0x00, 0x00, 0x00, 0x00, 0xff};
+static uint8_t g_rx_mac[6] = {0x1a, 0x00, 0x00, 0x00, 0x00, CSI_RX_ID};
+static volatile uint32_t g_uplink_ok = 0;
+static volatile uint32_t g_uplink_fail = 0;
+#endif
 static const char *TAG = "csi_recv";
 
 static void wifi_init()
@@ -261,7 +273,13 @@ static void wifi_init()
     /* STA MAC 을 송신자와 같은 값으로 맞추는 것은 esp-csi 예제의 association-free 트릭이다.
      * RX 는 아무것도 송신하지 않으므로 충돌하지 않는다. 실시간 경로(ESP-NOW 업링크)로 갈 때는
      * RX 마다 다른 MAC 을 줘야 서로의 업링크를 CSI 로 잡지 않는다. */
+#if CSI_UPLINK_ENABLED
+    /* 업링크 모드: 자기 MAC 을 따로 쓴다. CSI 필터는 여전히 TX MAC 기준이라
+     * 싱크로 보낸 자기 프레임이나 다른 RX 의 업링크는 CSI 로 잡히지 않는다. */
+    ESP_ERROR_CHECK(esp_wifi_set_mac(WIFI_IF_STA, g_rx_mac));
+#else
     ESP_ERROR_CHECK(esp_wifi_set_mac(WIFI_IF_STA, CONFIG_CSI_SEND_MAC));
+#endif
 }
 
 static void wifi_esp_now_init(esp_now_peer_info_t peer)
@@ -349,7 +367,14 @@ static void ident_task(void *arg)
 
     while (1) {
         uint32_t counters[4] = {
-            g_csi_recv_count, g_uart_send_count, g_ringbuf_drop, g_uart_partial,
+            g_csi_recv_count,
+#if CSI_UPLINK_ENABLED
+            /* 업링크 모드에서 uart_* 는 의미가 없다. 대신 업링크 성공/실패를 싣는다 —
+             * 손실이 RX 송신에서 나는지 sink·USB 에서 나는지 구분하려면 이 값이 필요하다. */
+            g_uplink_ok, g_ringbuf_drop, g_uplink_fail,
+#else
+            g_uart_send_count, g_ringbuf_drop, g_uart_partial,
+#endif
         };
         memcpy(payload + 16, counters, sizeof(counters));
 
@@ -377,16 +402,25 @@ static void hz_log_task(void *arg)
         /* ESP_LOG 는 USB-Serial-JTAG 로도 나가 바이너리 스트림에 끼어든다
          * (CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y). 호스트가 magic+CRC 로
          * 재동기화하므로 무해하지만, 엄격히 하려면 CONFIG_LOG_DEFAULT_LEVEL_NONE=y. */
+#if CSI_UPLINK_ENABLED
+        ESP_LOGI(TAG, "5s: cb=%" PRIu32 " (+%" PRIu32 ", %.1fHz) uplink_ok=%" PRIu32
+                       " fail=%" PRIu32 " ringbuf_drop=%" PRIu32,
+                 cb, cb - prev_cb, (cb - prev_cb) / 5.0f,
+                 g_uplink_ok, g_uplink_fail, g_ringbuf_drop);
+        (void)up; (void)prev_uart;
+#else
         ESP_LOGI(TAG, "5s: cb=%" PRIu32 " (+%" PRIu32 ", %.1fHz) uart=%" PRIu32
                        " (+%" PRIu32 ", %.1fHz) ringbuf_drop=%" PRIu32 " partial=%" PRIu32,
                  cb, cb - prev_cb, (cb - prev_cb) / 5.0f,
                  up, up - prev_uart, (up - prev_uart) / 5.0f,
                  g_ringbuf_drop, g_uart_partial);
+#endif
         prev_cb = cb;
         prev_uart = up;
     }
 }
 
+#if !CSI_UPLINK_ENABLED
 /* USB-Serial-JTAG writer task: ring buffer에서 꺼내 USB-CDC로 그대로 쓴다.
  * ESP32-S3 dev 보드의 USB-C는 UART0가 아니라 USB-Serial-JTAG에 연결되어 있다. */
 static void uart_writer_task(void *arg)
@@ -397,6 +431,13 @@ static void uart_writer_task(void *arg)
         uint8_t *p = (uint8_t *)xRingbufferReceive(g_csi_ringbuf, &len, portMAX_DELAY);
         if (!p) continue;
 
+        /* ring buffer 의 4바이트 정렬 패딩을 빼고 헤더가 선언한 길이만 보낸다. */
+        if (len >= sizeof(csi_frame_header_t)) {
+            uint16_t declared = ((csi_frame_header_t *)p)->total_len;
+            if (declared >= sizeof(csi_frame_header_t) && declared <= len) {
+                len = declared;
+            }
+        }
         /* 부분 write 를 반드시 이어서 보낸다. 잔여분을 버리면 스트림에 잘린 프레임이
          * 남아 호스트가 재동기화해야 하고, 그 과정에서 오탐 magic 위험이 커진다. */
         size_t off = 0;
@@ -416,6 +457,65 @@ static void uart_writer_task(void *arg)
         }
     }
 }
+
+#endif  /* !CSI_UPLINK_ENABLED */
+
+#if CSI_UPLINK_ENABLED
+/* 업링크 writer: ring buffer 에서 꺼내 ESP-NOW 로 싱크에 보낸다.
+ * USB 를 쓰지 않는다 — RX 는 무선 배치가 목적이라 host 연결을 전제하지 않는다.
+ *
+ * unicast 를 쓰는 이유: broadcast 는 ACK·재전송이 없어 손실을 측정할 수는 있어도
+ * 복구할 수 없다. 우선 unicast 로 신뢰성을 확보하고, 에어타임이 CSI 콜백을 방해하면
+ * 그때 broadcast·양자화·묶음전송을 검토한다.
+ *
+ * esp_now_send 는 이전 전송이 끝나기 전에 다시 부르면 ESP_ERR_ESPNOW_NO_MEM 을 낸다.
+ * send 콜백으로 완료를 기다린 뒤 다음 프레임을 보낸다. */
+static SemaphoreHandle_t g_uplink_done = NULL;
+
+static void uplink_send_cb(const uint8_t *mac, esp_now_send_status_t status)
+{
+    (void)mac;
+    if (status == ESP_NOW_SEND_SUCCESS) {
+        g_uplink_ok++;
+    } else {
+        g_uplink_fail++;
+    }
+    BaseType_t hp = pdFALSE;
+    xSemaphoreGiveFromISR(g_uplink_done, &hp);
+    if (hp) portYIELD_FROM_ISR();
+}
+
+static void uplink_writer_task(void *arg)
+{
+    (void)arg;
+    while (1) {
+        size_t len = 0;
+        uint8_t *p = (uint8_t *)xRingbufferReceive(g_csi_ringbuf, &len, portMAX_DELAY);
+        if (!p) continue;
+        /* ring buffer 는 NOSPLIT 항목을 4바이트 정렬 크기로 돌려준다 — 172바이트 프레임에
+         * len=176 이 온다. 그대로 보내면 프레임마다 4바이트 쓰레기가 붙어 host 가 매번
+         * 재동기화한다. 프레임 길이는 헤더가 스스로 들고 있으니 그것을 쓴다. */
+        size_t total = len;
+        if (len >= sizeof(csi_frame_header_t)) {
+            uint16_t declared = ((csi_frame_header_t *)p)->total_len;
+            if (declared >= sizeof(csi_frame_header_t) && declared <= len) {
+                total = declared;
+            }
+        }
+        if (total <= ESP_NOW_MAX_DATA_LEN) {
+            if (esp_now_send(CSI_SINK_MAC, p, total) == ESP_OK) {
+                /* 완료를 기다린다. 싱크가 없으면 콜백이 fail 로 오므로 멈추지 않는다. */
+                xSemaphoreTake(g_uplink_done, pdMS_TO_TICKS(100));
+            } else {
+                g_uplink_fail++;
+            }
+        } else {
+            g_uplink_fail++;      /* 프레임이 ESP-NOW 상한(250B)을 넘음 */
+        }
+        vRingbufferReturnItem(g_csi_ringbuf, p);
+    }
+}
+#endif  /* CSI_UPLINK_ENABLED */
 
 static void wifi_csi_init()
 {
@@ -497,24 +597,48 @@ void app_main()
     };
     wifi_esp_now_init(peer);
 
-    /* USB-Serial-JTAG 드라이버 설치. ESP32-S3 dev 보드 USB-C가 여기로 연결됨. */
+#if !CSI_UPLINK_ENABLED
+    /* USB-Serial-JTAG 드라이버 설치. ESP32-S3 dev 보드 USB-C가 여기로 연결됨.
+     * 업링크 모드에서는 설치하지 않는다 — RX 는 USB 로 데이터를 내보내지 않는다. */
     usb_serial_jtag_driver_config_t usj_cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
     usj_cfg.tx_buffer_size = CSI_USJ_TX_BUF_BYTES;
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usj_cfg));
+#endif
 
     g_csi_ringbuf = xRingbufferCreate(CSI_RINGBUF_BYTES, RINGBUF_TYPE_NOSPLIT);
     if (!g_csi_ringbuf) {
         ESP_LOGE(TAG, "ring buffer alloc failed");
     } else {
+#if CSI_UPLINK_ENABLED
+        g_uplink_done = xSemaphoreCreateBinary();
+        ESP_ERROR_CHECK(esp_now_register_send_cb(uplink_send_cb));
+        esp_now_peer_info_t sink = {
+            .channel = CONFIG_LESS_INTERFERENCE_CHANNEL,
+            .ifidx = WIFI_IF_STA,
+            .encrypt = false,
+        };
+        memcpy(sink.peer_addr, CSI_SINK_MAC, 6);
+        ESP_ERROR_CHECK(esp_now_add_peer(&sink));
+        esp_now_rate_config_t rate = {.phymode = CONFIG_ESP_NOW_PHYMODE,
+                                      .rate = CONFIG_ESP_NOW_RATE, .ersu = false, .dcm = false};
+        ESP_ERROR_CHECK(esp_now_set_peer_rate_config(sink.peer_addr, &rate));
+        xTaskCreate(uplink_writer_task, "uplink", 4096, NULL, 5, NULL);
+#else
         xTaskCreate(uart_writer_task, "uart_writer", 4096, NULL, 5, NULL);
+#endif
         xTaskCreate(ident_task, "ident", 3072, NULL, 4, NULL);
     }
 
     wifi_csi_init();
 
     ESP_LOGI(TAG, "================ CSI RECV ================");
-    ESP_LOGI(TAG, "frame v%d, boot_id=%u, base_mac=" MACSTR,
+#if CSI_UPLINK_ENABLED
+    ESP_LOGI(TAG, "frame v%d, boot_id=%u, base_mac=" MACSTR " | UPLINK rx_id=%d → sink " MACSTR,
+             CSI_FRAME_VERSION, g_boot_id, MAC2STR(g_base_mac), CSI_RX_ID, MAC2STR(CSI_SINK_MAC));
+#else
+    ESP_LOGI(TAG, "frame v%d, boot_id=%u, base_mac=" MACSTR " | USB",
              CSI_FRAME_VERSION, g_boot_id, MAC2STR(g_base_mac));
+#endif
 
     xTaskCreate(hz_log_task, "hz_log", 3072, NULL, 4, NULL);
 }

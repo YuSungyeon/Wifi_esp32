@@ -163,7 +163,9 @@ def parse_ident(frame: bytes) -> tuple[str, str, dict]:
     payload = frame[HEADER_SIZE:]
     mac = ":".join(f"{b:02X}" for b in payload[:6])
     fw = payload[6:16].split(b"\x00", 1)[0].decode("ascii", "replace")
-    keys = ("fw_csi_cb", "fw_uart_sent", "fw_ringbuf_drop", "fw_uart_partial")
+    # 3번째 값은 모드에 따라 의미가 다르다: USB=uart_sent, 업링크=uplink_ok.
+    # 마지막도 USB=uart_partial, 업링크=uplink_fail.
+    keys = ("fw_csi_cb", "fw_sent", "fw_ringbuf_drop", "fw_send_fail")
     counters = dict(zip(keys, np.frombuffer(payload[16:32], dtype="<u4").tolist()))
     return mac, fw, counters
 

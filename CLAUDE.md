@@ -33,7 +33,8 @@ SoftAP/UDP production firmware, UDP collector, `flash_rx.py`, `flash_tx.py`, `me
 | 경로 | 책임 |
 |---|---|
 | `esp32s3_csi_send_poc/` | ESP-NOW 100Hz TX firmware |
-| `esp32s3_csi_recv_poc/` | CSI capture와 USB binary streaming RX firmware |
+| `esp32s3_csi_recv_poc/` | CSI capture RX firmware — USB 스트리밍 또는 ESP-NOW 업링크 (`CSI_UPLINK_ENABLED`) |
+| `esp32s3_csi_sink/` | 실시간 경로 SINK — RX 업링크를 받아 USB 로 전달 |
 | `scripts/meshsense_gui.py` | 브라우저 제어판 — 보드·수집·세션·진단 (비개발자용 권장 경로) |
 | `scripts/meshsense_cli.py` | registry, firmware flash, multi-RX USB collection |
 | `scripts/csi_store.py` | **frame 규격·검증·진폭·유효 서브캐리어의 Python 단일 소스** |
@@ -86,6 +87,7 @@ cd esp32s3_csi_recv_poc && idf.py build
 | 항목 | 값 |
 |---|---|
 | Wi-Fi topology | STA-only, association 없음 |
+| 역할별 MAC | TX `1a:..:00` (CSI 필터 기준) / RX `1a:..:<id>` / SINK `1a:..:ff` |
 | channel / bandwidth | 11 / HT20 |
 | ESP-NOW rate | MCS0 LGI |
 | TX frequency | 100Hz (`usleep(10ms)`) |
@@ -116,6 +118,9 @@ cd esp32s3_csi_recv_poc && idf.py build
 - 시리얼 포트의 DTR/RTS 를 건드리지 말 것 — USB-Serial-JTAG 는 그 자체로 리셋된다
 - 포트를 열자마자 기록하지 말 것 — 보드 링버퍼의 묵은 프레임을 먼저 비워야 한다
 - `tx_seq` 를 정렬로 정리하지 말 것 — 역행은 TX 재부팅이고, 정렬하면 시간이 뒤집힌다
+- 역할별 MAC 을 같게 하지 말 것 — RX 가 업링크를 시작하면 서로를 CSI 로 잡아 자기오염된다
+- ring buffer 가 돌려주는 길이를 그대로 쓰지 말 것 — NOSPLIT 은 4바이트 정렬 크기를 준다.
+  프레임 길이는 헤더의 `total_len` 이 정본이다
 
 ## Development Rules
 

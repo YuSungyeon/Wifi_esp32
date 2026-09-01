@@ -331,9 +331,9 @@ def main() -> int:
                 if args.stats_every and stats.frames % args.stats_every == 0:
                     elapsed = now - start
                     d = {k: v - fw_baseline.get(k, 0) for k, v in fw_counters.items()}
-                    fw_note = (f" fw[cb={d['fw_csi_cb']} sent={d['fw_uart_sent']} "
+                    fw_note = (f" fw[cb={d['fw_csi_cb']} sent={d['fw_sent']} "
                                f"rbdrop={d['fw_ringbuf_drop']} "
-                               f"partial={d['fw_uart_partial']}]") if fw_counters else ""
+                               f"fail={d['fw_send_fail']}]") if fw_counters else ""
                     print(f"{tag} frames={stats.frames} hz={stats.frames / elapsed:.1f} "
                           f"crc_fail={stats.crc_fail} invalid={stats.invalid} "
                           f"resync={stats.resync} seq_gap={stats.seq_gap} "
@@ -395,8 +395,8 @@ def main() -> int:
         if fw_counters:
             d = {k: v - fw_baseline.get(k, 0) for k, v in fw_counters.items()}
             print(f"{tag} 펌웨어(세션 구간): csi_cb={d['fw_csi_cb']} "
-                  f"uart_sent={d['fw_uart_sent']} ringbuf_drop={d['fw_ringbuf_drop']} "
-                  f"partial={d['fw_uart_partial']}", file=sys.stderr)
+                  f"sent={d['fw_sent']} ringbuf_drop={d['fw_ringbuf_drop']} "
+                  f"fail={d['fw_send_fail']}", file=sys.stderr)
     return rc
 
 
