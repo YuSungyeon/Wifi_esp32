@@ -47,13 +47,16 @@ VIZ_REQUIREMENTS = REPO_ROOT / "requirements-viz.txt"
 SEND_POC_PROJECT = REPO_ROOT / "esp32s3_csi_send_poc"
 RECV_POC_PROJECT = REPO_ROOT / "esp32s3_csi_recv_poc"
 SERIAL_READER_SCRIPT = SCRIPT_DIR / "csi_serial_reader.py"
+SESSION_FORM_SCRIPT = SCRIPT_DIR / "session_form.py"
 POC_LOG_DIR = REPO_ROOT / "log"  # .gitignore 처리됨
 
 BoardKind = Literal["tx", "rx"]
 
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from session_meta import read_session_id  # noqa: E402
+from csi_session import create_session, finalize_session, next_session_id, summarize  # noqa: E402
+from csi_store import LABELS  # noqa: E402
+from session_meta import read_label_target, read_session_id  # noqa: E402
 
 
 def _pause(msg: str = "계속하려면 Enter…") -> None:
@@ -925,31 +928,48 @@ def _flash_poc_board(*, kind: Optional[BoardKind] = None) -> bool:
     return True
 
 
-def _detect_rx_boards() -> List[Tuple[str, int]]:
-    """현재 USB 포트들에서 MAC 읽고 RX registry와 매칭된 (port, device_id) 만 반환."""
-    from registry import lookup_by_mac  # noqa: WPS433
+def _open_session_form() -> None:
+    """세션 메타 편집 폼(로컬 웹)을 띄운다. Ctrl+C 로 폼을 닫으면 메뉴로 돌아온다."""
+    if not SESSION_FORM_SCRIPT.is_file():
+        print(f"[중단] 폼 스크립트 없음: {SESSION_FORM_SCRIPT}")
+        return
+    print("\n--- 세션 메타 편집 (브라우저 폼) ---")
+    print(f"  대상: {SESSION_META}")
+    print("  브라우저가 열립니다. 값을 저장한 뒤 이 터미널에서 Ctrl+C 로 폼을 닫으세요.")
+    try:
+        subprocess.run([sys.executable, str(SESSION_FORM_SCRIPT)], cwd=str(REPO_ROOT))
+    except KeyboardInterrupt:
+        pass
 
-    found: List[Tuple[str, int]] = []
-    if not DEVICE_REGISTRY.is_file():
-        print(f"[경고] RX registry 없음: {DEVICE_REGISTRY}")
-        return found
 
-    for port in _list_usb_ports():
-        try:
-            mac = _read_usb_mac(port)
-        except RuntimeError as exc:
-            print(f"  {port}: MAC 읽기 실패 ({exc})")
-            continue
-        try:
-            rec = lookup_by_mac(mac, DEVICE_REGISTRY)
-        except (FileNotFoundError, ValueError):
-            rec = None
-        if rec is None:
-            print(f"  {port}: MAC {mac} — RX registry에 없음 (TX 또는 미등록, 건너뜀)")
-            continue
-        print(f"  {port}: MAC {mac} → RX device_id={rec.device_id} ({rec.board_name})")
-        found.append((port, rec.device_id))
-    return found
+def _ask_label(default: Optional[str]) -> Optional[str]:
+    """이번 수집 세션의 라벨. 라벨은 여기서 정해져 session.json 에 박힌다.
+
+    이전에는 라벨이 후처리 CLI 인자에만 있어(기본 empty) 데이터만 보고는 어떤 세션이
+    무슨 상태였는지 알 수 없었다.
+    """
+    labels = list(LABELS)
+    desc = {"empty": "부재 — 공간에 사람 없음",
+            "static": "정지 — 사람이 있으나 움직이지 않음",
+            "action": "움직임 — 사람이 움직이는 중"}
+    if default not in labels:
+        default = None
+    print("\n  이번 세션의 라벨:")
+    for i, name in enumerate(labels, 1):
+        mark = " (기본)" if name == default else ""
+        print(f"    [{i}] {name:7s} {desc[name]}{mark}")
+    prompt = f"  선택 [1-{len(labels)}]" + (f" (Enter={default})" if default else "") + ": "
+    while True:
+        raw = input(prompt).strip()
+        if not raw and default:
+            return default
+        if raw.isdigit() and 1 <= int(raw) <= len(labels):
+            return labels[int(raw) - 1]
+        if raw in labels:
+            return raw
+        if raw.lower() in {"q", "quit", "취소"}:
+            return None
+        print("    잘못된 입력입니다.")
 
 
 def _tee_subprocess_lines(proc: "subprocess.Popen[bytes]", log_fp) -> None:
@@ -974,8 +994,14 @@ def _tee_subprocess_lines(proc: "subprocess.Popen[bytes]", log_fp) -> None:
 
 
 def _collect_poc_interactive() -> bool:
-    """USB 시리얼로 연결된 RX 보드들에서 csi_serial_reader.py 병렬 실행."""
+    """USB 시리얼로 연결된 RX 보드들에서 csi_serial_reader.py 병렬 실행.
+
+    포트 목록만 보고 reader 를 붙인다 — 보드 식별은 reader 가 IDENT 프레임으로 한다.
+    예전처럼 esptool 로 포트를 프로브하면 DTR/RTS 로 보드가 리셋되고, TX 가 꽂혀 있으면
+    TX 까지 리셋되어 tx_seq(cross-RX 정렬 키)가 세션 중간에 0으로 되감긴다.
+    """
     import signal as _signal
+    import threading
     import time as _time
 
     print("\n--- [PoC] USB 시리얼 수집 ---")
@@ -983,85 +1009,78 @@ def _collect_poc_interactive() -> bool:
         print(f"[중단] reader 스크립트 없음: {SERIAL_READER_SCRIPT}")
         return False
 
-    print("  연결된 USB 보드 스캔 + RX registry 매칭…")
-    boards = _detect_rx_boards()
-    if not boards:
-        print("\n[중단] 수집 대상 RX 보드를 찾지 못했습니다.")
-        print("  ① RX 보드가 USB로 연결되어 있고 PoC 펌웨어가 플래시되었는지 확인")
-        print("  ② mac_collector/device_registry.csv 에 등록되어 있는지 확인")
+    ports = _list_usb_ports()
+    if not ports:
+        print("\n[중단] USB 시리얼 포트를 찾지 못했습니다. 보드 연결을 확인하세요.")
         return False
+    print(f"  포트 {len(ports)}개: {', '.join(ports)}")
+    print("  (RX 보드는 IDENT 프레임으로 자동 식별됩니다. TX·미등록 보드는 자동으로 제외됩니다.)")
 
-    session_id = read_session_id(SESSION_META, default=1)
-    print(f"\n  session_id = {session_id} (session_meta.yaml)")
+    session_id = next_session_id(OUTPUT_DIR)
+    print(f"  session_id = {session_id} (기존 세션 최댓값+1로 자동 부여)")
+    label = _ask_label(read_label_target(SESSION_META))
+    if label is None:
+        print("취소되었습니다.")
+        return False
 
     duration_sec = _ask_collect_duration_sec()
 
+    try:
+        session_dir = create_session(
+            OUTPUT_DIR, label=label, session_id=session_id, session_meta=SESSION_META
+        )
+    except OSError as exc:
+        print(f"[중단] 세션 디렉터리 생성 실패: {exc}")
+        return False
+    print(f"\n  세션: {session_dir.relative_to(REPO_ROOT)}  (label={label}, session_id={session_id})")
+
     POC_LOG_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = _time.strftime("%Y%m%d_%H%M%S")
-    import threading
 
-    # (device_id, proc, log_path, log_fp, tee_thread)
-    procs: List[Tuple[int, "subprocess.Popen[bytes]", Path, object, threading.Thread]] = []
-
-    for port, device_id in boards:
-        log_path = POC_LOG_DIR / f"reader_session{session_id}_dev{device_id}_{timestamp}.log"
+    # (port, proc, log_path, log_fp, tee_thread)
+    procs: List[Tuple[str, "subprocess.Popen[bytes]", Path, object, threading.Thread]] = []
+    for port in ports:
+        log_path = POC_LOG_DIR / f"reader_{session_dir.name}_{Path(port).name}_{timestamp}.log"
         cmd = [
             sys.executable,
             str(SERIAL_READER_SCRIPT),
             "--port", port,
-            "--device-id", str(device_id),
-            "--session-id", str(session_id),
-            "--output-dir", str(OUTPUT_DIR),
+            "--session-dir", str(session_dir),
         ]
-        print(f"\n[실행] dev{device_id} ({port}) → log: {log_path}")
-        print("       " + " ".join(cmd))
+        if duration_sec > 0:
+            cmd += ["--duration", str(duration_sec)]
         log_fp = log_path.open("wb")
-        # PIPE로 받아 tee 스레드가 터미널 + 로그 동시 출력
         proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            bufsize=0,
-            cwd=str(REPO_ROOT),
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0, cwd=str(REPO_ROOT)
         )
-        thr = threading.Thread(
-            target=_tee_subprocess_lines,
-            args=(proc, log_fp),
-            daemon=True,
-        )
+        thr = threading.Thread(target=_tee_subprocess_lines, args=(proc, log_fp), daemon=True)
         thr.start()
-        procs.append((device_id, proc, log_path, log_fp, thr))
+        procs.append((port, proc, log_path, log_fp, thr))
+    print(f"\n[실행] reader {len(procs)}개 기동 → log: {POC_LOG_DIR}/reader_{session_dir.name}_*")
 
     if duration_sec > 0:
-        print(f"\n[안내] {duration_sec:.0f}초 후 자동 종료 (중간 Ctrl+C 도 가능)")
+        print(f"[안내] {duration_sec:.0f}초 후 자동 종료 (중간 Ctrl+C 도 가능)")
     else:
-        print("\n[안내] 종료: Ctrl+C")
+        print("[안내] 종료: Ctrl+C")
     print("=" * 60)
     print("  ↓↓ reader 실시간 출력 (터미널 + log/ 동시 기록) ↓↓")
     print("=" * 60)
 
     start = _time.monotonic()
     try:
-        if duration_sec > 0:
-            # 단순 sleep — tee 스레드가 실시간 stdout/log 모두 처리
-            # reader가 조기 종료하면 빨리 빠져나오기 위해 0.5초 단위 폴링
-            deadline = start + duration_sec
-            while _time.monotonic() < deadline:
-                if any(p.poll() is not None for _, p, _, _, _ in procs):
-                    print("\n[경고] reader 중 일부가 조기 종료됨")
-                    break
-                _time.sleep(0.5)
-        else:
-            # 무한 대기: reader 중 하나라도 죽으면 종료
-            while all(p.poll() is None for _, p, _, _, _ in procs):
-                _time.sleep(0.5)
+        deadline = start + duration_sec if duration_sec > 0 else None
+        while True:
+            if deadline and _time.monotonic() >= deadline:
+                break
+            alive = [t for t in procs if t[1].poll() is None]
+            if not alive:
+                break
+            _time.sleep(0.5)
     except KeyboardInterrupt:
         print("\n[중단] Ctrl+C — reader 종료 중…")
 
     print("\n" + "=" * 60)
-    print("  reader 종료 신호 송신")
-    print("=" * 60)
-    for device_id, proc, _, _, _ in procs:
+    for _, proc, _, _, _ in procs:
         if proc.poll() is None:
             try:
                 proc.send_signal(_signal.SIGINT)
@@ -1069,28 +1088,44 @@ def _collect_poc_interactive() -> bool:
                 pass
 
     elapsed = _time.monotonic() - start
-    print(f"  {elapsed:.1f}초 수집됨. reader 정리 대기…")
-    for device_id, proc, log_path, log_fp, thr in procs:
+    print(f"  {elapsed:.1f}초 경과. reader 정리 대기…")
+    # reader 종료 코드: 0 정상 / 2 RX 보드 아님(TX·미등록) / 3 스트림 정지 / 4 파일 충돌
+    rc_note = {0: "정상", 2: "RX 아님 — 제외", 3: "스트림 정지(보드 확인 필요)", 4: "파일 충돌"}
+    collected = 0
+    for port, proc, log_path, log_fp, thr in procs:
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
-            print(f"  dev{device_id}: 응답 없음 → SIGTERM")
             proc.terminate()
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 proc.kill()
-        # tee 스레드가 pipe EOF로 자연 종료할 때까지 대기
         thr.join(timeout=3)
         try:
             log_fp.close()
         except OSError:
             pass
         rc = proc.returncode
-        print(f"  dev{device_id} 종료 (rc={rc}, log: {log_path.name})")
+        if rc == 0:
+            collected += 1
+        print(f"  {port}: rc={rc} ({rc_note.get(rc, '오류')})  log: {log_path.name}")
 
-    print(f"\n[완료] 출력 디렉터리: {OUTPUT_DIR}/raw/$(date)/session_{session_id}/")
-    print(f"       reader 로그: {POC_LOG_DIR}/reader_session{session_id}_*_{timestamp}.log")
+    manifest = finalize_session(session_dir)
+    print("\n[요약]")
+    for line in summarize(manifest):
+        print("  " + line)
+
+    if collected == 0:
+        print("\n[경고] 수집된 RX 보드가 없습니다.")
+        print("  ① RX 보드에 최신 PoC 펌웨어가 플래시되었는지 (IDENT 프레임 v3 필요)")
+        print("  ② mac_collector/device_registry.csv 에 보드 MAC 이 등록되어 있는지 확인")
+        return False
+
+    if _ask_yes_no("CSI 워터폴 PNG로 확인할까요?", default_no=False):
+        _run_visualize_session(session_dir)
+
+    print(f"\n[완료] {session_dir}")
     return True
 
 
@@ -1105,7 +1140,8 @@ def _menu_usb_pipeline() -> None:
             "선택",
             [
                 "보드 플래시 (PoC, MAC 자동 매칭)",
-                "수집 (USB 시리얼, 시간 입력)",
+                "수집 (라벨·시간 입력)",
+                "세션 메타 편집 (브라우저 폼)",
                 "보드 관리 (registry 등록·검증)",
                 "파이프라인 선택으로 돌아가기",
             ],
@@ -1117,6 +1153,8 @@ def _menu_usb_pipeline() -> None:
             _collect_poc_interactive()
             _pause()
         elif idx == 2:
+            _open_session_form()
+        elif idx == 3:
             _menu_board_management()
         else:
             break
@@ -1171,6 +1209,20 @@ def _ask_collect_duration_sec() -> float:
             print("  0 이상이어야 합니다.")
             continue
         return val
+
+
+def _run_visualize_session(session_dir: Path) -> None:
+    """세션 디렉터리를 직접 넘겨 워터폴 PNG 생성 (USB 파이프라인)."""
+    if not VISUALIZE_SCRIPT.is_file():
+        print(f"[경고] 시각화 스크립트 없음: {VISUALIZE_SCRIPT}")
+        return
+    venv_py = _ensure_postprocess_venv(interactive=True)
+    if venv_py is None:
+        print("\n[경고] PNG 생략 — " + _viz_venv_bootstrap_hint())
+        print(f"  python scripts/visualize_csi.py --session-dir {session_dir}")
+        return
+    if _run_python(VISUALIZE_SCRIPT, ["--session-dir", str(session_dir)], python=venv_py) != 0:
+        print("[경고] PNG 생성 실패 — .venv 패키지 확인")
 
 
 def _run_visualize_after_collect(session_id: int) -> None:
