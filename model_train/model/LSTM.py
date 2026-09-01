@@ -301,17 +301,41 @@ def train(X, y, label_name="?", epochs=EPOCHS):
 
 
 if __name__ == "__main__":
-    # 이 파일을 직접 실행했을 때만 전처리 + 학습을 시작한다.
+    # 이 파일을 직접 실행했을 때만 학습을 시작한다.
     # 다른 파일에서 LSTMClassifier만 import할 때는 아무것도 실행되지 않는다.
-    from Preprocessing import DEFAULT_RX_IDS, LABEL_MAP, find_latest_session_dir, run_preprocessing
+    import numpy as np
 
-    parser = argparse.ArgumentParser(description="세션 JSONL 전처리 후 LSTM 학습")
-    parser.add_argument("--session-dir", type=Path, default=None, help="세션 디렉터리 (기본: 최신 세션)")
-    parser.add_argument("--rx-ids", type=int, nargs="+", default=list(DEFAULT_RX_IDS))
-    parser.add_argument("--label", choices=sorted(LABEL_MAP), default="empty")
+    parser = argparse.ArgumentParser(description="데이터셋 npz 로 LSTM 학습")
+    parser.add_argument(
+        "--dataset", type=Path,
+        default=Path(__file__).resolve().parents[1] / "dataset.npz",
+        help="build_dataset.py 가 만든 npz (여러 세션 · 3-class)",
+    )
+    parser.add_argument("--session-dir", type=Path, default=None,
+                        help="세션 하나만으로 학습 (단일 클래스라 성능 평가는 불가 — 배관 확인용)")
+    parser.add_argument("--rx-ids", type=int, nargs="+", default=None)
     parser.add_argument("--epochs", type=int, default=EPOCHS)
     args = parser.parse_args()
 
-    session_dir = args.session_dir or find_latest_session_dir()
-    X, y = run_preprocessing(session_dir, rx_ids=tuple(args.rx_ids), label_name=args.label)
-    train(X, y, label_name=args.label, epochs=args.epochs)
+    if args.session_dir is not None:
+        from Preprocessing import run_preprocessing
+
+        X, y = run_preprocessing(args.session_dir, rx_ids=args.rx_ids)
+        print("\n[경고] 세션 1개는 라벨이 하나뿐이라 3-class 학습이 성립하지 않습니다.")
+        print("       실제 학습은 build_dataset.py 로 여러 세션을 묶어 쓰세요.")
+        train(X, y, label_name="single-session", epochs=args.epochs)
+    else:
+        if not args.dataset.is_file():
+            raise SystemExit(
+                f"데이터셋이 없습니다: {args.dataset}\n"
+                "  먼저 실행: python model_train/model/build_dataset.py"
+            )
+        d = np.load(args.dataset, allow_pickle=False)
+        names = d["label_names"].tolist()
+        print(f"[데이터셋] {args.dataset.name}  classes={names}")
+        print(f"  train sessions: {d['sessions_train'].tolist()}")
+        if "X_val" in d:
+            print(f"  val   sessions: {d['sessions_val'].tolist()}")
+        # TODO(모델 담당): 아래는 train split 만 학습한다. X_val/y_val 로 epoch 마다 검증하고
+        #                  best val accuracy 모델을 torch.save 하는 것이 다음 단계다.
+        train(d["X_train"], d["y_train"], label_name="+".join(names), epochs=args.epochs)
