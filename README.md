@@ -1,33 +1,37 @@
 # MeshSense
 
-WiFi CSI(Channel State Information) 기반 실내 행동 인식 시스템.
+ESP32-S3와 Wi-Fi CSI(Channel State Information)를 이용한 실내 행동 인식 프로젝트입니다.
 
-ESP32-S3 보드가 CSI를 수집하고, Mac이 raw I/Q 프레임으로 저장하며, 후처리 파이프라인이
-LSTM 학습 텐서를 생성합니다. 수집 경로는 2가지입니다:
-
-- **USB 수집** — RX 보드를 USB로 연결해 시리얼로 100Hz 수집 (**모델 학습 데이터 정본 경로**)
-- ~~AP 실시간 수집 — TX SoftAP + RX UDP 무선 전송~~ (**deprecated**, 실측 0.18~22.8Hz)
-
-```bash
-python scripts/meshsense_cli.py   # 첫 화면에서 파이프라인 선택
-```
-
-## 문서
-
-전체 문서는 **[doc/](doc/README.md)** 에 정리되어 있습니다.
-
-| 구분 | 문서 |
-|------|------|
-| 개요 | [빠른 시작](doc/overview/quickstart.md) · [아키텍처](doc/overview/architecture.md) |
-| 파이프라인 | [USB 수집](doc/pipeline/usb-collection.md) · ~~[AP 실시간](doc/pipeline/ap-realtime.md)~~ |
-| 작업 기록 | [수집 환경 정비 스프린트](doc/sprint/2026-08-collection-hardening.md) |
-| 후처리·학습 | [파이프라인](doc/postprocessing/pipeline.md) · [LSTM 설계](doc/postprocessing/lstm-design.md) |
-| 호스트 | [스크립트 레퍼런스](scripts/README.md) |
-
-## 한 줄 요약
+현재 공식 수집 방식은 **ESP-NOW 송신 → CSI 수신 → USB-Serial-JTAG → Mac JSONL**입니다. SoftAP·UDP 기반 운영 펌웨어와 수집기는 제거되었습니다.
 
 ```text
-TX ESP-NOW 10ms → RX CSI 100Hz → Mac .csi(raw I/Q) → (N, 300, RX수×52) 텐서 → LSTM
+ESP-NOW TX (100Hz, channel 11, HT20)
+  → CSI RX × N
+  → USB-Serial-JTAG binary frame
+  → Mac serial reader
+  → device별 JSONL + session metadata
 ```
 
-AI 어시스턴트용 프로젝트 요약: [CLAUDE.md](CLAUDE.md)
+## 시작하기
+
+```bash
+python3 scripts/meshsense_cli.py
+```
+
+처음 실행할 때는 메뉴 **[1] 전체 가이드**를 사용합니다. Mac을 별도 Wi-Fi AP에 연결하거나 UDP collector를 실행할 필요가 없습니다.
+
+## 기준 문서
+
+| 문서 | 내용 |
+|---|---|
+| [문서 인덱스](doc/README.md) | 문서 상태와 읽는 순서 |
+| [아키텍처](doc/architecture.md) | 현재 코드 기준 전체 구조와 모듈 |
+| [빠른 시작](doc/quickstart.md) | 환경 준비부터 수집까지 |
+| [펌웨어](doc/firmware.md) | TX/RX 무선·CSI·USB 동작 |
+| [binary/JSONL 계약](doc/data-schema.md) | 수집 데이터 형식 |
+| [후처리·학습](doc/postprocessing.md) | 구현된 기능과 모델 문서 연결 |
+| [모델 학습 문서](model_train/docs/%5B문서%5D-목록.md) | 전처리·모델 비교·설계·학습 |
+| [문제 해결](doc/troubleshooting.md) | ESP-IDF·빌드·포트 문제 |
+| [문서 주도 개발 규칙](doc/documentation-policy.md) | 문서 선행 변경 절차와 완료 조건 |
+
+`esp32s3_csi_send_poc`, `esp32s3_csi_recv_poc`의 `poc` 이름은 역사적으로 유지하고 있지만 현재 프로젝트의 공식 펌웨어입니다.

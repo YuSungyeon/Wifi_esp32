@@ -1,64 +1,126 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project
 
-## Project Overview
+MeshSense는 ESP32-S3 기반 Wi-Fi CSI 실내 행동 인식 프로젝트다. 현재 지원하는 수집 방식은 ESP-NOW/USB 한 가지뿐이다.
 
-MeshSense — WiFi CSI 기반 실내 행동 인식 시스템 (3-class: empty / static / action).
-ESP32-S3가 CSI를 모으고, Mac이 raw I/Q 프레임으로 저장하며, `model_train/`이 LSTM 학습 텐서를 만든다.
+사용자 문서의 시작점은 `doc/README.md`다. 코드 변경 전 `doc/documentation-policy.md`를 따르고, 동작·계약 변경은 문서를 먼저 수정한다.
 
-**학습 데이터 수집은 USB 파이프라인이 유일한 정본 경로다.**
-AP(SoftAP+UDP) 파이프라인은 deprecated — 실측 0.18~22.8Hz로 100Hz 목표에 못 미치고
-온디바이스 z-score가 시간축 진폭 변동을 지운다. 신규 작업을 얹지 말 것.
+## Current Architecture
 
-**아키텍처·상수·데이터 흐름은 `doc/overview/architecture.md`가 유일한 정본이다** — 이 파일에 복사하지 말 것.
-문서 인덱스·저장소 레이아웃: `doc/README.md`. 셋업 명령: `doc/overview/quickstart.md`.
-진행 중 작업 로그: `doc/sprint/`.
-
-## 자주 쓰는 명령
-
-```bash
-python scripts/meshsense_gui.py                          # 브라우저 제어판 (비개발자용 권장 경로)
-python scripts/meshsense_cli.py                          # 메뉴 CLI: [1] USB 수집
-python scripts/check_separability.py                     # 3-class 분리 가능성 진단 (torch 불필요)
-python scripts/idf_bootstrap.py -y                       # ESP-IDF 준비 (최초 1회)
-python scripts/measure_csi_hz.py <세션 디렉터리>          # 수집 품질 진단
-python scripts/visualize_csi.py --session-dir <세션>      # CSI 워터폴 PNG
-python model_train/model/build_dataset.py                # 여러 세션 → dataset.npz
-python model_train/model/LSTM.py --epochs 20             # 학습 (PyTorch 필요)
+```text
+esp32s3_csi_send_poc (TX)
+  ESP-NOW broadcast, channel 11, HT20, 100Hz
+       │
+       ▼
+esp32s3_csi_recv_poc (RX × N)
+  promiscuous CSI, LLTF only
+  callback → 64KiB ring buffer → USB-Serial-JTAG
+       │
+       ▼
+scripts/csi_serial_reader.py (RX별 process)
+  binary v2 → I/Q amplitude → JSONL
+       │
+       ├─ scripts/visualize_csi.py
+       ├─ model_train/preprocessing/preprocess_3rx.py (official 3-RX windows)
+       └─ model_train/lstm/Preprocessing.py → LSTM.py (experimental)
 ```
 
-- PoC 펌웨어(`esp32s3_csi_send_poc`/`esp32s3_csi_recv_poc`)는 CMake 파라미터가 없어
-  `flash_*.py` 대상이 아님 — CLI `[1] 보드 플래시` 또는 `idf.py` 직접 사용.
-  **RX 펌웨어는 보드마다 동일한 바이너리** (`device_id`는 IDENT MAC으로 호스트가 결정)
-- ESP-IDF는 프로젝트 로컬 submodule `esp-idf/`(v5.2.2), 툴체인은 `~/.espressif`.
-  트러블슈팅: `doc/overview/esp-idf-troubleshooting.md`
-- Python 환경 2개 분리: 프로젝트 `.venv`(수집·후처리) / ESP-IDF venv(빌드)
+SoftAP/UDP production firmware, UDP collector, `flash_rx.py`, `flash_tx.py`, `meshsense_config.py`, `add/main.py`는 제거되었다. 다시 참조하거나 문서에 복원하지 않는다. 결정 근거는 `doc/adr-poc-only.md`다.
 
-## SSOT 위치 (수정 시 여기만)
+## Authoritative Modules
 
-- 상수표: `doc/overview/architecture.md`
-- 프레임 규격: C는 `esp32s3_csi_recv_poc/main/app_main.c`의 `csi_frame_header_t`,
-  Python은 `scripts/csi_store.py`의 `HEADER_DTYPE` — 한쪽만 고치면 C의 `offsetof` assert가 터진다
-- 라벨·유효 서브캐리어: `scripts/csi_store.py` (`LABELS`, `LLTF_DATA_IDX`)
-- 세션 라벨: 각 세션의 `session.json` (`session_meta.yaml`은 기본값 제공용일 뿐)
-- `session_id`: 자동 순번 (`csi_session.next_session_id`) — YAML 에 두지 않는다
-- RX/TX 보드: `mac_collector/device_registry.csv` / `tx_registry.csv`
-  (공통 로직: `scripts/registry_core.py`)
+| 경로 | 책임 |
+|---|---|
+| `esp32s3_csi_send_poc/` | ESP-NOW 100Hz TX firmware |
+| `esp32s3_csi_recv_poc/` | CSI capture와 USB binary streaming RX firmware |
+| `scripts/meshsense_gui.py` | 브라우저 제어판 — 보드·수집·세션·진단 (비개발자용 권장 경로) |
+| `scripts/meshsense_cli.py` | registry, firmware flash, multi-RX USB collection |
+| `scripts/csi_store.py` | **frame 규격·검증·진폭·유효 서브캐리어의 Python 단일 소스** |
+| `scripts/csi_session.py` | 세션 디렉터리·manifest(라벨 SSOT)·`session_id` 자동 순번 |
+| `scripts/csi_serial_reader.py` | binary v4 검증(CRC32), IDENT 식별, `.csi` 저장 |
+| `scripts/export_jsonl.py` | `.csi` → JSONL record schema v1 (전처리 입력) |
+| `scripts/check_separability.py` | 3-class 분리 가능성 진단 (세션 단위 LOSO) |
+| `mac_collector/device_registry.csv` | RX USB MAC ↔ device ID |
+| `mac_collector/tx_registry.csv` | TX USB MAC ↔ TX node ID |
+| `mac_collector/session_meta.yaml` | 실험 조건과 라벨 기본값 (run ID 는 자동 순번) |
+| `<세션>/session.json` | **세션 라벨 SSOT** + RX별 수집 품질 통계 |
+| `scripts/visualize_csi.py` | RX별 waterfall PNG |
+| `model_train/preprocessing/preprocess_3rx.py` | 공식 3-RX 전처리 구현 (`model_train/docs/[전처리]-설계.md` 기준) |
+| `model_train/<model-name>/` | 모델별 실험 단계 전처리·학습 코드 |
+| `model_train/docs/` | 전처리·모델 비교·설계·학습 문서 |
+
+`mac_collector/` 디렉터리 이름은 registry/session 파일 호환을 위해 남아 있으며 UDP collector를 의미하지 않는다.
+
+## Commands
+
+```bash
+python3 scripts/meshsense_gui.py          # 브라우저 제어판
+python3 scripts/meshsense_cli.py
+python3 scripts/idf_bootstrap.py -y
+
+python3 scripts/device_registry.py verify
+python3 scripts/tx_registry.py verify
+
+python3 scripts/measure_csi_hz.py \
+  mac_collector_output/raw/YYYYMMDD/<HHMMSS>_<label>_s<id>
+python3 scripts/visualize_csi.py \
+  --session-dir mac_collector_output/raw/YYYYMMDD/<HHMMSS>_<label>_s<id>
+python3 scripts/check_separability.py
+
+# 학습 전처리: .csi 를 JSONL 로 내보낸 뒤 공식 전처리에 넣는다
+python3 scripts/export_jsonl.py --print-labels
+python3 model_train/preprocessing/preprocess_3rx.py \
+  --raw-dir mac_collector_output/jsonl/raw/YYYYMMDD
+```
+
+Manual firmware build:
+
+```bash
+cd esp32s3_csi_send_poc && idf.py build
+cd esp32s3_csi_recv_poc && idf.py build
+```
+
+## Current Constants
+
+| 항목 | 값 |
+|---|---|
+| Wi-Fi topology | STA-only, association 없음 |
+| channel / bandwidth | 11 / HT20 |
+| ESP-NOW rate | MCS0 LGI |
+| TX frequency | 100Hz (`usleep(10ms)`) |
+| CSI capture | LLTF only |
+| expected raw CSI | 128 bytes = 64 I/Q pairs |
+| USB frame | little-endian **v4, 44-byte header, CRC-32** |
+| `tx_seq` | cross-RX synchronization key |
+| reader output | **raw I/Q 그대로 저장(`.csi`)**, on-device normalization 없음 |
+| 유효 LLTF 톤 | `[1..26] + [38..63]` 52개 — `0`(DC), `27~37`(가드)은 상시 0 |
+| 라벨 어휘 | `empty` / `static` / `motion` (`csi_store.LABELS` = 전처리 `LABEL_MAP`) |
+
+## Data Contract
+
+- Binary frame: `doc/data-schema.md`
+- 수집 출력: `mac_collector_output/raw/YYYYMMDD/<HHMMSS>_<label>_s<id>/device_<id>.csi`
+- 전처리 입력: `export_jsonl.py` 가 만드는 `mac_collector_output/jsonl/raw/YYYYMMDD/session_<id>/device_<id>.jsonl`
+  (`record_schema_version=1`, `transport=usb_serial_jtag`, `csi_representation=raw_iq_amplitude`)
+- **`.csi` 는 배타적 생성이라 append 되지 않는다.** 구 레이아웃의 append 모드는 실제로
+  여러 run 을 한 파일에 섞어 데이터를 오염시켰다.
+- RX별 `seq`와 `timestamp_us`는 공유 clock이 아니다. 다중 RX 정렬에는 `tx_seq`를 사용한다.
 
 ## 손대면 안 되는 것 (재발 방지)
 
-- **CSI 콜백 안에 동기 I/O 금지** — WiFi driver task가 막혀 즉시 ~50Hz로 붕괴
-- **보드에서 진폭 계산·정규화 금지** — raw I/Q를 그대로 보내고 호스트가 처리
-- **`esp32s3_csi_send_poc`의 `CONFIG_FREERTOS_HZ=1000` 삭제 금지** — 100이면 실효 50Hz
-- **수집 시작 시 esptool로 포트 프로브 금지** — 보드(TX 포함)가 리셋되어 `tx_seq`가 끊긴다
-- **세션 파일을 append 모드로 열지 말 것** — 서로 다른 런이 한 파일에 섞인다
-- **시리얼 포트의 DTR/RTS 를 건드리지 말 것** — USB-Serial-JTAG 는 그 자체로 리셋된다
-- **포트를 열자마자 기록하지 말 것** — 보드 링버퍼의 묵은 프레임을 먼저 비워야 한다
-- **`tx_seq` 를 정렬로 정리하지 말 것** — 역행은 TX 재부팅이고, 정렬하면 시간이 뒤집힌다. 거부해야 한다
+- CSI 콜백 안에 동기 I/O 금지 — WiFi driver task 가 막혀 ~50Hz 로 붕괴
+- 보드에서 진폭 계산·정규화 금지 — raw I/Q 를 그대로 보내고 host 가 처리
+- `esp32s3_csi_send_poc` 의 `CONFIG_FREERTOS_HZ=1000` 삭제 금지 — 100이면 실효 50Hz
+- 수집 시작 시 esptool 로 포트 프로브 금지 — 보드(TX 포함)가 리셋되어 `tx_seq` 가 끊긴다
+- 시리얼 포트의 DTR/RTS 를 건드리지 말 것 — USB-Serial-JTAG 는 그 자체로 리셋된다
+- 포트를 열자마자 기록하지 말 것 — 보드 링버퍼의 묵은 프레임을 먼저 비워야 한다
+- `tx_seq` 를 정렬로 정리하지 말 것 — 역행은 TX 재부팅이고, 정렬하면 시간이 뒤집힌다
 
-## Conventions
+## Development Rules
 
-- 한국어 커밋 메시지 및 주석 사용
-- 문서에 상수·메뉴 번호를 복붙하지 말고 `architecture.md` 표 또는 코드 링크로 위임
-- 작업을 진행하면 `doc/sprint/`의 현재 스프린트 문서에 시도·막힌 지점·결과를 실측 수치와 함께 남길 것
+- 현재 동작과 목표 설계를 한 문단에서 섞지 않는다. `CURRENT`, `PLANNED`, `HISTORICAL` 상태를 명시한다.
+- data field, frame layout, sampling, firmware topology 변경은 관련 문서를 먼저 수정한다.
+- 코드와 문서가 함께 검증되지 않으면 완료로 간주하지 않는다.
+- 작업을 진행하면 `doc/sprint/` 의 현재 스프린트 문서에 시도·막힌 지점·결과를 실측 수치와 함께 남긴다.
+- 사용자 실험 데이터와 registry/session 값은 명시적 요청 없이 변경하지 않는다.

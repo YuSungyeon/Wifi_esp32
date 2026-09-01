@@ -1,7 +1,7 @@
 # 스프린트: 수집 환경 정비 — 라벨·무결성·저장 포맷 (2026-08-25 ~ )
 
 USB 수집 파이프라인을 "학습에 실제로 쓸 수 있는 데이터"를 뽑는 상태로 만드는 스프린트.
-기록 포맷은 [csi-rate-troubleshooting.md](../overview/csi-rate-troubleshooting.md)와 동일한
+기록 포맷은 [csi-rate-troubleshooting.md](../history-ap-rate-debugging.md)와 동일한
 **문제 → 가설 → 시도 → 기대값 → 실제 결과 → 다음 조치** 6단 구조.
 
 기록 규칙:
@@ -24,7 +24,7 @@ USB 수집 파이프라인을 "학습에 실제로 쓸 수 있는 데이터"를 
 | `raw/20260616/session_4` dev102 | 102.59 | 10.0ms | 0.1% |
 
 반면 AP(SoftAP+UDP) 경로는 저장된 12개 세션 전부 **0.18 ~ 22.8Hz**, `tx_seq` 유효 레코드
-**0건**. 원인은 [csi-rate-troubleshooting.md](../overview/csi-rate-troubleshooting.md)에
+**0건**. 원인은 [csi-rate-troubleshooting.md](../history-ap-rate-debugging.md)에
 11단계로 기록되어 있고 결론은 "AP/STA association + DTIM 게이팅 + 자극/데이터 채널 공유".
 
 **진짜 문제는 Hz가 아니라 모은 데이터를 학습에 쓸 수 없다는 점이었다.** 조사에서 확인한 사실:
@@ -359,7 +359,7 @@ LLTF 64 SC 평균 진폭 (raw/20260615/session_21/device_101, 앞 2000 프레임
   RX103 은 25번 부근으로 다르다 — 같은 자극을 서로 다른 경로로 받고 있다는 뜻이고,
   RX 를 여러 대 두는 의미가 데이터로 확인됐다.
 - **관찰**: RX103 의 `rssi_med=-11` 은 다소 강하다(`agc_levels=1` = 게인 고정).
-  [csi-rate-troubleshooting.md](../overview/csi-rate-troubleshooting.md) §11 에 RSSI 포화
+  [csi-rate-troubleshooting.md](../history-ap-rate-debugging.md) §11 에 RSSI 포화
   가설 기록이 있으니, 실제 수집에서는 보드 간 거리를 더 확보하는 편이 좋다.
   (이번 측정에서는 `tx_cov=0.990` 으로 문제 없었다.)
 
@@ -618,6 +618,55 @@ assert d['X_train'].std(axis=(0,1)).min() > 0, "상수 feature 존재 — LLTF �
 print(d['X_train'].shape, np.bincount(d['y_train']))
 EOF
 ```
+
+## 모델 담당 레포와 병합 (2026-09-02)
+
+`J4ehyuk/Wifi_esp32` 의 `feat/model` 을 합쳤다. 양쪽이 **독립적으로 같은 결론**에 도달해
+있었다 — 저쪽 `ADR-0001`(2026-07-22)이 AP 경로 폐기·ESP-NOW/USB 단일 경로를 결정했고
+우리도 같은 판단을 했다. 그 부분은 그대로 저쪽 삭제를 따랐다.
+
+충돌 56곳(내용 35 · 저쪽수정/우리삭제 19 · 양쪽신규 2). 도메인으로 갈랐다:
+
+| 영역 | 채택 | 이유 |
+|---|---|---|
+| 펌웨어·수집 계층 | 우리 | 실보드 검증 완료 |
+| 모델·전처리·테스트 | 저쪽 | 그쪽 도메인이고 더 엄밀하다 |
+| 문서 구조 | 저쪽 (`doc/*` 평면) | `documentation-policy.md` 까지 갖춘 체계 |
+| 문서 내용 | 우리 것을 저쪽 틀에 이식 | v4·DTR·백로그는 저쪽 문서에 없는 실측 |
+
+### 블로커였던 것: 데이터 포맷
+
+저쪽 `preprocess_3rx.py`(825줄) + `LSTM.py`(1225줄) + 테스트(780줄)가 **JSONL
+`csi_amp` v2** 를 전제로 했다. 우리 수집은 v4 binary `.csi` 다.
+
+수집 포맷을 되돌리면 실측으로 확인한 손상(오탐 프레임 저장, append 혼입, DTR 리셋,
+백로그)이 그대로 돌아온다. 그래서 **`scripts/export_jsonl.py`(`.csi` → JSONL v1)** 를
+만들어 저쪽 파이프라인을 무수정으로 돌렸다. 검증:
+
+```
+export_jsonl  : 3세션 × 3RX × 27500프레임 → 82500 records/세션 (7.5초)
+preprocess_3rx: train 2세션 1814 windows / test 1세션 907 windows, 제외된 세션 없음
+```
+
+### 병합 중 발견한 것
+
+- **라벨 어휘가 달랐다.** 저쪽은 `motion`, 우리는 `action`. 저쪽이 공식 설계 문서에
+  세션 배정까지 확정해 두었으므로 `csi_store.LABELS` 를 `motion` 으로 맞췄다.
+  수집 데이터가 아직 없어 마이그레이션 비용이 없다.
+- **저쪽은 `features_per_rx=64`** 로 64개를 다 쓴다. LLTF 의 DC·가드 12개가 상시 0이라
+  3-RX 192 feature 중 **36개(19%)가 상수 0**이다. `data-schema.md` 와
+  `postprocessing.md` 에 명시했다.
+- **저쪽 라벨이 `LABEL_SESSION_RANGES` 로 코드에 하드코딩**돼 있다. 우리 `session.json` 이
+  그 자리를 메운다 — `export_jsonl.py --print-labels` 가 배정을 그대로 출력한다.
+  실제로 합성 세션 10/11/12 를 넣었더니 저쪽 하드코딩 범위(empty=1~10, static=11~20)에
+  걸려 session 12(motion)가 static 으로 분류됐다. 하드코딩의 위험이 그대로 드러난 사례다.
+
+### 내가 만들었다가 폐기한 것
+
+`model_train/model/build_dataset.py` 를 지웠다. 저쪽 `preprocess_3rx.py` 가 같은 일을
+더 엄밀하게 한다 — 손상 record 제거, `tx_seq` 단조성 검증, RX 조합별 교집합, 수신 mask,
+제외 근거 manifest. 내 것은 저장소에 쓸 만한 게 없어서 만든 임시 대체물이었다.
+`check_separability.py` 는 그 의존을 끊고 `csi_store` 만으로 자립시켰다.
 
 ## 남은 일 / 다음 스프린트
 

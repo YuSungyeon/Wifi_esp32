@@ -41,7 +41,7 @@ PY = sys.executable
 
 LABEL_DESC = {"empty": "부재 — 공간에 사람 없음",
               "static": "정지 — 사람이 있으나 움직이지 않음",
-              "action": "움직임 — 사람이 움직이는 중"}
+              "motion": "움직임 — 사람이 움직이는 중"}
 
 
 # ── 백그라운드 작업 ────────────────────────────────────────────────────────────
@@ -337,9 +337,13 @@ function render() {
       세션 단위 교차검증이라 결과가 부풀려지지 않습니다. 데이터를 많이 모으기 전에 먼저 돌려보세요.</p>
       <div class="bar"><button class="act primary" ${busy?'disabled':''} onclick="post('/api/diagnose')">진단 실행</button></div>
       ${S.diag_png ? `<img class="wf" src="/api/img?path=${encodeURIComponent(S.diag_png)}&v=${encodeURIComponent(S.diag_png_mtime)}">` : ''}</div>
-      <div class="card"><h2>학습 데이터셋 만들기</h2>
-      <p class="sub">모든 세션을 묶어 <code>model_train/dataset.npz</code> 를 만듭니다 (세션 단위 train/val 분할).</p>
-      <div class="bar"><button class="act" ${busy?'disabled':''} onclick="post('/api/dataset')">데이터셋 생성</button></div></div>`;
+      <div class="card"><h2>전처리용 JSONL 내보내기</h2>
+      <p class="sub">수집은 <code>.csi</code>(raw I/Q)로 하고, 학습 전처리는 JSONL 을 읽습니다.
+      모든 세션을 <code>mac_collector_output/jsonl/</code> 로 내보내고,
+      전처리의 <code>LABEL_SESSION_RANGES</code> 에 넣을 라벨 배정도 함께 출력합니다.</p>
+      <div class="bar"><button class="act" ${busy?'disabled':''} onclick="post('/api/export')">JSONL 내보내기</button></div>
+      <p class="sub" style="margin-top:.8rem">이후 터미널에서:
+      <code>python model_train/preprocessing/preprocess_3rx.py --raw-dir mac_collector_output/jsonl/raw/&lt;날짜&gt;</code></p></div>`;
   }
   if (tab === 'meta' && changed('meta', ['once'])) {
     const f = S.meta_fields.map(([k,t,kind,hint]) => {
@@ -488,8 +492,10 @@ def dispatch(path: str, body: dict) -> dict:
                          "--out", str(REPO_ROOT / DIAG_PNG_REL)])
         return {"error": err} if err else {"ok": True}
 
-    if path == "/api/dataset":
-        err = JOB.start("데이터셋 생성", [PY, str(REPO_ROOT / "model_train" / "model" / "build_dataset.py")])
+    if path == "/api/export":
+        # 학습 전처리(preprocess_3rx.py)는 JSONL record schema v1 을 소비한다.
+        err = JOB.start("전처리용 JSONL 내보내기",
+                        [PY, str(SCRIPT_DIR / "export_jsonl.py"), "--print-labels"])
         return {"error": err} if err else {"ok": True}
 
     if path == "/api/meta":

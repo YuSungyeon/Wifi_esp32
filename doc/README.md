@@ -1,40 +1,52 @@
-# MeshSense 문서
+# MeshSense 문서 인덱스
 
-WiFi CSI(Channel State Information) 기반 실내 행동 인식 시스템 문서입니다.
-학습 데이터 수집은 **USB 파이프라인**이 정본이고, AP(SoftAP+UDP) 경로는 deprecated 입니다.
+이 저장소는 문서 주도 개발을 사용합니다. 현재 동작과 data contract는 문서를 먼저 변경한 뒤 코드에 반영합니다.
 
-## 문서 목록
+## 읽는 순서
 
-| 경로 | 내용 |
-|------|------|
-| [overview/quickstart.md](overview/quickstart.md) | 최초 설정(셋업 명령 SSOT) → 파이프라인 선택 → 후처리 |
-| [overview/architecture.md](overview/architecture.md) | 데이터 흐름·주요 상수(SSOT)·설정 SSOT 4종 |
-| [overview/esp-idf-troubleshooting.md](overview/esp-idf-troubleshooting.md) | ESP-IDF bootstrap·`idf.py`·플래시 오류 |
-| [overview/csi-rate-troubleshooting.md](overview/csi-rate-troubleshooting.md) | CSI 수집률 100Hz 미달 디버깅 기록 |
-| [pipeline/usb-collection.md](pipeline/usb-collection.md) | USB 수집 파이프라인 (모델 학습 데이터 표준 경로) |
-| [pipeline/ap-realtime.md](pipeline/ap-realtime.md) | ~~AP 실시간 수집 (SoftAP + UDP)~~ — **deprecated** |
-| [mac-collector/collector.md](mac-collector/collector.md) | ~~UDP 수집기~~ — **deprecated** |
-| [mac-collector/udp-packet-schema.md](mac-collector/udp-packet-schema.md) | ~~UDP 패킷 규격 (v2)~~ — **deprecated** |
-| [postprocessing/pipeline.md](postprocessing/pipeline.md) | 세션 → tx_seq 정렬 → 학습 텐서·데이터셋 |
-| [postprocessing/lstm-design.md](postprocessing/lstm-design.md) | LSTM 모델 설계·라벨링·학습 |
-| [sprint/2026-08-collection-hardening.md](sprint/2026-08-collection-hardening.md) | 수집 환경 정비 스프린트 — 시도·막힌 지점·산출물 기록 |
-| [../scripts/README.md](../scripts/README.md) | 호스트 스크립트 레퍼런스·CLI 메뉴 맵 |
+| 순서 | 문서 | 상태와 목적 |
+|---:|---|---|
+| 1 | [아키텍처](architecture.md) | **CURRENT** — 공식 ESP-NOW/USB 구조 |
+| 2 | [빠른 시작](quickstart.md) | **CURRENT** — 재현 가능한 플래시·수집 절차 |
+| 3 | [펌웨어](firmware.md) | **CURRENT** — TX/RX 동작과 상수 |
+| 4 | [binary/JSONL 계약](data-schema.md) | **CURRENT CONTRACT** — frame v4·`.csi` 저장소·JSONL 내보내기 |
+| 5 | [`seq`와 `tx_seq` 패턴](sequence-patterns.md) | **CURRENT** — 두 순번의 차이·이상 패턴·실데이터 집계 |
+| 6 | [공식 전처리 설계](../model_train/docs/%5B전처리%5D-설계.md) | **OFFICIAL DESIGN** — 모든 모델이 공유하는 3-RX 전처리 기준 |
+| 7 | [후처리](postprocessing.md) | **CURRENT + EXPERIMENTAL** — 수집률·시각화와 모델 문서 연결 |
+| 8 | [호스트 스크립트](../scripts/README.md) | **CURRENT** — CLI와 도구 책임 |
+| 9 | [문제 해결](troubleshooting.md) | **CURRENT** — ESP-IDF·빌드·포트 문제 |
+| 10 | [문서 주도 개발 규칙](documentation-policy.md) | **PROCESS CONTRACT** |
+| 11 | [ADR-0001](adr-poc-only.md) | **ACCEPTED** — PoC 단일 경로 결정 |
+| 12 | [수집 환경 정비 스프린트](sprint/2026-08-collection-hardening.md) | **HISTORICAL** — frame v4·세션/라벨 정비의 시도·막힌 지점·실측 |
+| — | [AP 경로 수집률 디버깅](history-ap-rate-debugging.md) | **HISTORICAL** — 폐기된 SoftAP/UDP 경로를 포기한 근거 (ADR-0001 배경) |
+| 13 | [모델 학습 문서](../model_train/docs/%5B문서%5D-목록.md) | **EXPERIMENTAL** — 전처리·모델 비교·설계·학습 문서 |
 
-## 저장소 레이아웃 (SSOT)
+## 문서 상태 규칙
+
+- **CURRENT**: 현재 source code로 실행되는 동작만 기술합니다.
+- **CURRENT CONTRACT**: producer와 consumer가 반드시 함께 지켜야 하는 형식입니다.
+- **OFFICIAL DESIGN**: 아직 구현 전일 수 있지만 앞으로 구현할 공식 기준입니다.
+- **SUPPORTING ANALYSIS**: 공식 설계의 근거가 되는 데이터 분석·해설입니다.
+- **PLANNED**: 아직 구현되지 않았으며 실행 가능한 기능처럼 쓰지 않습니다.
+- **HISTORICAL**: 과거 기록입니다. 현재 설정과 같은 표에 섞지 않습니다.
+
+## 현재 저장소 구조
 
 ```text
 Wifi_esp32/
-├── doc/                    ← 이 문서 트리 (sprint/ 는 작업 로그)
-├── esp-idf/                ESP-IDF v5.2.2 (git submodule)
-├── .espressif/             bootstrap 마커만 (gitignore; 툴체인은 ~/.espressif)
-├── scripts/                CLI·플래시·registry·config·수집 보조 도구
-├── esp32s3_csi_send_poc/   USB 파이프라인 TX 펌웨어 (ESP-NOW 송신)
-├── esp32s3_csi_recv_poc/   USB 파이프라인 RX 펌웨어 (CSI → USB 시리얼)
-├── esp32s3_tx_ap_node/     (deprecated) AP 파이프라인 TX/AP 펌웨어
-├── esp32s3_csi_sender/     (deprecated) AP 파이프라인 RX 펌웨어 (CSI → UDP)
-├── mac_collector/          registry CSV·session_meta.yaml·(deprecated) UDP 수집기
-├── model_train/            후처리(Preprocessing.py)·데이터셋 조립·LSTM 학습
-└── mac_collector_output/   수집 데이터 (git 제외)
+├── doc/                         문서와 architecture decision
+│   └── sprint/                  작업 로그 (시도·막힌 지점·실측)
+├── esp-idf/                     ESP-IDF v5.2.2 submodule
+├── esp32s3_csi_send_poc/        공식 ESP-NOW TX firmware
+├── esp32s3_csi_recv_poc/        공식 CSI/USB RX firmware
+├── scripts/                     flash·registry·reader·visualization CLI
+├── mac_collector/               registry·session metadata 보관
+├── model_train/                 실험 단계 모델 코드
+│   └── docs/                    전처리·모델 설계·학습 문서
+├── mac_collector_output/        수집 결과 `.csi` 세션·JSONL 내보내기 (git 제외)
+└── log/                         reader 로그 (git 제외)
 ```
 
-AI 코딩 어시스턴트용 요약은 루트 [CLAUDE.md](../CLAUDE.md)를 참조하세요.
+`mac_collector/` 이름은 기존 경로 호환을 위해 유지합니다. UDP collector는 존재하지 않습니다. 펌웨어 디렉터리의 `_poc` 이름도 역사적으로 유지하지만 현재 공식 구현입니다.
+
+문서 불일치를 발견하면 [문서 주도 개발 규칙](documentation-policy.md)의 변경 절차에 따라 문서와 코드를 같은 변경에서 수정합니다.

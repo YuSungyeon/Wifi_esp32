@@ -1,5 +1,5 @@
-# ESP32-S3 CSI Send (USB 파이프라인 TX)
+# MeshSense ESP-NOW TX Firmware
 
-문서: [doc/pipeline/usb-collection.md](../doc/pipeline/usb-collection.md)
+현재 공식 TX firmware입니다. 디렉터리의 `_poc` 이름은 역사적으로 유지합니다.
 
-플래시: `python scripts/meshsense_cli.py` → [1] USB 수집 → [1] 보드 플래시
+동작과 build 절차: [doc/firmware.md](../doc/firmware.md)

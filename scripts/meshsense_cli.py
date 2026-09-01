@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
-MeshSense 터미널 가이드 CLI — 플래시·수집기를 메뉴로 실행.
+MeshSense 터미널 CLI — 보드 플래시·수집을 메뉴로 실행.
 
-첫 화면에서 수집 파이프라인을 선택한다:
-  · USB 수집 — 모델 학습 데이터 (esp-csi PoC, USB 시리얼)
-  · AP 실시간 수집 — SoftAP + UDP
+수집 경로는 ESP-NOW/USB 하나뿐이다 (doc/adr-poc-only.md).
+터미널이 익숙하지 않다면 `python scripts/meshsense_gui.py` 제어판을 쓴다.
 
   python scripts/meshsense_cli.py
   python scripts/meshsense_cli.py --quick   # 안내 문구 없이 메뉴만
-  python scripts/meshsense_cli.py --guide   # AP 파이프라인 전체 가이드 바로 시작
 """
 
 from __future__ import annotations
@@ -30,15 +28,11 @@ class _PreflightRow(NamedTuple):
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
-CONFIG_PATH = SCRIPT_DIR / "meshsense_config.json"
-CONFIG_EXAMPLE = SCRIPT_DIR / "meshsense_config.example.json"
 DEVICE_REGISTRY = REPO_ROOT / "mac_collector" / "device_registry.csv"
 TX_REGISTRY = REPO_ROOT / "mac_collector" / "tx_registry.csv"
 SESSION_META = REPO_ROOT / "mac_collector" / "session_meta.yaml"
-COLLECTOR_SCRIPT = REPO_ROOT / "mac_collector" / "udp_collector_mvp.py"
 VISUALIZE_SCRIPT = SCRIPT_DIR / "visualize_csi.py"
 OUTPUT_DIR = REPO_ROOT / "mac_collector_output"
-RX_PROJECT = REPO_ROOT / "esp32s3_csi_sender"
 VENV_DIR = REPO_ROOT / ".venv"
 VENV_PYTHON = VENV_DIR / "bin" / "python"
 VIZ_REQUIREMENTS = REPO_ROOT / "requirements-viz.txt"
@@ -215,93 +209,6 @@ def _run_python(
         return 130
 
 
-def _mac_wifi_ipv4(iface: str) -> Optional[str]:
-    """ipconfig getifaddr <iface> — 실패·미연결 시 None."""
-    try:
-        result = subprocess.run(
-            ["ipconfig", "getifaddr", iface],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if result.returncode != 0:
-        return None
-    ip = result.stdout.strip()
-    return ip or None
-
-
-def _verify_mac_softap_ip(*, expected_ip: str, ap_ssid: str) -> bool:
-    """Mac이 TX SoftAP에 붙어 collector.ip 와 일치하는지 확인. False=가이드 중단."""
-    ifaces = ("en0", "en1")
-    while True:
-        _pause("Wi-Fi 연결 후 Enter…")
-        found: List[Tuple[str, str]] = []
-        for iface in ifaces:
-            ip = _mac_wifi_ipv4(iface)
-            if ip:
-                found.append((iface, ip))
-
-        print("\n  Mac IP 확인 (meshsense_config collector.ip 기준)")
-        if not found:
-            print("    en0/en1: IP 없음 (SoftAP 미연결 또는 다른 인터페이스)")
-        else:
-            for iface, ip in found:
-                mark = "일치" if ip == expected_ip else "불일치"
-                print(f"    {iface}: {ip}  → {mark} (기대 {expected_ip})")
-
-        if any(ip == expected_ip for _, ip in found):
-            matched = next(iface for iface, ip in found if ip == expected_ip)
-            print(f"\n  [통과] {matched} = {expected_ip}")
-            return True
-
-        print(f"\n  [필요] Mac IP가 collector.ip ({expected_ip}) 와 같아야 합니다.")
-        print("  ① TX 보드 전원·SoftAP(SSID)가 켜져 있는지 확인")
-        print(f"  ② Mac Wi-Fi를 「{ap_ssid}」에 **먼저** 연결 (RX 플래시·수집기보다 우선)")
-        print("  ③ 터미널에서 확인: ipconfig getifaddr en0")
-        if found:
-            detail = ", ".join(f"{iface}={ip}" for iface, ip in found)
-            print(f"     현재: {detail}")
-            print(
-                "  IP가 다르면 scripts/meshsense_config.json 의 collector.ip 를"
-                " 실제 IP에 맞게 고친 뒤 RX를 다시 플래시하세요."
-            )
-        if not _ask_yes_no("Wi-Fi·IP 확인 후 다시 검사할까요?", default_no=False):
-            if _ask_yes_no("IP 확인 없이 다음 단계로 진행할까요? (비권장)", default_no=True):
-                return True
-            print("[중단] Mac 네트워크 확인 후 다시 가이드를 시작하세요.")
-            return False
-
-
-def _check_config() -> Tuple[bool, str]:
-    if CONFIG_PATH.is_file():
-        return True, f"OK: {CONFIG_PATH}"
-    if CONFIG_EXAMPLE.is_file():
-        return False, f"없음: {CONFIG_PATH} (example 복사 필요)"
-    return False, "meshsense_config.example.json 도 없습니다."
-
-
-def _ensure_config_interactive() -> bool:
-    ok, msg = _check_config()
-    print(msg)
-    if ok:
-        return True
-    if not CONFIG_EXAMPLE.is_file():
-        return False
-    if _ask_yes_no("example에서 meshsense_config.json 을 만들까요?", default_no=False):
-        import shutil
-
-        shutil.copyfile(CONFIG_EXAMPLE, CONFIG_PATH)
-        print(f"[ok] 생성: {CONFIG_PATH}")
-        print("  collector.ip 등을 실험 환경에 맞게 편집하세요.")
-        print("  (TX SoftAP 접속 후 Mac IP: ipconfig getifaddr en0)")
-        _pause("편집 후 Enter…")
-        return True
-    return False
-
-
 def _registry_row(label: str, path: Path, *, load_fn) -> _PreflightRow:
     if not path.is_file():
         return _PreflightRow(
@@ -347,151 +254,6 @@ def _print_preflight_report(rows: Sequence[_PreflightRow]) -> bool:
         print(f"  결과: {passed}/{total} 필수 항목 통과")
         print(f"  조치: {', '.join(missing)}")
     return passed == total
-
-
-def _preflight() -> bool:
-    rows: List[_PreflightRow] = []
-
-    ok_cfg, msg_cfg = _check_config()
-    rows.append(
-        _PreflightRow(
-            "호스트 설정 (meshsense_config.json)",
-            ok_cfg,
-            "있음" if ok_cfg else msg_cfg.replace("OK: ", ""),
-            "cp scripts/meshsense_config.example.json scripts/meshsense_config.json",
-        )
-    )
-
-    idf_export = REPO_ROOT / "esp-idf" / "export.sh"
-    if not idf_export.is_file():
-        rows.append(
-            _PreflightRow(
-                "ESP-IDF 소스 (esp-idf/)",
-                False,
-                "submodule 없음",
-                "git submodule update --init esp-idf",
-            )
-        )
-        rows.append(
-            _PreflightRow(
-                "ESP-IDF 빌드 (idf.py)",
-                False,
-                "선행 항목 실패",
-                "python scripts/idf_bootstrap.py -y",
-            )
-        )
-    else:
-        rows.append(_PreflightRow("ESP-IDF 소스 (esp-idf/)", True, "export.sh 있음"))
-        try:
-            from idf_env import idf_py_works  # noqa: WPS433
-
-            if idf_py_works(REPO_ROOT):
-                rows.append(_PreflightRow("ESP-IDF 빌드 (idf.py)", True, "동작 확인"))
-            else:
-                rows.append(
-                    _PreflightRow(
-                        "ESP-IDF 빌드 (idf.py)",
-                        False,
-                        "툴체인·venv 미준비",
-                        "python scripts/idf_bootstrap.py -y",
-                    )
-                )
-        except Exception as exc:
-            rows.append(
-                _PreflightRow(
-                    "ESP-IDF 빌드 (idf.py)",
-                    False,
-                    f"검사 오류 ({exc})",
-                    "python scripts/idf_bootstrap.py -y",
-                )
-            )
-
-    from registry import load_registry  # noqa: WPS433
-    from tx_registry import load_tx_registry  # noqa: WPS433
-
-    rows.append(_registry_row("TX registry", TX_REGISTRY, load_fn=load_tx_registry))
-    rows.append(_registry_row("RX registry", DEVICE_REGISTRY, load_fn=load_registry))
-
-    if SESSION_META.is_file():
-        rows.append(_PreflightRow("session_meta.yaml", True, str(SESSION_META.name)))
-    else:
-        rows.append(
-            _PreflightRow(
-                "session_meta.yaml",
-                False,
-                "없음 (수집 run ID)",
-                f"mac_collector/ 에 session_meta.yaml 준비",
-            )
-        )
-
-    if COLLECTOR_SCRIPT.is_file():
-        rows.append(_PreflightRow("Mac 수집기 스크립트", True, COLLECTOR_SCRIPT.name))
-    else:
-        rows.append(
-            _PreflightRow(
-                "Mac 수집기 스크립트",
-                False,
-                "udp_collector_mvp.py 없음",
-                "mac_collector/ 경로 확인",
-            )
-        )
-
-    viz_ok, viz_detail = _viz_venv_status()
-    rows.append(
-        _PreflightRow(
-            "후처리 venv (CSI PNG)",
-            viz_ok,
-            viz_detail,
-            _viz_venv_bootstrap_hint(),
-            required=False,
-        )
-    )
-
-    if ok_cfg:
-        try:
-            from meshsense_config import load_meshsense_config  # noqa: WPS433
-
-            cfg = load_meshsense_config(CONFIG_PATH)
-            rows.append(
-                _PreflightRow(
-                    "네트워크 설정 요약",
-                    True,
-                    f"AP 「{cfg.ap_ssid}」 · 수집 {cfg.collector_ip}:{cfg.collector_port}",
-                    required=False,
-                )
-            )
-        except Exception as exc:
-            rows.append(
-                _PreflightRow(
-                    "네트워크 설정 요약",
-                    False,
-                    f"config 파싱 실패 ({exc})",
-                    "meshsense_config.json JSON·필드 확인",
-                )
-            )
-
-    ports = _list_usb_ports()
-    if ports:
-        detail = ", ".join(ports) if len(ports) <= 3 else f"{ports[0]} 외 {len(ports) - 1}개"
-        rows.append(
-            _PreflightRow(
-                "USB 시리얼 (참고)",
-                True,
-                f"{len(ports)}개 — {detail}",
-                required=False,
-            )
-        )
-    else:
-        rows.append(
-            _PreflightRow(
-                "USB 시리얼 (참고)",
-                True,
-                "연결된 ESP32 없음 (플래시 시 USB 연결)",
-                required=False,
-            )
-        )
-
-    return _print_preflight_report(rows)
 
 
 def _port_busy_hint(port: str) -> str:
@@ -951,7 +713,7 @@ def _ask_label(default: Optional[str]) -> Optional[str]:
     labels = list(LABELS)
     desc = {"empty": "부재 — 공간에 사람 없음",
             "static": "정지 — 사람이 있으나 움직이지 않음",
-            "action": "움직임 — 사람이 움직이는 중"}
+            "motion": "움직임 — 사람이 움직이는 중"}
     if default not in labels:
         default = None
     print("\n  이번 세션의 라벨:")
@@ -1225,227 +987,13 @@ def _run_visualize_session(session_dir: Path) -> None:
         print("[경고] PNG 생성 실패 — .venv 패키지 확인")
 
 
-def _run_visualize_after_collect(session_id: int) -> None:
-    if not VISUALIZE_SCRIPT.is_file():
-        print(f"[경고] 시각화 스크립트 없음: {VISUALIZE_SCRIPT}")
-        return
-    venv_py = _ensure_postprocess_venv(interactive=True)
-    if venv_py is None:
-        print("\n[경고] CSI 워터폴 PNG 생략")
-        print(f"  {_viz_venv_bootstrap_hint()}")
-        print(
-            "  python scripts/visualize_csi.py "
-            f"--output-dir {OUTPUT_DIR} --session-id {session_id}"
-        )
-        return
-    print("\n--- CSI 워터폴 PNG 생성 (.venv) ---")
-    rc = _run_python(
-        VISUALIZE_SCRIPT,
-        [
-            "--output-dir",
-            str(OUTPUT_DIR),
-            "--session-id",
-            str(session_id),
-        ],
-        python=venv_py,
-    )
-    if rc != 0:
-        print("[경고] PNG 생성 실패 — .venv 패키지 확인")
-        print(f"  {_viz_venv_bootstrap_hint()}")
-
-
-def _run_collector(*, skip_start_prompt: bool = False, skip_wifi_hint: bool = False) -> bool:
-    print("\n--- Mac 수집기 ---")
-    if not _ensure_config_interactive():
-        return False
-    try:
-        from meshsense_config import load_meshsense_config  # noqa: WPS433
-
-        cfg = load_meshsense_config(CONFIG_PATH)
-    except Exception as exc:
-        print(f"설정 로드 실패: {exc}")
-        return False
-
-    if not skip_wifi_hint:
-        print(f"\n[안내] Mac Wi-Fi를 TX SoftAP에 연결하세요: SSID = {cfg.ap_ssid}")
-        print(
-            f"  수집기 IP: {cfg.collector_ip} "
-            f"(확인: ipconfig getifaddr en0)"
-        )
-    session_id = read_session_id(SESSION_META, default=1)
-    if SESSION_META.is_file():
-        print(f"  이번 run session_id (yaml): {session_id}")
-
-    if not skip_start_prompt and not _ask_yes_no(
-        "수집기를 지금 시작할까요?",
-        default_no=False,
-    ):
-        return False
-
-    duration_sec = _ask_collect_duration_sec()
-    args = [
-        "--host",
-        "0.0.0.0",
-        "--port",
-        str(cfg.collector_port),
-        "--output-dir",
-        str(OUTPUT_DIR),
-        "--device-registry-csv",
-        str(DEVICE_REGISTRY),
-        "--session-meta",
-        str(SESSION_META),
-    ]
-    if duration_sec > 0:
-        args.extend(["--duration-sec", str(duration_sec)])
-        print(f"\n[안내] {duration_sec:.0f}초 후 자동 종료 (중단: Ctrl+C)")
-    else:
-        print("\n[안내] 종료: Ctrl+C")
-    rc = _run_python(COLLECTOR_SCRIPT, args)
-    if rc == 0 or rc == 130:
-        if rc == 130:
-            print("\n[안내] 수집기 중단됨 — 메인 메뉴로 돌아갑니다.")
-        _run_visualize_after_collect(session_id)
-    return rc == 0
-
-
-def _guide_full() -> None:
-    """전체 실험 순서 가이드."""
-    _banner()
-    print(
-        "\n[전체 가이드 모드]\n"
-        "권장 순서: 설정 → TX 플래시 → Mac Wi-Fi(IP 확인) → RX 플래시 → 수집기\n"
-        "각 단계에서 건너뛰거나 중단할 수 있습니다."
-    )
-    _pause()
-
-    # 0. 설정
-    print("\n" + "=" * 60)
-    print("  단계 0 / 4 — 호스트 설정 (meshsense_config.json)")
-    print("=" * 60)
-    print("  TX SoftAP·수집기 IP·포트는 이 파일이 SSOT 입니다.")
-    if not _ensure_config_interactive():
-        print("[중단] 설정 파일이 필요합니다.")
-        return
-    if _ask_yes_no("ESP-IDF bootstrap 을 지금 실행할까요? (최초 1회·오래 걸림)", default_no=True):
-        _run_python(SCRIPT_DIR / "idf_bootstrap.py", ["-y"])
-    if not _ask_yes_no("다음 단계(TX 플래시)로 진행할까요?", default_no=False):
-        return
-
-    # 1. TX
-    print("\n" + "=" * 60)
-    print("  단계 1 / 4 — TX/AP 노드 플래시")
-    print("=" * 60)
-    print("  TX 보드만 USB에 연결하세요. 플래시 후 TX 전원·SoftAP를 켜 두세요.")
-    if _ask_yes_no("TX 플래시를 진행할까요?", default_no=False):
-        _flash_board(kind="tx")
-    if not _ask_yes_no("다음 단계(Mac Wi-Fi)로 진행할까요?", default_no=False):
-        return
-
-    # 2. Mac Wi-Fi + IP
-    print("\n" + "=" * 60)
-    print("  단계 2 / 4 — Mac Wi-Fi (SoftAP · IP 확인)")
-    print("=" * 60)
-    try:
-        from meshsense_config import load_meshsense_config  # noqa: WPS433
-
-        cfg = load_meshsense_config(CONFIG_PATH)
-        print(f"  Mac Wi-Fi에서 SSID 「{cfg.ap_ssid}」 로 TX SoftAP에 접속하세요.")
-        print(f"  자동 확인: ipconfig getifaddr en0/en1 == collector.ip ({cfg.collector_ip})")
-        if not _verify_mac_softap_ip(expected_ip=cfg.collector_ip, ap_ssid=cfg.ap_ssid):
-            return
-    except Exception as exc:
-        print(f"  meshsense_config.json 오류: {exc}")
-        return
-
-    if not _ask_yes_no("다음 단계(RX 플래시)로 진행할까요?", default_no=False):
-        return
-
-    # 3. RX loop
-    print("\n" + "=" * 60)
-    print("  단계 3 / 4 — RX 노드 플래시 (보드별 반복)")
-    print("=" * 60)
-    print("  RX는 USB로 하나씩 연결해 플래시합니다. collector.ip 는 위 Wi-Fi 단계에서 확인한 값입니다.")
-    while True:
-        if not _ask_yes_no("RX 보드 1대를 플래시할까요?", default_no=False):
-            break
-        _flash_board()
-        if not _ask_yes_no("다른 RX 보드도 더 플래시할까요?", default_no=True):
-            break
-
-    if not _ask_yes_no("다음 단계(수집기 실행)로 진행할까요?", default_no=False):
-        return
-
-    # 4. Collector
-    print("\n" + "=" * 60)
-    print("  단계 4 / 4 — 수집기 실행")
-    print("=" * 60)
-    print("  모든 RX가 TX SoftAP에 붙은 뒤 수집을 시작하세요.")
-    print("  종료: Ctrl+C (CLI는 메인 메뉴로 돌아갑니다)")
-    if _ask_yes_no("수집기를 지금 시작할까요?", default_no=False):
-        _run_collector(skip_start_prompt=True, skip_wifi_hint=True)
-    else:
-        print("  나중에 AP 파이프라인 메뉴의 '수집기 실행'으로 시작할 수 있습니다.")
-
-    print("\n" + "=" * 60)
-    print("  전체 가이드 종료")
-    print("=" * 60)
-    print("  데이터: mac_collector_output/raw/YYYYMMDD/session_<id>/")
-    print("  후처리: doc/postprocessing/pipeline.md 참고")
-    _pause()
-
-
-def _menu_ap_pipeline(quick: bool) -> None:
-    """AP 실시간 수집 파이프라인 — SoftAP + UDP (esp32s3_tx_ap_node / esp32s3_csi_sender)."""
-    while True:
-        print("\n--- AP 실시간 수집 파이프라인 (SoftAP + UDP) ---")
-        if not quick:
-            print("  실험 처음이면 [1] 전체 가이드를 권장합니다.")
-        options = [
-            "전체 가이드 (설정 → TX → Wi-Fi → RX → 수집)",
-            "보드 플래시 (USB · MAC → TX/RX 자동)",
-            "수집기 실행",
-            "사전 점검",
-            "보드 관리 (registry 등록·검증)",
-            "파이프라인 선택으로 돌아가기",
-        ]
-        idx = _choose("선택", options)
-        if idx == 0:
-            _guide_full()
-        elif idx == 1:
-            _flash_board()
-        elif idx == 2:
-            _run_collector()
-        elif idx == 3:
-            _preflight()
-            _pause()
-        elif idx == 4:
-            _menu_board_management()
-        else:
-            break
-
-
 def _main_menu(quick: bool) -> None:
-    """첫 화면 — 수집 파이프라인 선택."""
+    """수집 경로는 ESP-NOW/USB 하나뿐이다 (doc/adr-poc-only.md)."""
     while True:
-        _banner()
-        print(
-            "\n수집 파이프라인을 선택하세요.\n"
-            "  · USB 수집: RX 보드를 USB로 연결해 모델 학습 데이터를 수집 (esp-csi PoC)\n"
-            "  · AP 실시간 수집: TX가 SoftAP를 열고 RX가 UDP로 실시간 전송"
-        )
-        options = [
-            "USB 수집 — 모델 학습 데이터 (esp-csi PoC · USB 시리얼 100Hz)",
-            "AP 실시간 수집 — SoftAP + UDP",
-            "종료",
-        ]
-        idx = _choose("선택", options)
-        if idx == 0:
-            _menu_usb_pipeline()
-        elif idx == 1:
-            _menu_ap_pipeline(quick)
-        else:
-            print("\n종료합니다.")
-            break
+        if not quick:
+            _banner()
+        _menu_usb_pipeline()
+        return
 
 
 def _parse_args() -> argparse.Namespace:
@@ -1457,11 +1005,6 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="전체 가이드 없이 메인 메뉴만 표시",
     )
-    parser.add_argument(
-        "--guide",
-        action="store_true",
-        help="메인 메뉴 없이 전체 가이드 바로 시작",
-    )
     return parser.parse_args()
 
 
@@ -1472,9 +1015,6 @@ def main() -> int:
 
     args = _parse_args()
     try:
-        if args.guide:
-            _guide_full()
-        else:
             _main_menu(quick=args.quick)
     except KeyboardInterrupt:
         print("\n\n[중단] Ctrl+C — 메뉴를 종료합니다.")

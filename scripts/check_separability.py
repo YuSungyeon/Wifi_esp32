@@ -26,12 +26,17 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
-sys.path.insert(0, str(REPO_ROOT / "model_train" / "model"))
 
 import csi_store as cs  # noqa: E402
 from csi_session import read_manifest  # noqa: E402
 
-F_S = 100  # Hz
+F_S = 100          # Hz — tx_seq 1스텝 = 10ms
+WINDOW = 300       # 3초
+STRIDE = 30        # 0.3초
+
+# 공식 학습 전처리는 model_train/preprocessing/preprocess_3rx.py 다. 이 진단 도구는
+# 그보다 훨씬 단순한 정렬만 쓴다 — "이 배치로 갈리기는 하는가"를 빨리 보는 게 목적이고,
+# 공식 전처리의 손상 제거·mask 규칙에 결과가 좌우되지 않게 하려는 의도도 있다.
 
 #: (키, 표시명, 설명). 전부 **스케일 불변**이거나 그렇게 정규화한 값이다 —
 #: 절대 진폭은 세션마다 배치·거리로 달라져 세션 간 일반화가 안 된다.
@@ -128,15 +133,51 @@ def session_stability(F: np.ndarray, y: np.ndarray, sess: np.ndarray) -> np.ndar
     return within / np.where(between > 1e-12, between, 1e-12)
 
 
-def collect(raw_root: Path, rx_ids):
-    from Preprocessing import run_preprocessing  # noqa: WPS433
+def session_windows(session_dir: Path, rx_ids=None) -> np.ndarray:
+    """세션 → (N, WINDOW, RX수×52) 진폭 윈도. tx_seq 공통 격자에 선형 보간."""
+    buffers = {}
+    for dev, frames in cs.read_session(session_dir).items():
+        if len(frames) == 0:
+            continue
+        tx = frames["hdr"]["tx_seq"].astype(np.int64)
+        if (np.diff(tx) < 0).any():
+            raise ValueError(f"RX{dev}: 수집 중 TX 재부팅 (tx_seq 역행) — 재수집 필요")
+        amp = cs.amplitude(frames)
+        order = np.argsort(tx, kind="stable")
+        tx, amp = tx[order], amp[order]
+        keep = np.concatenate(([True], np.diff(tx) > 0))
+        buffers[dev] = (tx[keep].astype(np.float64), amp[keep])
 
+    ids = tuple(rx_ids) if rx_ids else tuple(sorted(buffers))
+    missing = [d for d in ids if d not in buffers]
+    if missing:
+        raise ValueError(f"no data for RX {missing} (available: {sorted(buffers)})")
+
+    start = int(max(buffers[d][0][0] for d in ids))
+    end = int(min(buffers[d][0][-1] for d in ids))
+    if end - start + 1 < WINDOW:
+        raise ValueError(f"세션이 너무 짧다: {end - start + 1} < {WINDOW}")
+    grid = np.arange(start, end + 1, dtype=np.float64)
+
+    aligned = np.stack([
+        np.column_stack([np.interp(grid, buffers[d][0], buffers[d][1][:, k])
+                         for k in range(cs.N_SUB)])
+        for d in ids
+    ])                                              # (RX, T, 52)
+    T = aligned.shape[1]
+    return np.stack([
+        aligned[:, i:i + WINDOW, :].transpose(1, 0, 2).reshape(WINDOW, len(ids) * cs.N_SUB)
+        for i in range(0, T - WINDOW + 1, STRIDE)
+    ])
+
+
+def collect(raw_root: Path, rx_ids):
     feats, ys, sess, skipped = [], [], [], []
     per_label = defaultdict(list)
     for d in cs.find_sessions(raw_root):
         try:
             label = read_manifest(d)["label"]
-            X, _ = run_preprocessing(d, rx_ids=rx_ids, label_name=None, verbose=False)
+            X = session_windows(d, rx_ids)
         except (ValueError, FileNotFoundError, KeyError) as exc:
             skipped.append((d.name, str(exc).splitlines()[0]))
             continue

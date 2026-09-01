@@ -1,0 +1,4 @@
+# 공식 3-RX 전처리와 LSTM 학습
+numpy
+torch
+matplotlib

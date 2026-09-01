@@ -75,7 +75,9 @@ assert N_SUB == 52
 
 _CRC_OFFSET = HEADER_DTYPE.fields["crc32"][1]  # 40
 
-LABELS = ("empty", "static", "action")
+#: 라벨 어휘는 학습 전처리(model_train/preprocessing/preprocess_3rx.py 의 LABEL_MAP)와
+#: 반드시 같아야 한다. 수집이 producer, 전처리가 consumer다.
+LABELS = ("empty", "static", "motion")
 LABEL_MAP = {name: i for i, name in enumerate(LABELS)}
 
 
