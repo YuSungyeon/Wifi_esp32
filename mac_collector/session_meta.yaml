@@ -1,43 +1,31 @@
-# MeshSense 실험 세션 메타 (실험 전 작성 → 수집 시 --session-meta 로 스냅샷 복사)
-# run 구분 SSOT: session_id 로 raw/.../session_<id>/ 경로·JSONL 라벨 결정
+# MeshSense 실험 세션 메타
+# 편집은 `python scripts/session_form.py` (브라우저 폼)를 권장합니다.
+# 수집 시 세션 디렉터리에 session_meta_snapshot.yaml 로 복사됩니다.
+#
+# session_id 는 여기에 두지 않습니다 — 수집한 세션들의 최댓값+1로 자동 부여됩니다.
 
-# 실험 회차 ID — 바꾼 뒤 수집기 재시작
-session_id: 21
+# 수집 시작 프롬프트의 기본 라벨 (empty / static / action)
+label_target: "empty"
 
-# 실험일(의미 라벨). raw/YYYYMMDD 폴더명(수집기 실행일)과는 별개 — 수동으로 맞춤.
-date: "2026-05-21"
+# 실험일 (수집 폴더 날짜와 별개로 기록)
+date: "2026-08-26"
 
-# 실험 공간(방) 정보 — 후처리·논문·재현용 기록
+# 실험 공간
 room:
-  width_m: 3.0      # 방 가로 (m)
-  height_m: 3.0     # 방 세로 (m)
-  description: "3m x 3m indoor room"  # 배치·가구·특이사항 요약
+  width_m: 3.0
+  height_m: 3.0
+  description: "실험 공간 설명 (배치·가구·특이사항)"
 
-# 무선·수집 망 설정 — meshsense_config.json(ap, collector)과 수동 일치 권장
-network:
-  ssid: "MeshSense_TX_AP"       # TX SoftAP SSID
-  channel: 6                    # WiFi 채널 (고정)
-  collector_ip: "192.168.4.2"   # Mac 수집기 IP (TX AP 대역)
-  collector_port: 9999          # UDP 수집 포트
-  protocol: "udp"
-
-# ML·라벨링·데이터 분할 관련 실험 설계 기록
+# 실험 설계
 experiment:
-  objective: "binary activity detection"  # 실험 목표(태스크)
-  label_target: "mask"                    # 라벨 형식/대상
-  split_strategy: "subject-wise"        # train/val/test 분할 방식
-  # RX 펌웨어 on-device 전처리(csi_sender_main.c)와 동일 조건 기록
-  preprocess_on_device:
-    moving_average_tap: 3       # 이동평균 탭 수
-    zscore: true                # z-score 정규화 여부
-    outlier_clip: [-3.0, 3.0]   # 이상치 클리핑 범위
+  objective: "3-class activity classification"
+  split_strategy: "session-wise"
 
-# 참여 RX 장치 — device_registry.csv 와 대응
+# 이번 실험에 켤 RX device_id (device_registry.csv 와 대응)
 devices:
-  registry_file: "mac_collector/device_registry.csv"  # 장치 등록표 경로
-  expected_device_ids: [101, 102, 103]  # 이번 세션에 켤 RX device_id 목록
+  expected_device_ids: [101, 103]
 
-# 운영자·현장 메모 (피험자 수, 동작 프로토콜, 환경 변화 등)
+# 운영자·현장 메모
 operator:
-  name: "operator_name"
-  notes: "record subject count, action protocol, and environment changes"
+  name: ""
+  notes: "피험자 수, 동작 프로토콜, 환경 변화 등을 기록"
