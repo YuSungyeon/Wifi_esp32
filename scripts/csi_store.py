@@ -56,7 +56,7 @@ HEADER_DTYPE = np.dtype(
         ("tx_seq", "<u4"),
         ("agc_gain", "u1"),
         ("fft_gain", "i1"),
-        ("reserved", "<u2"),
+        ("rx_id", "<u2"),      # 업링크 모드에서 RX 식별자, USB 직결은 0
         ("gain_comp", "<f4"),
         ("crc32", "<u4"),
     ]

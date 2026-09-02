@@ -99,11 +99,20 @@ RX 펌웨어     : csi_cb=5775 uplink_ok=5804 uplink_fail=0 ringbuf_drop=0
 약 4.5%. RX 3대 + TX 자극이면 총 ~18% 로 여유가 있다. 다만 **RX 를 늘렸을 때도
 CSI 콜백률이 유지되는지는 아직 미검증**이다 (현재 RX 1대로만 확인).
 
+## 다중 RX — host demux
+
+> 상태: **CURRENT** (host 측은 pty 로 검증, 실보드 다중 RX 는 미검증)
+
+RX 는 업링크 모드에서 헤더 `rx_id` 에 `CSI_RX_ID` 를 찍는다. reader 는 한 포트 위의
+프레임을 `rx_id` 로 갈라 RX 마다 `RxStream` 을 두고, 각 RX 의 IDENT(MAC)로 `device_id`
+를 정해 `device_<id>.csi` 를 따로 쓴다. USB 직결은 `rx_id=0` 스트림 하나뿐인 특수 경우다.
+
+pty 검증: RX 2대(rx_id 1·2)의 프레임을 한 포트에 교대로 흘렸을 때
+`device_101.csi` / `device_103.csi` 로 분리되고 각각 `seq` 연속, USB 직결 회귀 없음.
+
 ## 남은 일
 
-- **다중 RX 검증**: 싱크가 여러 RX 의 프레임을 받으면 host 는 한 스트림에서 device 를
-  구분해야 한다. 지금 reader 는 포트 1개 = device 1개다. RX 가 보내는 IDENT 에 MAC 이
-  있으므로, 프레임에 rx 식별자를 넣고 reader 가 demux 하도록 확장해야 한다
-  (헤더의 `reserved` u16 이 비어 있다).
+- **다중 RX 실보드 검증**: RX 를 2대 이상 업링크 모드로 두고 CSI 콜백률이 유지되는지
+  (에어타임 경합) 확인. 계산상 RX 3대 + TX 자극이 ~18% 로 여유가 있지만 실측이 없다.
 - **싱크의 RX 겸용**: 싱크가 자기 CSI 도 함께 흘려보내면 보드 1대를 아낀다.
 - **실시간 추론 훅**: 현재는 파일 저장까지다. 슬라이딩 윈도를 모델에 넘기는 경로는 없다.

@@ -33,7 +33,7 @@
 | 28 | `uint32` | `tx_seq` | TX 공통 sequence (cross-RX 정렬 키) |
 | 32 | `uint8` | `agc_gain` | AGC gain 원값 |
 | 33 | `int8` | `fft_gain` | FFT gain 원값 |
-| 34 | `uint16` | `reserved` | `0` |
+| 34 | `uint16` | `rx_id` | 업링크 모드: `CSI_RX_ID`. 싱크가 여러 RX 프레임을 한 스트림으로 넘길 때 host 가 이걸로 device 를 가른다. USB 직결은 `0` |
 | 36 | `float32` | `gain_comp` | 진폭 gain 보정 배율. `0`=baseline 미완성(첫 100패킷) |
 | 40 | `uint32` | `crc32` | 위 참조 |
 

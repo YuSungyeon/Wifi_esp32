@@ -84,7 +84,8 @@ typedef struct {
     uint32_t tx_seq;         /* TX 송신 카운터 (모든 RX 공통 — cross-RX 동기화 키) */
     uint8_t  agc_gain;       /* AGC gain (진단·재현용 원값) */
     int8_t   fft_gain;       /* FFT gain */
-    uint16_t reserved;       /* 0 */
+    uint16_t rx_id;          /* 업링크 모드: CSI_RX_ID. 싱크가 여러 RX 프레임을 한 스트림으로
+                              * 넘길 때 host 가 이걸로 device 를 가른다. USB 직결은 0 */
     float    gain_comp;      /* 진폭 gain 보정 배율. 0 = baseline 미완성(첫 100패킷) */
     uint32_t crc32;          /* 헤더(이 필드를 0으로 둔 상태) + payload 전체 */
     /* payload[raw_len] tail */
@@ -137,7 +138,11 @@ static void csi_frame_push(csi_frame_header_t *hdr, const void *payload, size_t 
     hdr->total_len = (uint16_t)total;
     hdr->raw_len   = (uint16_t)payload_len;
     hdr->boot_id   = g_boot_id;
-    hdr->reserved  = 0;
+#if CSI_UPLINK_ENABLED
+    hdr->rx_id     = CSI_RX_ID;
+#else
+    hdr->rx_id     = 0;
+#endif
     hdr->crc32     = 0;
 
     memcpy(buf, hdr, sizeof(*hdr));

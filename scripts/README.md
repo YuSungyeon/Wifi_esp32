@@ -121,7 +121,7 @@ RX가 재부팅돼 `seq`와 `timestamp_us`가 함께 감소하면 그전 데이�
 | `meshsense_gui.py` | 브라우저 제어판 (stdlib only, 127.0.0.1 바인딩) |
 | `csi_store.py` | **프레임 규격·검증·진폭·유효 서브캐리어의 Python 단일 소스** |
 | `csi_session.py` | 세션 디렉터리·manifest(`session.json`, 라벨 SSOT)·`session_id` 자동 순번 |
-| `csi_serial_reader.py` | USB reader: 시리얼 프레임 → `device_<id>.csi` (`--identify` 로 식별만) |
+| `csi_serial_reader.py` | reader: 시리얼 프레임 → `device_<id>.csi`. 싱크 경유 시 `rx_id` 로 여러 RX 를 갈라 씀 (`--identify` 로 식별만) |
 | `export_jsonl.py` | `.csi` → JSONL record schema v1 (전처리 입력) |
 | `check_separability.py` | 3-class 분리 가능성 진단 (세션 단위 LOSO, torch 불필요) |
 | `session_form.py` | `session_meta.yaml` 편집 웹 폼 (제어판 '실험 정보' 탭과 동일) |

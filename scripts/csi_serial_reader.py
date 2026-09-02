@@ -198,82 +198,64 @@ def main() -> int:
         print(f"{tag} 백로그 {flush_stats.frames}프레임 버림 "
               f"({time.monotonic() - t_flush:.2f}s)", file=sys.stderr)
 
-    stats = FrameStats()
+    stats = FrameStats()            # 포트 단위 (crc_fail·invalid·resync)
     splitter = FrameSplitter(stats)
-    device_id: Optional[int] = args.device_id
-    board_name = ""
-    base_mac = ""
-    fw = ""
-    fw_counters: dict = {}
-    fw_baseline: dict = {}   # 첫 IDENT 값 — 카운터는 부팅 이후 누적이라 델타로 바꾼다
-    fp = None
-    out_path: Optional[Path] = None
-    pending: list[bytes] = []      # IDENT 이전에 도착한 CSI 프레임 (2초 ≈ 200프레임)
-    last_seq: Optional[int] = None
-    last_boot: Optional[int] = None
-    first_tx_seq = last_tx_seq = None
-    first_ts_us = last_ts_us = None
-    tx_back = 0          # tx_seq 역행 횟수 = TX 재부팅
-
+    streams: dict[int, RxStream] = {}   # rx_id → 스트림. USB 직결은 {0: ...} 하나뿐
     start = time.monotonic()
     last_frame_at = start
     last_flush = start
     rc = 0
 
-    def open_output(dev: int) -> bool:
-        nonlocal fp, out_path
-        out_path = Path(args.session_dir) / f"device_{dev}.csi"
-        try:
-            fp = out_path.open("xb")   # 배타적 생성 — append 로 두 런이 섞이던 경로를 막는다
-        except FileExistsError:
-            print(f"{tag} [중단] 이미 존재: {out_path}", file=sys.stderr)
-            return False
-        print(f"{tag} → {out_path}", file=sys.stderr)
-        return True
-
-    exit_code = 0
+    def stream_for(rx_id: int) -> "RxStream":
+        st = streams.get(rx_id)
+        if st is None:
+            st = streams[rx_id] = RxStream(rx_id)
+            # --device-id 는 단일 스트림(USB 직결)에서만 의미가 있다
+            if args.device_id is not None and rx_id == 0:
+                st.device_id = args.device_id
+                st.open_output(args.session_dir, tag)   # 실패하면 fp 가 None 으로 남는다
+        return st
 
     def handle_ident(frame: bytes, *, live: bool = True) -> bool:
-        """IDENT 프레임으로 보드를 식별하고 출력 파일을 연다. 실패면 False.
-
-        `live=False` 는 백로그에서 건진 IDENT — 식별에는 쓰지만 **카운터 기준점으로는
-        쓰지 않는다.** 백로그 IDENT 는 최대 링버퍼 깊이(~4초)만큼 과거의 스냅샷이라,
-        기준점으로 삼으면 세션 델타에 수집 전 구간이 섞인다.
-        """
-        nonlocal base_mac, fw, fw_counters, device_id, board_name, fp, exit_code
+        """IDENT 로 보드를 식별하고 출력 파일을 연다. 실패면 False (rc 는 exit_code 에)."""
+        nonlocal rc
+        h = header_of(frame)
+        st = stream_for(int(h["rx_id"]))
         mac, fw_id, counters = parse_ident(frame)
         if live:
-            fw_counters = counters
-            if not fw_baseline:
-                fw_baseline.update(counters)
-        if base_mac:
+            st.fw_counters = counters
+            if not st.fw_baseline:
+                # 백로그 IDENT 는 최대 링버퍼 깊이(~4초)만큼 과거 스냅샷이라 기준점으로 쓰지 않는다
+                st.fw_baseline.update(counters)
+        if st.base_mac:
             return True
-        base_mac, fw = mac, fw_id
+        st.base_mac, st.fw = mac, fw_id
         dev, name = lookup_device_id(mac, args.registry)
-        board_name = name
-        if device_id is not None:
+        st.board_name = name
+        if st.device_id is not None:
             return True
         if dev is None:
             print(f"{tag} [중단] MAC {mac} 이 registry에 없습니다 — "
                   f"`python scripts/device_registry.py add --port {args.port} "
                   f"--board-name RXn` 으로 등록하세요.", file=sys.stderr)
-            exit_code = EXIT_NO_IDENT
+            rc = EXIT_NO_IDENT
             return False
-        device_id = dev
-        if not open_output(device_id):
-            exit_code = EXIT_FILE_EXISTS
+        st.device_id = dev
+        if not st.open_output(args.session_dir, tag):
+            rc = EXIT_FILE_EXISTS
             return False
-        for buffered in pending:
-            fp.write(buffered)
-        pending.clear()
-        print(f"{tag} IDENT: {mac} → RX{device_id} ({board_name}, fw={fw})", file=sys.stderr)
+        print(f"{tag} IDENT: {mac} → RX{dev} ({name}, fw={fw_id}"
+              f"{f', rx_id={st.rx_id}' if st.rx_id else ''})", file=sys.stderr)
         return True
 
     try:
-        if device_id is not None and not open_output(device_id):
-            return EXIT_FILE_EXISTS
+        if args.device_id is not None:
+            # 명시적 override 는 시작 즉시 파일을 연다 — 충돌을 프레임 도착과 무관하게 드러낸다
+            st = stream_for(0)
+            if st.fp is None:
+                return EXIT_FILE_EXISTS
         if flushed_ident is not None and handle_ident(flushed_ident, live=False) is False:
-            return exit_code
+            return rc
 
         while True:
             now = time.monotonic()
@@ -287,69 +269,33 @@ def main() -> int:
 
                 if int(h["frame_type"]) == FRAME_TYPE_IDENT:
                     if handle_ident(frame) is False:
-                        return exit_code
+                        return rc
                     continue
 
-                # CSI 프레임
-                boot = int(h["boot_id"])
-                if last_boot is not None and boot != last_boot:
-                    stats.boot_changes += 1
-                    last_seq = None      # 재부팅이면 seq 연속성 비교를 리셋
-                    print(f"{tag} [경고] 수집 중 보드 재부팅 (boot_id {last_boot} → {boot}). "
-                          f"이 구간은 데이터가 비어 있습니다.", file=sys.stderr)
-                last_boot = boot
+                st = stream_for(int(h["rx_id"]))
+                st.on_csi(h, frame, tag)
 
-                seq = int(h["seq"])
-                if last_seq is not None and seq > last_seq + 1:
-                    stats.seq_gap += seq - (last_seq + 1)
-                last_seq = seq
-
-                tx = int(h["tx_seq"])
-                if first_tx_seq is None:
-                    first_tx_seq = tx
-                    first_ts_us = int(h["timestamp_us"])
-                elif tx < last_tx_seq:
-                    # TX 가 재부팅하면 tx_seq 가 0부터 다시 시작한다. tx_seq 는 RX 간
-                    # 정렬 키라서, 이게 되감기면 세션의 시간 격자가 깨진다.
-                    # TX 를 별도 전원(보조배터리 등)에 두면 조용히 일어날 수 있다.
-                    tx_back += 1
-                    if tx_back == 1:
-                        print(f"{tag} [경고] TX 재부팅으로 보입니다 "
-                              f"(tx_seq {last_tx_seq} → {tx}). 이 세션은 시간 격자가 깨져 "
-                              f"학습에 쓸 수 없습니다 — TX 전원을 확인하고 재수집하세요.",
-                              file=sys.stderr)
-                last_tx_seq = tx
-                last_ts_us = int(h["timestamp_us"])
-
-                if fp is None:
-                    pending.append(frame)
-                    if len(pending) > 2000:      # ~20초분. IDENT가 안 오면 어차피 아래에서 끊긴다
-                        pending.pop(0)
-                else:
-                    fp.write(frame)
-
-                if args.stats_every and stats.frames % args.stats_every == 0:
+                total = sum(x.frames for x in streams.values())
+                if args.stats_every and total % args.stats_every == 0:
                     elapsed = now - start
-                    d = {k: v - fw_baseline.get(k, 0) for k, v in fw_counters.items()}
-                    fw_note = (f" fw[cb={d['fw_csi_cb']} sent={d['fw_sent']} "
-                               f"rbdrop={d['fw_ringbuf_drop']} "
-                               f"fail={d['fw_send_fail']}]") if fw_counters else ""
-                    print(f"{tag} frames={stats.frames} hz={stats.frames / elapsed:.1f} "
-                          f"crc_fail={stats.crc_fail} invalid={stats.invalid} "
-                          f"resync={stats.resync} seq_gap={stats.seq_gap} "
-                          f"rssi={int(h['rssi'])} tx_seq={tx}{fw_note}", file=sys.stderr)
+                    print(f"{tag} frames={total} hz={total / elapsed:.1f} "
+                          f"crc_fail={stats.crc_fail} invalid={stats.invalid} resync={stats.resync} "
+                          + "  ".join(x.progress() for x in streams.values() if x.device_id is not None),
+                          file=sys.stderr)
 
             now = time.monotonic()
-            if fp is not None and now - last_flush >= FLUSH_INTERVAL_S:
-                fp.flush()
+            if now - last_flush >= FLUSH_INTERVAL_S:
+                for x in streams.values():
+                    x.flush()
                 last_flush = now
 
-            if device_id is None and now - start > args.ident_timeout:
+            identified = any(x.device_id is not None for x in streams.values())
+            if not identified and now - start > args.ident_timeout:
                 print(f"{tag} IDENT 미수신 {args.ident_timeout:.0f}s — RX 보드가 아닌 것으로 보고 종료",
                       file=sys.stderr)
                 return EXIT_NO_IDENT
 
-            if device_id is not None and now - last_frame_at > args.stall_timeout:
+            if identified and now - last_frame_at > args.stall_timeout:
                 # 예전에는 serial timeout 을 continue 로 삼켜서, 보드가 죽어도 reader 가
                 # 빈 파일을 만들며 영원히 정상인 척했다.
                 print(f"{tag} [중단] {args.stall_timeout:.0f}s 동안 프레임 없음 — "
@@ -360,44 +306,155 @@ def main() -> int:
     except KeyboardInterrupt:
         print(f"\n{tag} interrupted", file=sys.stderr)
     finally:
-        if fp is not None:
-            fp.flush()
-            fp.close()
+        for x in streams.values():
+            x.close()
         ser.close()
         elapsed = time.monotonic() - start
-        if device_id is not None:
-            record = {
-                "device_id": device_id,
-                "board_name": board_name,
-                "sta_mac": base_mac,
-                "port": args.port,
-                "firmware": fw,
-                "boot_id": last_boot,
-                "elapsed_s": round(elapsed, 3),
-                # 수집 구간 길이는 보드 시계 기준. 호스트 wall clock 에는 백로그 비우기와
-                # 기동 시간이 섞여 있어 Hz 가 낮게 보인다.
-                "span_s": round((last_ts_us - first_ts_us) / 1e6, 3) if last_ts_us else 0.0,
-                "first_tx_seq": first_tx_seq,
-                "last_tx_seq": last_tx_seq,
-                "tx_back": tx_back,
-                "exit_code": rc,
-                # 펌웨어 카운터는 부팅 이후 누적이라 그대로 쓰면 오해를 부른다
-                # (수집 전 방치 시간의 ringbuf_drop 이 그대로 섞임). 세션 구간 델타로 기록.
-                **{k: v - fw_baseline.get(k, 0) for k, v in fw_counters.items()},
-                **stats.as_dict(),
-            }
-            write_device_stats(args.session_dir, device_id, record)
-        print(f"{tag} done. frames={stats.frames} crc_fail={stats.crc_fail} "
-              f"invalid={stats.invalid} resync={stats.resync} seq_gap={stats.seq_gap} "
-              f"tx_back={tx_back} "
-              f"elapsed={elapsed:.2f}s hz={stats.frames / elapsed if elapsed else 0:.1f}",
+        for x in streams.values():
+            if x.device_id is None:
+                continue
+            record = x.record(args.port, elapsed, rc, stats)
+            write_device_stats(args.session_dir, x.device_id, record)
+        total = sum(x.frames for x in streams.values())
+        print(f"{tag} done. frames={total} crc_fail={stats.crc_fail} invalid={stats.invalid} "
+              f"resync={stats.resync} elapsed={elapsed:.2f}s hz={total / elapsed if elapsed else 0:.1f}",
               file=sys.stderr)
-        if fw_counters:
-            d = {k: v - fw_baseline.get(k, 0) for k, v in fw_counters.items()}
-            print(f"{tag} 펌웨어(세션 구간): csi_cb={d['fw_csi_cb']} "
-                  f"sent={d['fw_sent']} ringbuf_drop={d['fw_ringbuf_drop']} "
-                  f"fail={d['fw_send_fail']}", file=sys.stderr)
+        for x in streams.values():
+            if x.device_id is not None:
+                print(f"{tag}   RX{x.device_id}: {x.summary()}", file=sys.stderr)
     return rc
+
+
+class RxStream:
+    """한 포트 위의 RX 하나. 싱크를 거치면 여러 RX 가 한 스트림에 섞여 오므로 rx_id 로 가른다.
+
+    USB 직결에서는 rx_id=0 인 스트림 하나뿐이라, 이 클래스가 그 경우도 그대로 처리한다.
+    """
+
+    def __init__(self, rx_id: int) -> None:
+        self.rx_id = rx_id
+        self.device_id: Optional[int] = None
+        self.board_name = ""
+        self.base_mac = ""
+        self.fw = ""
+        self.fw_counters: dict = {}
+        self.fw_baseline: dict = {}
+        self.fp = None
+        self.out_path: Optional[Path] = None
+        self.pending: list[bytes] = []     # IDENT 이전에 도착한 CSI (2초 ≈ 200프레임)
+        self.frames = 0
+        self.seq_gap = 0
+        self.boot_changes = 0
+        self.tx_back = 0
+        self.last_seq: Optional[int] = None
+        self.last_boot: Optional[int] = None
+        self.first_tx_seq = self.last_tx_seq = None
+        self.first_ts_us = self.last_ts_us = None
+
+    def open_output(self, session_dir: Path, tag: str) -> bool:
+        self.out_path = Path(session_dir) / f"device_{self.device_id}.csi"
+        try:
+            self.fp = self.out_path.open("xb")   # 배타적 생성 — append 로 두 런이 섞이던 경로를 막는다
+        except FileExistsError:
+            print(f"{tag} [중단] 이미 존재: {self.out_path}", file=sys.stderr)
+            return False
+        for buffered in self.pending:
+            self.fp.write(buffered)
+        self.pending.clear()
+        print(f"{tag} → {self.out_path}", file=sys.stderr)
+        return True
+
+    def on_csi(self, h, frame: bytes, tag: str) -> None:
+        boot = int(h["boot_id"])
+        if self.last_boot is not None and boot != self.last_boot:
+            self.boot_changes += 1
+            self.last_seq = None
+            print(f"{tag} [경고] RX{self.device_id or '?'} 수집 중 보드 재부팅 "
+                  f"(boot_id {self.last_boot} → {boot}). 이 구간은 데이터가 비어 있습니다.",
+                  file=sys.stderr)
+        self.last_boot = boot
+
+        seq = int(h["seq"])
+        if self.last_seq is not None and seq > self.last_seq + 1:
+            self.seq_gap += seq - (self.last_seq + 1)
+        self.last_seq = seq
+
+        tx = int(h["tx_seq"])
+        if self.first_tx_seq is None:
+            self.first_tx_seq = tx
+            self.first_ts_us = int(h["timestamp_us"])
+        elif tx < self.last_tx_seq:
+            # TX 가 재부팅하면 tx_seq 가 0부터 다시 시작한다 — RX 간 정렬 키가 깨진다.
+            self.tx_back += 1
+            if self.tx_back == 1:
+                print(f"{tag} [경고] TX 재부팅으로 보입니다 (tx_seq {self.last_tx_seq} → {tx}). "
+                      f"이 세션은 시간 격자가 깨져 학습에 쓸 수 없습니다 — TX 전원을 확인하고 "
+                      f"재수집하세요.", file=sys.stderr)
+        self.last_tx_seq = tx
+        self.last_ts_us = int(h["timestamp_us"])
+
+        if self.fp is None:
+            self.pending.append(frame)
+            if len(self.pending) > 2000:     # ~20초분. IDENT 가 안 오면 어차피 끊긴다
+                self.pending.pop(0)
+        else:
+            self.fp.write(frame)
+        self.frames += 1
+
+    def fw_delta(self) -> dict:
+        # 펌웨어 카운터는 부팅 이후 누적이라 세션 구간 델타로 바꾼다
+        return {k: v - self.fw_baseline.get(k, 0) for k, v in self.fw_counters.items()}
+
+    def progress(self) -> str:
+        d = self.fw_delta()
+        fw = (f" fw[cb={d['fw_csi_cb']} sent={d['fw_sent']} rbdrop={d['fw_ringbuf_drop']} "
+              f"fail={d['fw_send_fail']}]") if d else ""
+        return f"RX{self.device_id}[n={self.frames} gap={self.seq_gap} tx={self.last_tx_seq}{fw}]"
+
+    def summary(self) -> str:
+        d = self.fw_delta()
+        return (f"frames={self.frames} seq_gap={self.seq_gap} boot_changes={self.boot_changes} "
+                f"tx_back={self.tx_back}"
+                + (f"  펌웨어(세션 구간): csi_cb={d['fw_csi_cb']} sent={d['fw_sent']} "
+                   f"ringbuf_drop={d['fw_ringbuf_drop']} fail={d['fw_send_fail']}" if d else ""))
+
+    def flush(self) -> None:
+        if self.fp is not None:
+            self.fp.flush()
+
+    def close(self) -> None:
+        if self.fp is not None:
+            self.fp.flush()
+            self.fp.close()
+            self.fp = None
+
+    def record(self, port: str, elapsed: float, rc: int, port_stats: FrameStats) -> dict:
+        span = ((self.last_ts_us - self.first_ts_us) / 1e6) if self.last_ts_us else 0.0
+        return {
+            "device_id": self.device_id,
+            "board_name": self.board_name,
+            "sta_mac": self.base_mac,
+            "port": port,
+            "rx_id": self.rx_id,
+            "firmware": self.fw,
+            "boot_id": self.last_boot,
+            "elapsed_s": round(elapsed, 3),
+            # 수집 구간 길이는 보드 시계 기준 — host wall clock 에는 백로그 비우기·기동이 섞인다
+            "span_s": round(span, 3),
+            "first_tx_seq": self.first_tx_seq,
+            "last_tx_seq": self.last_tx_seq,
+            "tx_back": self.tx_back,
+            "exit_code": rc,
+            **self.fw_delta(),
+            "frames": self.frames,
+            "seq_gap": self.seq_gap,
+            "boot_changes": self.boot_changes,
+            # 아래 셋은 포트(스트림) 단위 지표다. 싱크를 거쳐 여러 RX 가 한 포트에 오면
+            # 값이 같게 반복된다 — 소비자(요약·GUI)가 device 별로 읽는 계약을 유지하려는 것
+            "crc_fail": port_stats.crc_fail,
+            "invalid": port_stats.invalid,
+            "resync": port_stats.resync,
+        }
 
 
 if __name__ == "__main__":
