@@ -143,7 +143,7 @@ test       : 학습에 한 번도 안 쓴 조건 (다른 날 + 다른 피험자)
 - **주 지표**: 3-class 정확도 + 클래스별 recall + 혼동행렬. 클래스 불균형이 있으면
   macro-F1 을 함께 보고한다
 - **베이스라인**: `check_separability.py` 의 최근접 중심 LOSO. 모델이 이보다 못하면
-  복잡도가 정당화되지 않는다
+  복잡도가 정당화되지 않는다. ablation 표는 `scripts/ablation.py --split-by subject` 로 만든다
 - **ablation**: RX 대수(1/2/3) · 윈도 길이 · 서브캐리어 52 vs 64 ·
   **진폭 단독 vs 진폭+위상**
 

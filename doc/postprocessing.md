@@ -297,3 +297,34 @@ python scripts/check_separability.py --out separability.png
 이 도구의 정렬은 공식 전처리(`preprocess_3rx.py`)보다 훨씬 단순하다 — 배치 판단이 공식
 전처리의 손상 제거·mask 규칙에 좌우되지 않게 하려는 의도다. 학습 데이터 생성은 공식
 전처리가 정본이다.
+
+## 베이스라인·ablation 하네스
+
+> 상태: **CURRENT**
+
+```bash
+python scripts/ablation.py --split-by subject --out mac_collector_output/ablation.md
+```
+
+세션(`.csi`)을 직접 읽어 설계 변수를 바꿔가며 **같은 베이스라인**(세션지문 필터 +
+최근접 중심, leave-one-group-out)으로 평가한다. 학습 모델이 이 표를 못 넘으면 복잡도가
+정당화되지 않는다.
+
+| 축 | 값 | 답하려는 질문 |
+|---|---|---|
+| RX | 1대씩 / 전부 | RX 를 늘리면 나아지는가 |
+| window | 1s / 3s / 5s | 윈도 길이 |
+| features | `amp52` / `amp64` / `amp52+phase` | 서브캐리어 선별 효과, 위상의 기여 |
+
+`--split-by session|date|placement|subject` — `session` 은 세션 단위 LOSO, 나머지는
+**조건 단위**([collection-protocol.md](collection-protocol.md) §6)라 학습에 안 쓴 조건으로
+평가하므로 일반화 주장의 근거가 된다. 조건은 세션의 `session_meta_snapshot.yaml`
+(`date`, `condition.placement_id`, `condition.subject_id`)에서 읽는다 — 제어판 '실험 정보'
+탭에서 기록해야 한다.
+
+`amp52+phase` 는 raw I/Q 를 보존한 덕분에 **재수집 없이** 가능한 위상 ablation 이다.
+위상 특징은 인접 서브캐리어 위상차(CFO 상쇄)의 시간축 변동으로, 조악한 베이스라인용이다 —
+정식 위상 sanitization 은 모델 쪽 과제다.
+
+주의: 그룹이 2개뿐이면 세션지문 필터가 공격적으로 작동해 특징이 1~2개만 남는다.
+파일럿(조건 2개)에서는 정상이며, 본 수집에서 조건이 늘면 안정된다.
