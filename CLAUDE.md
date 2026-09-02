@@ -45,7 +45,8 @@ SoftAP/UDP production firmware, UDP collector, `flash_rx.py`, `flash_tx.py`, `me
 | `mac_collector/device_registry.csv` | RX USB MAC ↔ device ID |
 | `mac_collector/tx_registry.csv` | TX USB MAC ↔ TX node ID |
 | `mac_collector/session_meta.yaml` | 실험 조건과 라벨 기본값 (run ID 는 자동 순번) |
-| `<세션>/session.json` | **세션 라벨 SSOT** + RX별 수집 품질 통계 |
+| `<세션>/session.json` | **세션 라벨 SSOT** + 코드 출처(git commit) + RX별 품질 통계 |
+| `doc/collection-protocol.md` | **수집 설계 정본** — 순서·조건 교차·분할·평가 |
 | `scripts/visualize_csi.py` | RX별 waterfall PNG |
 | `model_train/preprocessing/preprocess_3rx.py` | 공식 3-RX 전처리 구현 (`model_train/docs/[전처리]-설계.md` 기준) |
 | `model_train/<model-name>/` | 모델별 실험 단계 전처리·학습 코드 |

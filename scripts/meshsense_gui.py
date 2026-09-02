@@ -29,9 +29,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from csi_session import next_session_id, read_manifest  # noqa: E402
+from csi_session import next_session_id, read_manifest, repo_provenance  # noqa: E402
 from csi_store import LABELS  # noqa: E402
-from session_form import FIELDS, read_meta, write_meta, known_devices, SESSION_META  # noqa: E402
+from session_form import (  # noqa: E402
+    DEVICE_REGISTRY, FIELDS, SESSION_META, known_devices, read_meta, write_meta,
+)
 
 OUTPUT_DIR = REPO_ROOT / "mac_collector_output"
 RAW_ROOT = OUTPUT_DIR / "raw"
@@ -117,6 +119,42 @@ def identify(port: str) -> dict:
     except Exception:
         return {"port": port, "registered": False, "device_id": None,
                 "sta_mac": None, "firmware": None, "board_name": ""}
+
+
+def readiness() -> list[dict]:
+    """수집 전에 걸러야 재수집을 면하는 것들. 논문용 데이터는 출처와 배치가 남아야 한다."""
+    out = []
+    prov = repo_provenance()
+    if prov.get("git_dirty"):
+        out.append({"level": "warn", "text":
+                    "커밋되지 않은 코드 변경이 있습니다 — 이 상태로 찍은 데이터는 "
+                    "어느 코드로 만들었는지 재현할 수 없습니다."})
+    def zero(v: str) -> bool:
+        # CSV 값은 문자열이라 "0" 도 참이다. 숫자로 보고 판단한다.
+        try:
+            return float(v) == 0.0
+        except ValueError:
+            return True
+
+    missing = [f"RX{d}" for d, name, x, y in known_devices_geometry()
+               if zero(x) and zero(y)]
+    if missing:
+        out.append({"level": "warn", "text":
+                    f"보드 좌표가 비어 있습니다 ({', '.join(missing)}) — "
+                    "device_registry.csv 의 room_x_m / room_y_m 을 실측값으로 채우세요. "
+                    "배치도를 나중에 복원할 수 없습니다."})
+    return out
+
+
+def known_devices_geometry() -> list[tuple]:
+    if not DEVICE_REGISTRY.is_file():
+        return []
+    rows = []
+    for line in DEVICE_REGISTRY.read_text(encoding="utf-8").splitlines()[1:]:
+        c = line.split(",")
+        if len(c) >= 5 and c[0].strip().isdigit():
+            rows.append((int(c[0]), c[1].strip(), c[3].strip(), c[4].strip()))
+    return rows
 
 
 def session_rows() -> list[dict]:
@@ -206,6 +244,8 @@ img.wf{width:100%;border:1px solid var(--line);border-radius:10px;margin-top:.6r
 .chips button{font:inherit;font-size:.85rem;padding:.25rem .6rem;cursor:pointer;background:var(--bg);
  color:var(--fg);border:1px solid var(--line);border-radius:999px}
 .big{font-size:1.7rem;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.ready{border-radius:8px;padding:.55rem .75rem;margin-bottom:.6rem;font-size:.88rem;
+ background:var(--warnbg);color:var(--warn);border:1px solid var(--warn)}
 """
 
 PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
@@ -300,13 +340,14 @@ function render() {
       <p class="sub" style="margin-top:1rem">등록되지 않은 보드는 먼저 registry 에 추가해야 수집됩니다:
       <code>python scripts/device_registry.py add --port &lt;포트&gt; --board-name RXn</code></p></div>`;
   }
-  if (tab === 'collect' && changed('collect', [S.next_session_id, S.rx_count, busy, S.meta.label_target])) {
+  if (tab === 'collect' && changed('collect', [S.next_session_id, S.rx_count, busy, S.meta.label_target, S.readiness])) {
     const opts = S.labels.map(l => `<option value="${l}" ${l===S.meta.label_target?'selected':''}>${l} — ${esc(S.label_desc[l])}</option>`).join('');
     document.getElementById('collect').innerHTML = `<div class="card">
       <h2>수집</h2>
       <p class="sub">라벨은 지금 고른 값이 그대로 데이터에 기록됩니다. 순번은 자동입니다.</p>
       <div class="bar"><span>다음 순번</span><span class="big">s${S.next_session_id}</span>
         <span class="hint">RX ${S.rx_count}대 인식됨</span></div>
+      ${S.readiness.map(r => `<div class="ready ${r.level}">${esc(r.text)}</div>`).join('')}
       <label for="lab">라벨</label><select id="lab">${opts}</select>
       <label for="dur">수집 시간 (초)</label><input id="dur" type="number" value="60" min="5" step="5">
       <div class="bar" style="margin-top:1rem">
@@ -419,6 +460,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "diag_png": DIAG_PNG_REL if (REPO_ROOT / DIAG_PNG_REL).is_file() else None,
                 "diag_png_mtime": int((REPO_ROOT / DIAG_PNG_REL).stat().st_mtime)
                 if (REPO_ROOT / DIAG_PNG_REL).is_file() else 0,
+                "readiness": readiness(),
                 "job": JOB.state(),
             })
         elif u.path == "/api/img":

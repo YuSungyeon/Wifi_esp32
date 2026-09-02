@@ -260,8 +260,12 @@ python model_train/preprocessing/preprocess_3rx.py \
     --raw-dir mac_collector_output/jsonl/raw/<날짜> --dry-run
 ```
 
-`--print-labels` 는 세션 manifest(`session.json`)의 라벨로 `LABEL_SESSION_RANGES` 에 넣을
-배정을 출력한다. 라벨이 수집 시점에 기록되므로 session_id 범위를 손으로 맞출 필요가 없다.
+내보내기는 날짜 폴더에 `labels.json`(session_id → label)을 함께 만들고, 전처리가 이것을
+**라벨 정본**으로 읽는다. 없으면 `LABEL_SESSION_RANGES` 로 떨어진다(구 데이터 호환).
+
+이 배관이 없을 때 실제로 사고가 났다: 세션 10/11/12 를 넣었더니 하드코딩 범위
+(`empty`=1~10, `static`=11~20)에 걸려 session 12(`motion`)가 `static` 으로 분류됐다
+— `{static: 1814, motion: 0}`. `labels.json` 을 두면 `{static: 907, motion: 907}` 로 맞는다.
 
 ### 유효 서브캐리어
 

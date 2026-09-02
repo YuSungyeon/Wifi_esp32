@@ -8,19 +8,20 @@
 |---:|---|---|
 | 1 | [아키텍처](architecture.md) | **CURRENT** — 공식 ESP-NOW/USB 구조 |
 | 2 | [빠른 시작](quickstart.md) | **CURRENT** — 재현 가능한 플래시·수집 절차 |
-| 3 | [펌웨어](firmware.md) | **CURRENT** — TX/RX 동작과 상수 |
-| 4 | [binary/JSONL 계약](data-schema.md) | **CURRENT CONTRACT** — frame v4·`.csi` 저장소·JSONL 내보내기 |
-| 5 | [실시간 경로](realtime-uplink.md) | **CURRENT** — ESP-NOW 업링크 + USB 싱크 (무선 배치) |
-| 6 | [`seq`와 `tx_seq` 패턴](sequence-patterns.md) | **CURRENT** — 두 순번의 차이·이상 패턴·실데이터 집계 |
-| 7 | [공식 전처리 설계](../model_train/docs/%5B전처리%5D-설계.md) | **OFFICIAL DESIGN** — 모든 모델이 공유하는 3-RX 전처리 기준 |
-| 8 | [후처리](postprocessing.md) | **CURRENT + EXPERIMENTAL** — 수집률·시각화와 모델 문서 연결 |
-| 9 | [호스트 스크립트](../scripts/README.md) | **CURRENT** — CLI와 도구 책임 |
-| 10 | [문제 해결](troubleshooting.md) | **CURRENT** — ESP-IDF·빌드·포트 문제 |
-| 11 | [문서 주도 개발 규칙](documentation-policy.md) | **PROCESS CONTRACT** |
-| 12 | [ADR-0001](adr-poc-only.md) | **ACCEPTED** — PoC 단일 경로 결정 |
-| 13 | [수집 환경 정비 스프린트](sprint/2026-08-collection-hardening.md) | **HISTORICAL** — frame v4·세션/라벨 정비의 시도·막힌 지점·실측 |
+| 3 | [수집 프로토콜](collection-protocol.md) | **OFFICIAL DESIGN** — 무엇을 얼마나 어떤 순서로 찍을지 |
+| 4 | [펌웨어](firmware.md) | **CURRENT** — TX/RX 동작과 상수 |
+| 5 | [binary/JSONL 계약](data-schema.md) | **CURRENT CONTRACT** — frame v4·`.csi` 저장소·JSONL 내보내기 |
+| 6 | [실시간 경로](realtime-uplink.md) | **CURRENT** — ESP-NOW 업링크 + USB 싱크 (무선 배치) |
+| 7 | [`seq`와 `tx_seq` 패턴](sequence-patterns.md) | **CURRENT** — 두 순번의 차이·이상 패턴·실데이터 집계 |
+| 8 | [공식 전처리 설계](../model_train/docs/%5B전처리%5D-설계.md) | **OFFICIAL DESIGN** — 모든 모델이 공유하는 3-RX 전처리 기준 |
+| 9 | [후처리](postprocessing.md) | **CURRENT + EXPERIMENTAL** — 수집률·시각화와 모델 문서 연결 |
+| 10 | [호스트 스크립트](../scripts/README.md) | **CURRENT** — CLI와 도구 책임 |
+| 11 | [문제 해결](troubleshooting.md) | **CURRENT** — ESP-IDF·빌드·포트 문제 |
+| 12 | [문서 주도 개발 규칙](documentation-policy.md) | **PROCESS CONTRACT** |
+| 13 | [ADR-0001](adr-poc-only.md) | **ACCEPTED** — PoC 단일 경로 결정 |
+| 14 | [수집 환경 정비 스프린트](sprint/2026-08-collection-hardening.md) | **HISTORICAL** — frame v4·세션/라벨 정비의 시도·막힌 지점·실측 |
 | — | [AP 경로 수집률 디버깅](history-ap-rate-debugging.md) | **HISTORICAL** — 폐기된 SoftAP/UDP 경로를 포기한 근거 (ADR-0001 배경) |
-| 14 | [모델 학습 문서](../model_train/docs/%5B문서%5D-목록.md) | **EXPERIMENTAL** — 전처리·모델 비교·설계·학습 문서 |
+| 15 | [모델 학습 문서](../model_train/docs/%5B문서%5D-목록.md) | **EXPERIMENTAL** — 전처리·모델 비교·설계·학습 문서 |
 
 ## 문서 상태 규칙
 

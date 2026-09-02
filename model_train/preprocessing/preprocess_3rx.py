@@ -99,13 +99,33 @@ class Record:
         self.amp = amp
 
 
+# raw-dir 옆의 labels.json 이 있으면 그것이 정본이다. scripts/export_jsonl.py 가
+# 각 세션의 session.json(수집 시점에 박힌 라벨)에서 만들어 준다.
+# 없으면 아래 LABEL_SESSION_RANGES 로 떨어진다 — 구 데이터 호환용.
+_SESSION_LABELS: dict[int, str] = {}
+
+
+def load_session_labels(raw_dir):
+    """raw-dir 의 labels.json 을 읽어 session_id → label 을 채운다."""
+    _SESSION_LABELS.clear()
+    path = Path(raw_dir) / "labels.json"
+    if not path.is_file():
+        return False
+    data = json.loads(path.read_text(encoding="utf-8"))
+    _SESSION_LABELS.update({int(k): v for k, v in data.items()})
+    return True
+
+
 def label_name_for_session(session_id):
+    if session_id in _SESSION_LABELS:
+        return _SESSION_LABELS[session_id]
     for name, ids in LABEL_SESSION_RANGES:
         if session_id in ids:
             return name
     raise ValueError(
         f"session {session_id}의 label 배정이 없다. "
-        "LABEL_SESSION_RANGES 또는 --labels 설정을 갱신해야 한다."
+        "scripts/export_jsonl.py 로 labels.json 을 만들거나 "
+        "LABEL_SESSION_RANGES 를 갱신해야 한다."
     )
 
 
@@ -612,6 +632,7 @@ def discover_sessions(raw_dir):
 def run(raw_dir, output_dir, cfg=DEFAULT_CONFIG, splits=None, dry_run=False):
     """전처리 전체 실행. manifest dict를 돌려준다."""
     raw_dir = Path(raw_dir)
+    load_session_labels(raw_dir)
     output_dir = Path(output_dir)
     splits = splits if splits is not None else DEFAULT_SPLITS
 

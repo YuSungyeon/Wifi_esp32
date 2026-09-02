@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import time
 from pathlib import Path
 from typing import Iterable, Optional
@@ -51,6 +52,33 @@ def session_dir_name(label: str, session_id: int, when: Optional[float] = None) 
     return f"{time.strftime('%H%M%S', time.localtime(when))}_{label}_s{session_id}"
 
 
+def repo_provenance() -> dict:
+    """수집에 쓰인 코드의 신원. 세션마다 박아둔다.
+
+    "이 데이터는 어느 코드로 찍었나"를 사후에 재구성할 방법이 없어서 수집 시점에 남긴다.
+    펌웨어와 호스트 스크립트가 같은 저장소에 있으므로 커밋 하나가 둘 다 식별한다.
+    `dirty=True` 면 커밋되지 않은 변경이 섞인 상태로 찍은 것이라 재현이 보장되지 않는다.
+    """
+    root = Path(__file__).resolve().parents[1]
+
+    def git(*args) -> str | None:
+        try:
+            r = subprocess.run(["git", *args], cwd=root, capture_output=True,
+                               text=True, timeout=5)
+            return r.stdout.strip() if r.returncode == 0 else None
+        except (OSError, subprocess.SubprocessError):
+            return None
+
+    commit = git("rev-parse", "HEAD")
+    status = git("status", "--porcelain")
+    return {
+        "git_commit": commit,
+        "git_branch": git("rev-parse", "--abbrev-ref", "HEAD"),
+        "git_dirty": bool(status) if status is not None else None,
+        "git_describe": git("describe", "--tags", "--always", "--dirty"),
+    }
+
+
 def create_session(
     output_dir: Path,
     *,
@@ -81,6 +109,7 @@ def create_session(
             "label": label,
             "started_at_unix_us": int(now * 1_000_000),
             "ended_at_unix_us": None,
+            "provenance": repo_provenance(),
             "devices": [],
         },
     )

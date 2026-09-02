@@ -105,6 +105,8 @@ def main() -> int:
         return 1
 
     by_label: dict[str, list[int]] = {}
+    labels_by_session: dict[int, str] = {}
+    date_dirs: set[Path] = set()
     for d in sessions:
         try:
             sid, label, n = export_session(d, args.out_root)
@@ -112,7 +114,17 @@ def main() -> int:
             print(f"  [건너뜀] {d.name}: {exc}")
             continue
         by_label.setdefault(label, []).append(sid)
+        labels_by_session[sid] = label
+        date_dirs.add(args.out_root / "raw" / d.parent.name)
         print(f"  {d.name} → session_{sid}  ({label}, {n} records)")
+
+    # 전처리가 읽는 라벨 정본. 세션 manifest 에 박힌 값을 그대로 옮긴다 —
+    # session_id 범위를 사람이 손으로 맞추다 라벨이 어긋나는 사고를 없앤다.
+    for dd in sorted(date_dirs):
+        (dd / "labels.json").write_text(
+            json.dumps({str(k): v for k, v in sorted(labels_by_session.items())},
+                       ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"  labels.json → {dd}")
 
     print(f"\n[완료] {args.out_root}")
     if args.print_labels:

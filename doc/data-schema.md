@@ -93,6 +93,10 @@ mac_collector_output/raw/<YYYYMMDD>/<HHMMSS>_<label>_s<session_id>/
                 "fw_uart_partial": 0, "exit_code": 0} ] }
 ```
 
+`provenance` 는 수집에 쓰인 코드의 신원이다 (`git_commit`, `git_branch`, `git_dirty`).
+"이 데이터는 어느 코드로 찍었나"를 사후에 재구성할 방법이 없어 수집 시점에 남긴다.
+`git_dirty=true` 면 커밋되지 않은 변경이 섞인 상태라 재현이 보장되지 않는다.
+
 **라벨은 수집 시점에 여기 박힌다.** `label` 은 `empty` / `static` / `motion` 중 하나이며
 `model_train/preprocessing/preprocess_3rx.py` 의 `LABEL_MAP` 과 같은 어휘여야 한다
 (producer 는 `scripts/csi_store.py` 의 `LABELS`).
@@ -141,6 +145,8 @@ mac_collector_output/jsonl/raw/YYYYMMDD/
 ```
 
 전처리가 기대하는 구 레이아웃을 그대로 따른다. 내보내기는 덮어쓰기이며 append 하지 않는다.
+날짜 폴더마다 `labels.json`(session_id → label)을 함께 만든다 — 전처리가 이것을 라벨
+정본으로 읽으므로 `LABEL_SESSION_RANGES` 를 손으로 맞출 필요가 없다.
 정본 데이터는 `.csi` 세션이고 JSONL 은 파생물이므로, 언제든 다시 만들 수 있다.
 
 `csi_amp` 는 64개를 모두 낸다. LLTF 64 SC 중 인덱스 `0`(DC)과 `27~37`(가드)은 **상시 0**이라
