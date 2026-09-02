@@ -1,7 +1,10 @@
 # 스프린트: 수집 환경 정비 — 라벨·무결성·저장 포맷 (2026-08-25 ~ )
 
+> 상태: **HISTORICAL** — 시간순 작업 일지. **트러블슈팅을 종류별로 찾으려면
+> [troubleshooting/](../troubleshooting/README.md)** 를 본다 (이 일지를 종류별로 재정리한 것).
+
 USB 수집 파이프라인을 "학습에 실제로 쓸 수 있는 데이터"를 뽑는 상태로 만드는 스프린트.
-기록 포맷은 [csi-rate-troubleshooting.md](../history-ap-rate-debugging.md)와 동일한
+기록 포맷은 [troubleshooting/01-csi-rate.md](../troubleshooting/01-csi-rate.md)와 동일한
 **문제 → 가설 → 시도 → 기대값 → 실제 결과 → 다음 조치** 6단 구조.
 
 기록 규칙:
@@ -24,7 +27,7 @@ USB 수집 파이프라인을 "학습에 실제로 쓸 수 있는 데이터"를 
 | `raw/20260616/session_4` dev102 | 102.59 | 10.0ms | 0.1% |
 
 반면 AP(SoftAP+UDP) 경로는 저장된 12개 세션 전부 **0.18 ~ 22.8Hz**, `tx_seq` 유효 레코드
-**0건**. 원인은 [csi-rate-troubleshooting.md](../history-ap-rate-debugging.md)에
+**0건**. 원인은 [troubleshooting/01-csi-rate.md](../troubleshooting/01-csi-rate.md)에
 11단계로 기록되어 있고 결론은 "AP/STA association + DTIM 게이팅 + 자극/데이터 채널 공유".
 
 **진짜 문제는 Hz가 아니라 모은 데이터를 학습에 쓸 수 없다는 점이었다.** 조사에서 확인한 사실:
@@ -359,7 +362,7 @@ LLTF 64 SC 평균 진폭 (raw/20260615/session_21/device_101, 앞 2000 프레임
   RX103 은 25번 부근으로 다르다 — 같은 자극을 서로 다른 경로로 받고 있다는 뜻이고,
   RX 를 여러 대 두는 의미가 데이터로 확인됐다.
 - **관찰**: RX103 의 `rssi_med=-11` 은 다소 강하다(`agc_levels=1` = 게인 고정).
-  [csi-rate-troubleshooting.md](../history-ap-rate-debugging.md) §11 에 RSSI 포화
+  [troubleshooting/01-csi-rate.md](../troubleshooting/01-csi-rate.md) §11 에 RSSI 포화
   가설 기록이 있으니, 실제 수집에서는 보드 간 거리를 더 확보하는 편이 좋다.
   (이번 측정에서는 `tx_cov=0.990` 으로 문제 없었다.)
 

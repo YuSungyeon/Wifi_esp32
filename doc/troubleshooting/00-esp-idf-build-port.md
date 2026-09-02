@@ -1,6 +1,7 @@
-# ESP-IDF와 USB 문제 해결
+# 환경·빌드·포트
 
-> 상태: **CURRENT** — ESP-NOW TX/RX firmware 기준
+> 상태: **CURRENT** — ESP-IDF·빌드·포트 증상별 대처. 증상이 수집률·스트림 쪽이면 [01](01-csi-rate.md)·[02](02-serial-stream.md)를 본다.
+
 
 ## 1. 표준 환경
 

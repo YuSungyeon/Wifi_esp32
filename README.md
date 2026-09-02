@@ -31,7 +31,7 @@ python3 scripts/meshsense_cli.py
 | [binary/JSONL 계약](doc/data-schema.md) | 수집 데이터 형식 |
 | [후처리·학습](doc/postprocessing.md) | 구현된 기능과 모델 문서 연결 |
 | [모델 학습 문서](model_train/docs/%5B문서%5D-목록.md) | 전처리·모델 비교·설계·학습 |
-| [문제 해결](doc/troubleshooting.md) | ESP-IDF·빌드·포트 문제 |
+| [문제 해결](doc/troubleshooting/README.md) | ESP-IDF·빌드·포트 문제 |
 | [문서 주도 개발 규칙](doc/documentation-policy.md) | 문서 선행 변경 절차와 완료 조건 |
 
 `esp32s3_csi_send_poc`, `esp32s3_csi_recv_poc`의 `poc` 이름은 역사적으로 유지하고 있지만 현재 프로젝트의 공식 펌웨어입니다.

@@ -16,11 +16,10 @@
 | 8 | [공식 전처리 설계](../model_train/docs/%5B전처리%5D-설계.md) | **OFFICIAL DESIGN** — 모든 모델이 공유하는 3-RX 전처리 기준 |
 | 9 | [후처리](postprocessing.md) | **CURRENT + EXPERIMENTAL** — 수집률·시각화와 모델 문서 연결 |
 | 10 | [호스트 스크립트](../scripts/README.md) | **CURRENT** — CLI와 도구 책임 |
-| 11 | [문제 해결](troubleshooting.md) | **CURRENT** — ESP-IDF·빌드·포트 문제 |
+| 11 | [트러블슈팅](troubleshooting/README.md) | **CURRENT + HISTORICAL** — 종류별·시간순 (환경·수집률·스트림·리셋·세션·신호·측정·도구·무선) |
 | 12 | [문서 주도 개발 규칙](documentation-policy.md) | **PROCESS CONTRACT** |
 | 13 | [ADR-0001](adr-poc-only.md) | **ACCEPTED** — PoC 단일 경로 결정 |
 | 14 | [수집 환경 정비 스프린트](sprint/2026-08-collection-hardening.md) | **HISTORICAL** — frame v4·세션/라벨 정비의 시도·막힌 지점·실측 |
-| — | [AP 경로 수집률 디버깅](history-ap-rate-debugging.md) | **HISTORICAL** — 폐기된 SoftAP/UDP 경로를 포기한 근거 (ADR-0001 배경) |
 | 15 | [모델 학습 문서](../model_train/docs/%5B문서%5D-목록.md) | **EXPERIMENTAL** — 전처리·모델 비교·설계·학습 문서 |
 
 ## 문서 상태 규칙

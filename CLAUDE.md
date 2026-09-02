@@ -129,4 +129,5 @@ cd esp32s3_csi_recv_poc && idf.py build
 - data field, frame layout, sampling, firmware topology 변경은 관련 문서를 먼저 수정한다.
 - 코드와 문서가 함께 검증되지 않으면 완료로 간주하지 않는다.
 - 작업을 진행하면 `doc/sprint/` 의 현재 스프린트 문서에 시도·막힌 지점·결과를 실측 수치와 함께 남긴다.
+트러블슈팅은 **종류별·시간순**으로 `doc/troubleshooting/` 에 있다 — 새 문제를 겪으면 해당 종류 파일 맨 아래에 같은 형식(증상·원인·시도·해결·재발 방지)으로 덧붙인다.
 - 사용자 실험 데이터와 registry/session 값은 명시적 요청 없이 변경하지 않는다.

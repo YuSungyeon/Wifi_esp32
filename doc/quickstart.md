@@ -123,4 +123,4 @@ python3 scripts/csi_serial_reader.py \
 6. `session_meta.yaml` 존재 여부
 7. reader log의 `invalid`, `seq_drop`, `last_tx_seq`
 
-ESP-IDF·port 오류는 [문제 해결](troubleshooting.md)을 참조한다.
+ESP-IDF·port 오류는 [문제 해결](troubleshooting/README.md)을 참조한다.

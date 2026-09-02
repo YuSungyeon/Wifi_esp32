@@ -16,7 +16,7 @@ TX ──ESP-NOW 10ms 자극──▶ RX × N ──ESP-NOW 업링크──▶ S
 맥북 Wi-Fi 로는 RX 의 업링크를 받을 수 없다 — ESP-NOW 는 Espressif 독자 프로토콜이라
 일반 Wi-Fi 클라이언트가 해석하지 못한다. RX 를 일반 Wi-Fi 로 붙여 UDP 를 쓰는 경로는
 association + DTIM 게이팅 때문에 22Hz 천장에 막혀 폐기했다
-([ADR-0001](adr-poc-only.md), [history-ap-rate-debugging.md](history-ap-rate-debugging.md)).
+([ADR-0001](adr-poc-only.md), [troubleshooting/01-csi-rate.md](troubleshooting/01-csi-rate.md)).
 
 **싱크는 RX 를 겸할 수 있다.** 어차피 USB 로 붙어 있으니 자기 CSI 도 함께 흘려보내면
 된다. 그러면 필요한 보드는 N+2 가 아니라 **N+1** 이다.
