@@ -56,9 +56,9 @@ RX 가 보내는 IDENT 도 그대로 전달되므로 `device_id` 자동 식별�
 # SINK (registry 등록 불필요 — device_id 를 쓰지 않는다)
 cd esp32s3_csi_sink && idf.py set-target esp32s3 && idf.py -p <포트> flash
 
-# RX 업링크 모드 (보드마다 CSI_RX_ID 를 다르게)
+# RX 업링크 모드 (보드마다 CSI_RX_ID 를 다르게, 오프셋은 rx_id × OFFSET_MS 로 자동 분산)
 cd esp32s3_csi_recv_poc
-idf.py -DCSI_UPLINK_ENABLED=1 -DCSI_RX_ID=1 -p <포트> flash
+idf.py -DCSI_UPLINK_ENABLED=1 -DCSI_RX_ID=1 -DCSI_UPLINK_OFFSET_MS=4 -p <포트> flash
 
 # RX 를 학습 수집(USB)으로 되돌리려면
 idf.py -DCSI_UPLINK_ENABLED=0 -p <포트> flash
@@ -132,7 +132,7 @@ RX102: 99.8Hz seq_gap=0          RX103: 93.0Hz seq_gap≈400 (~7%)
 
 ## 남은 일
 
-- **2-RX 동시 업링크 손실 완화** — 싱크 rx 버퍼 증가는 효과 없음(기각). 다음은 송신 시점
-  분산 → 프레임 축소. 완화 전에는 RX 3대로 늘리지 않는다.
+- ~~2-RX 동시 업링크 손실~~ — **송신 시점 분산으로 해결** (`CSI_UPLINK_OFFSET_MS`, RX 당
+  `rx_id × 4ms`). 7.6% → 0.0% (2ms 는 1.05%, 부족). RX 3대는 3ms(3/6/9) 가 10ms 안에 드는 경계라 실측 필요.
 - **싱크의 RX 겸용**: 싱크가 자기 CSI 도 함께 흘려보내면 보드 1대를 아낀다.
 - **실시간 추론 훅**: 현재는 파일 저장까지다. 슬라이딩 윈도를 모델에 넘기는 경로는 없다.

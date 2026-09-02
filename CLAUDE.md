@@ -33,7 +33,7 @@ SoftAP/UDP production firmware, UDP collector, `flash_rx.py`, `flash_tx.py`, `me
 | 경로 | 책임 |
 |---|---|
 | `esp32s3_csi_send_poc/` | ESP-NOW 100Hz TX firmware |
-| `esp32s3_csi_recv_poc/` | CSI capture RX firmware — USB 스트리밍 또는 ESP-NOW 업링크 (`CSI_UPLINK_ENABLED`) |
+| `esp32s3_csi_recv_poc/` | CSI capture RX firmware — USB 스트리밍 또는 ESP-NOW 업링크 (`CSI_UPLINK_ENABLED`, `CSI_RX_ID`, `CSI_UPLINK_OFFSET_MS`) |
 | `esp32s3_csi_sink/` | 실시간 경로 SINK — RX 업링크를 받아 USB 로 전달 |
 | `scripts/meshsense_gui.py` | 브라우저 제어판 — 보드·수집·세션·진단 (비개발자용 권장 경로) |
 | `scripts/meshsense_cli.py` | registry, firmware flash, multi-RX USB collection |

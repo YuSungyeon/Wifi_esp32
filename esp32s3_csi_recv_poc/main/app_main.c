@@ -490,9 +490,25 @@ static void uplink_send_cb(const uint8_t *mac, esp_now_send_status_t status)
     if (hp) portYIELD_FROM_ISR();
 }
 
+#if CSI_UPLINK_OFFSET_MS > 0
+static esp_timer_handle_t g_offset_timer;
+static TaskHandle_t g_uplink_task;
+
+static void offset_timer_cb(void *arg)
+{
+    (void)arg;
+    if (g_uplink_task) xTaskNotifyGive(g_uplink_task);
+}
+#endif
+
 static void uplink_writer_task(void *arg)
 {
     (void)arg;
+#if CSI_UPLINK_OFFSET_MS > 0
+    g_uplink_task = xTaskGetCurrentTaskHandle();
+    const esp_timer_create_args_t targs = { .callback = offset_timer_cb, .name = "ul_off" };
+    ESP_ERROR_CHECK(esp_timer_create(&targs, &g_offset_timer));
+#endif
     while (1) {
         size_t len = 0;
         uint8_t *p = (uint8_t *)xRingbufferReceive(g_csi_ringbuf, &len, portMAX_DELAY);
@@ -507,6 +523,24 @@ static void uplink_writer_task(void *arg)
                 total = declared;
             }
         }
+#if CSI_UPLINK_OFFSET_MS > 0
+        /* 송신 시점 분산: 캡처 시각 기준 rx_id × OFFSET 뒤에 보낸다. 캡처 시각 기준이라
+         * 백로그로 늦게 꺼낸 프레임은 wait<=0 → 즉시 전송, 지연이 누적되지 않는다.
+         * tick 이 10ms 라 vTaskDelay 로는 ms 단위를 못 맞춘다 → esp_timer one-shot + task notify.
+         * (busy-wait 로도 결과는 같았다. 오프셋 RX 의 캡처가 ~1% 주는 건 CPU 가 아니라 송신
+         * 시점 자체의 비용 — troubleshooting/08.) 상한 20ms 로 폭주 방지. */
+        if (len >= sizeof(csi_frame_header_t)) {
+            const csi_frame_header_t *h = (const csi_frame_header_t *)p;
+            int64_t target = (int64_t)h->timestamp_us + (int64_t)CSI_RX_ID * CSI_UPLINK_OFFSET_MS * 1000;
+            int64_t wait = target - esp_timer_get_time();
+            if (wait > 0) {
+                if (wait > 20000) wait = 20000;
+                ulTaskNotifyTake(pdTRUE, 0);                 /* 묵은 notify 제거 */
+                esp_timer_start_once(g_offset_timer, (uint64_t)wait);
+                ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(30));
+            }
+        }
+#endif
         if (total <= ESP_NOW_MAX_DATA_LEN) {
             if (esp_now_send(CSI_SINK_MAC, p, total) == ESP_OK) {
                 /* 완료를 기다린다. 싱크가 없으면 콜백이 fail 로 오므로 멈추지 않는다. */
@@ -638,8 +672,9 @@ void app_main()
 
     ESP_LOGI(TAG, "================ CSI RECV ================");
 #if CSI_UPLINK_ENABLED
-    ESP_LOGI(TAG, "frame v%d, boot_id=%u, base_mac=" MACSTR " | UPLINK rx_id=%d → sink " MACSTR,
-             CSI_FRAME_VERSION, g_boot_id, MAC2STR(g_base_mac), CSI_RX_ID, MAC2STR(CSI_SINK_MAC));
+    ESP_LOGI(TAG, "frame v%d, boot_id=%u, base_mac=" MACSTR " | UPLINK rx_id=%d offset=%dms → sink " MACSTR,
+             CSI_FRAME_VERSION, g_boot_id, MAC2STR(g_base_mac), CSI_RX_ID,
+             CSI_RX_ID * CSI_UPLINK_OFFSET_MS, MAC2STR(CSI_SINK_MAC));
 #else
     ESP_LOGI(TAG, "frame v%d, boot_id=%u, base_mac=" MACSTR " | USB",
              CSI_FRAME_VERSION, g_boot_id, MAC2STR(g_base_mac));

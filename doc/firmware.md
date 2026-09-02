@@ -308,6 +308,15 @@ TX는 monitor로 상태를 확인할 수 있다. RX는 binary stream과 reader�
   다시 시작해 정렬 키가 깨지므로, reader·`measure_csi_hz` 가 `tx_back` 으로 감지하고
   전처리는 그런 세션을 거부한다.
 
+## 9b. 업링크 송신 오프셋 (`CSI_UPLINK_OFFSET_MS`)
+
+> 상태: **CURRENT**
+
+RX 여러 대가 같은 TX 자극 직후 동시에 업링크를 쏘면 싱크에서 겹쳐 먼 쪽이 ~7% 를 잃는다.
+`CSI_UPLINK_OFFSET_MS`(기본 0)를 주면 각 RX 가 캡처 시각 + `rx_id × OFFSET` 에 보낸다.
+2-RX 에서 4ms 로 손실 0 (2ms 는 부족), 오프셋 RX 의 캡처가 ~1% 줄어드는 부작용은 감수. 자세한 실측은
+[troubleshooting/08](troubleshooting/08-wireless-uplink.md).
+
 ## 10. 손대면 안 되는 것
 
 > 상태: **CURRENT**
