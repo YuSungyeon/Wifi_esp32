@@ -142,6 +142,11 @@ def main() -> int:
         rx_seen: dict[str, dict] = {}
         # 싱크 포트에는 여러 RX 의 IDENT 가 전달되어 온다. 첫 IDENT 만 보고 끝내면 싱크가
         # "RX103" 으로 표시된다. SINK_STATUS 가 보이거나 IDENT MAC 이 2개 이상이면 싱크다.
+        #
+        # 백로그 함정: 포트를 열자마자 나오는 IDENT 는 최대 ~4초 과거의 것이다. 재플래시
+        # 직후 identify 가 옛 rx_id 를 보고한 적이 있다 (2026-09-03). 그래서 (1) 같은 MAC 의
+        # IDENT 는 항상 **마지막 값**으로 덮어쓰고, (2) 백로그가 마르도록 최소 1초는 읽는다.
+        MIN_READ_S = 1.0
         while time.monotonic() - t0 < args.ident_timeout:
             for frame in sp.feed(ser.read(READ_CHUNK)):
                 h = header_of(frame)
@@ -153,12 +158,15 @@ def main() -> int:
                     if mac not in rx_seen:
                         dev, name = lookup_device_id(mac, args.registry)
                         rx_seen[mac] = {"sta_mac": mac, "firmware": fw_id, "device_id": dev,
-                                        "board_name": name, "registered": dev is not None,
-                                        "rx_id": int(h["rx_id"])}
+                                        "board_name": name, "registered": dev is not None}
+                    rx_seen[mac]["rx_id"] = int(h["rx_id"])   # 항상 최신 IDENT 기준
+            elapsed = time.monotonic() - t0
+            if elapsed < MIN_READ_S:
+                continue
             if sink_mac and rx_seen:
-                break                         # 싱크 확정 — 더 기다릴 이유 없음
-            if not sink_mac and len(rx_seen) == 1 and time.monotonic() - t0 > 2.5:
-                break                         # RX 직결 — IDENT 하나면 충분 (SINK_STATUS 는 2초 주기)
+                break                         # 싱크 확정
+            if not sink_mac and len(rx_seen) == 1 and elapsed > 2.5:
+                break                         # RX 직결 — SINK_STATUS(2초 주기)가 없음을 확인
         ser.close()
         if sink_mac or len(rx_seen) > 1:
             found = {"port": args.port, "role": "sink", "sta_mac": sink_mac, "firmware": "sink",

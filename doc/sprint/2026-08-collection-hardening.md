@@ -742,6 +742,9 @@ TX1·RX103 외부 전원, RX101(SINK)·RX102 USB. 개발한 것 전부를 실보
 상세: [troubleshooting/08](../troubleshooting/08-wireless-uplink.md).
 검증 세션(책상 위, 라벨 무의미)은 삭제했다.
 
+RX103 을 `rx_id=1` 로 재플래시. 이때 `--identify` 가 싱크 백로그의 옛 IDENT 를 읽어 `rx_id=0`
+으로 보고하는 것을 잡았다 → [troubleshooting/06](../troubleshooting/06-measurement-pitfalls.md).
+
 ## 남은 일 / 다음 스프린트
 
 **실시간 경로 — 1-RX 손실 0, 2-RX 는 약한 링크 ~7% 손실 확인.** 완화(싱크 rx 버퍼·송신 분산·프레임 축소)가 다음 과제.
