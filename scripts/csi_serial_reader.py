@@ -29,6 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from csi_session import write_device_stats  # noqa: E402
 from csi_store import (  # noqa: E402
     FRAME_TYPE_IDENT,
+    FRAME_TYPE_SINK,
+    parse_sink_status,
     FrameSplitter,
     FrameStats,
     header_of,
@@ -136,19 +138,37 @@ def main() -> int:
         sp = FrameSplitter()
         t0 = time.monotonic()
         found = None
-        while time.monotonic() - t0 < args.ident_timeout and found is None:
+        sink_mac = None
+        rx_seen: dict[str, dict] = {}
+        # 싱크 포트에는 여러 RX 의 IDENT 가 전달되어 온다. 첫 IDENT 만 보고 끝내면 싱크가
+        # "RX103" 으로 표시된다. SINK_STATUS 가 보이거나 IDENT MAC 이 2개 이상이면 싱크다.
+        while time.monotonic() - t0 < args.ident_timeout:
             for frame in sp.feed(ser.read(READ_CHUNK)):
-                if int(header_of(frame)["frame_type"]) == FRAME_TYPE_IDENT:
+                h = header_of(frame)
+                ft = int(h["frame_type"])
+                if ft == FRAME_TYPE_SINK:
+                    sink_mac, _ = parse_sink_status(frame)
+                elif ft == FRAME_TYPE_IDENT:
                     mac, fw_id, _ = parse_ident(frame)
-                    dev, name = lookup_device_id(mac, args.registry)
-                    found = {"port": args.port, "sta_mac": mac, "firmware": fw_id,
-                             "device_id": dev, "board_name": name,
-                             "registered": dev is not None}
-                    break
+                    if mac not in rx_seen:
+                        dev, name = lookup_device_id(mac, args.registry)
+                        rx_seen[mac] = {"sta_mac": mac, "firmware": fw_id, "device_id": dev,
+                                        "board_name": name, "registered": dev is not None,
+                                        "rx_id": int(h["rx_id"])}
+            if sink_mac and rx_seen:
+                break                         # 싱크 확정 — 더 기다릴 이유 없음
+            if not sink_mac and len(rx_seen) == 1 and time.monotonic() - t0 > 2.5:
+                break                         # RX 직결 — IDENT 하나면 충분 (SINK_STATUS 는 2초 주기)
         ser.close()
-        print(json.dumps(found or {"port": args.port, "registered": False, "device_id": None,
-                                   "sta_mac": None, "firmware": None, "board_name": ""},
-                         ensure_ascii=False))
+        if sink_mac or len(rx_seen) > 1:
+            found = {"port": args.port, "role": "sink", "sta_mac": sink_mac, "firmware": "sink",
+                     "device_id": None, "board_name": "SINK", "registered": False,
+                     "via": sorted(rx_seen.values(), key=lambda r: r["device_id"] or 0)}
+        elif rx_seen:
+            found = {"port": args.port, "role": "rx", **next(iter(rx_seen.values()))}
+        print(json.dumps(found or {"port": args.port, "role": None, "registered": False,
+                                   "device_id": None, "sta_mac": None, "firmware": None,
+                                   "board_name": ""}, ensure_ascii=False))
         return 0 if found else EXIT_NO_IDENT
 
     # 보드는 호스트가 없는 동안에도 CSI 를 계속 링버퍼에 쌓는다. 붙자마자 읽으면 그 백로그가
@@ -201,6 +221,8 @@ def main() -> int:
     stats = FrameStats()            # 포트 단위 (crc_fail·invalid·resync)
     splitter = FrameSplitter(stats)
     streams: dict[int, RxStream] = {}   # rx_id → 스트림. USB 직결은 {0: ...} 하나뿐
+    sink: dict = {}                      # 싱크 경유일 때 싱크 카운터 (첫 값 기준 델타)
+    sink_base: dict = {}
     start = time.monotonic()
     last_frame_at = start
     last_flush = start
@@ -271,6 +293,13 @@ def main() -> int:
                     if handle_ident(frame) is False:
                         return rc
                     continue
+                if int(h["frame_type"]) == FRAME_TYPE_SINK:
+                    mac, ctr = parse_sink_status(frame)
+                    if not sink_base:
+                        sink_base.update(ctr)
+                        print(f"{tag} SINK: {mac}", file=sys.stderr)
+                    sink = {"sink_mac": mac, **{k: v - sink_base[k] for k, v in ctr.items()}}
+                    continue
 
                 st = stream_for(int(h["rx_id"]))
                 st.on_csi(h, frame, tag)
@@ -314,6 +343,8 @@ def main() -> int:
             if x.device_id is None:
                 continue
             record = x.record(args.port, elapsed, rc, stats)
+            if sink:
+                record.update(sink)     # 같은 포트의 모든 RX 레코드에 싱크 카운터를 함께 남긴다
             write_device_stats(args.session_dir, x.device_id, record)
         total = sum(x.frames for x in streams.values())
         print(f"{tag} done. frames={total} crc_fail={stats.crc_fail} invalid={stats.invalid} "
@@ -322,6 +353,10 @@ def main() -> int:
         for x in streams.values():
             if x.device_id is not None:
                 print(f"{tag}   RX{x.device_id}: {x.summary()}", file=sys.stderr)
+        if sink:
+            print(f"{tag}   SINK(세션 구간): recv={sink['sink_recv']} sent={sink['sink_sent']} "
+                  f"drop={sink['sink_drop']} usb_timeout={sink['sink_usb_timeout']} "
+                  f"foreign={sink['sink_foreign']}", file=sys.stderr)
     return rc
 
 

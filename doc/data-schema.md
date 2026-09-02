@@ -19,9 +19,9 @@
 |---:|---|---|---|
 | 0 | `uint16` | `magic` | `0x4353` |
 | 2 | `uint8` | `version` | `4` |
-| 3 | `uint8` | `frame_type` | `0`=CSI, `1`=IDENT |
+| 3 | `uint8` | `frame_type` | `0`=CSI, `1`=IDENT, `2`=SINK_STATUS |
 | 4 | `uint16` | `total_len` | `44 + raw_len` |
-| 6 | `uint16` | `raw_len` | CSI=`128` (HT20 LLTF 64 SC × I/Q), IDENT=`32` |
+| 6 | `uint16` | `raw_len` | CSI=`128` (HT20 LLTF 64 SC × I/Q), IDENT=`32`, SINK_STATUS=`48` |
 | 8 | `uint32` | `seq` | RX 부팅부터 단조 증가 (보드별 독립) |
 | 12 | `uint64` | `timestamp_us` | RX `esp_timer_get_time()` |
 | 20 | `int8` | `rssi` | dBm |
@@ -53,6 +53,22 @@ v2 는 magic 2바이트와 `raw_len` 상한만 검사했다. raw CSI 바이트 �
 | 0 | 6 | eFuse base MAC (`esp_efuse_mac_get_default`) |
 | 6 | 10 | 펌웨어 식별 문자열 |
 | 16 | 4×4 | `csi_cb`, `uart_sent`, `ringbuf_drop`, `uart_partial` (u32) |
+
+### SINK_STATUS frame (`frame_type=2`)
+
+싱크(`esp32s3_csi_sink`)가 2초마다 자기 스트림에 끼워 넣는다. payload 48바이트:
+
+| offset | 크기 | 내용 |
+|---:|---:|---|
+| 0 | 6 | 싱크 eFuse base MAC |
+| 6 | 10 | `"sink"` |
+| 16 | 8×4 | `recv`, `sent`, `drop`, `usb_timeout`, `foreign`, 예약 3 (u32) |
+
+싱크는 IDENT 를 내지 않는다 — 내면 host 가 RX 로 착각해 registry 를 뒤진다. 이 프레임으로
+"RX 는 보냈다는데 host 엔 안 왔다"가 싱크 링버퍼 드롭(`drop`)인지 USB 타임아웃
+(`usb_timeout`)인지 싱크 수신 이전(둘 다 0)인지 가른다. `foreign` 은 우리 프레임이 아닌
+ESP-NOW 패킷 수(주로 TX 자극 broadcast, ~100Hz). reader 는 세션 구간 델타를 같은 포트의
+모든 RX 레코드에 `sink_*` 로 남긴다.
 
 MAC 은 `device_registry.csv` 의 `sta_mac` 조회에 쓴다 — host 가 esptool 로 포트를
 프로브(=보드 리셋)하지 않고 보드를 식별할 수 있다.

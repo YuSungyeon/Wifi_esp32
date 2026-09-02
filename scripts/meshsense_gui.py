@@ -168,7 +168,9 @@ def session_rows() -> list[dict]:
             continue
         devs = m.get("devices", [])
         span = max((x.get("span_s") or 0) for x in devs) if devs else 0
-        bad = any(x.get("crc_fail") or x.get("boot_changes") or x.get("tx_back") for x in devs)
+        # seq_gap 이 1% 를 넘으면 무선 경합 등 손실이 있는 세션 — 학습 전 확인 필요
+        bad = any(x.get("crc_fail") or x.get("boot_changes") or x.get("tx_back")
+                  or (x.get("seq_gap", 0) > 0.01 * max(x.get("frames", 1), 1)) for x in devs)
         rows.append({
             "path": str(d.relative_to(REPO_ROOT)),
             "name": d.name, "date": d.parent.name,
@@ -333,7 +335,8 @@ function render() {
     document.getElementById('boards').innerHTML = `<div class="card">
       <h2>연결된 보드</h2>
       <p class="sub">보드는 2초마다 자기 MAC 을 알립니다 — 확인만으로는 보드가 리셋되지 않습니다.
-      TX 는 아무것도 보내지 않으므로 'RX 아님'으로 표시되는 것이 정상입니다.</p>
+      TX 는 아무것도 보내지 않으므로 'RX 아님'으로 표시되는 것이 정상입니다.
+      SINK 포트는 경유하는 RX 목록으로 표시됩니다.</p>
       <div class="bar"><button class="act" ${busy?'disabled':''} onclick="post('/api/rescan')">다시 검색</button></div>
       ${S.boards.length ? `<table><tr><th>포트</th><th>식별</th><th>MAC</th><th>플래시</th></tr>${rows}</table>`
         : `<p class="sub">USB 시리얼 포트를 찾지 못했습니다. 보드 연결을 확인하세요.</p>`}

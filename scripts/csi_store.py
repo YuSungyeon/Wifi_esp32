@@ -33,10 +33,12 @@ HEADER_SIZE = 44
 
 FRAME_TYPE_CSI = 0
 FRAME_TYPE_IDENT = 1
+FRAME_TYPE_SINK = 2      # 싱크 상태 (MAC + recv/sent/drop/usb_timeout)
 
 #: HT20 LLTF 64 서브캐리어 × I/Q 2B. 이 값이 아닌 CSI 프레임은 설정이 다른 것이므로 거부한다.
 HT20_LLTF_RAW_LEN = 128
 IDENT_PAYLOAD_LEN = 32
+SINK_PAYLOAD_LEN = 48    # MAC 6 + 'sink' 10 + 8×u32
 
 HEADER_DTYPE = np.dtype(
     [
@@ -146,11 +148,22 @@ def validate_frame(frame: bytes) -> str | None:
     elif ftype == FRAME_TYPE_IDENT:
         if int(h["raw_len"]) != IDENT_PAYLOAD_LEN:
             return f"ident_len={int(h['raw_len'])}"
+    elif ftype == FRAME_TYPE_SINK:
+        if int(h["raw_len"]) != SINK_PAYLOAD_LEN:
+            return f"sink_len={int(h['raw_len'])}"
     else:
         return f"frame_type={ftype}"
     if crc32_of(frame) != int(h["crc32"]):
         return "crc"
     return None
+
+
+def parse_sink_status(frame: bytes) -> tuple[str, dict]:
+    """SINK_STATUS 프레임 → (싱크 eFuse MAC, 카운터). 카운터는 부팅 이후 누적."""
+    payload = frame[HEADER_SIZE:]
+    mac = ":".join(f"{b:02X}" for b in payload[:6])
+    keys = ("sink_recv", "sink_sent", "sink_drop", "sink_usb_timeout", "sink_foreign")
+    return mac, dict(zip(keys, np.frombuffer(payload[16:36], dtype="<u4").tolist()))
 
 
 def parse_ident(frame: bytes) -> tuple[str, str, dict]:
@@ -210,10 +223,10 @@ class FrameSplitter:
             why = validate_frame(frame)
             if why is None:
                 del self.buf[:total]
-                if int(h["frame_type"]) == FRAME_TYPE_IDENT:
-                    self.stats.ident += 1
-                else:
+                if int(h["frame_type"]) == FRAME_TYPE_CSI:
                     self.stats.frames += 1
+                else:
+                    self.stats.ident += 1
                 yield frame
             else:
                 # 오탐 magic — 2바이트만 버리고 다시 찾는다

@@ -725,9 +725,26 @@ RX 대수 / 윈도 길이 / `amp52`·`amp64`·`amp52+phase` 를 같은 베이스
 세션 메타에 `condition.placement_id` / `condition.subject_id` 추가. 프로토콜의 조건 단위
 분할과 ablation `--split-by placement|subject` 의 키다.
 
+## 4보드 통합 검증 (2026-09-03)
+
+TX1·RX103 외부 전원, RX101(SINK)·RX102 USB. 개발한 것 전부를 실보드로 돌렸다.
+
+| 검증 | 결과 |
+|---|---|
+| 무선 2-RX demux (실보드) | `device_102/103.csi` 분리, cross-RX 99.5% |
+| 2-RX 동시 업링크 손실 | **약한 링크 ~7%** (3회 재현), 1-RX 면 0 |
+| 싱크 상태 프레임 (신규, type 2) | 손실 위치를 "싱크 수신 이전"으로 특정 |
+| USB 직결 회귀 (RX102) | 99.58Hz, seq_gap=0 |
+| USB 직결 + 싱크 경유 동시 수집 | cross-RX 99.6% |
+| GUI 상태 API | 보드 식별·점검 경고·세션 목록 정상 |
+| 저쪽 테스트 | 40 passed |
+
+상세: [troubleshooting/08](../troubleshooting/08-wireless-uplink.md).
+검증 세션(책상 위, 라벨 무의미)은 삭제했다.
+
 ## 남은 일 / 다음 스프린트
 
-**실시간 경로 — 1-RX 검증 완료, host demux 구현 완료.** 남은 것은 다중 RX 실보드 검증(에어타임)이다.
+**실시간 경로 — 1-RX 손실 0, 2-RX 는 약한 링크 ~7% 손실 확인.** 완화(싱크 rx 버퍼·송신 분산·프레임 축소)가 다음 과제.
 
 **서브캐리어 52 vs 64 결정** — 모델 담당 합의 필요. 제안: 기본 52, 64 는 ablation 항목으로 보고.
 

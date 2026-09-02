@@ -25,6 +25,7 @@
 #include "freertos/task.h"
 #include "freertos/ringbuf.h"
 #include "driver/usb_serial_jtag.h"
+#include "esp_timer.h"
 
 #define SINK_CHANNEL            11
 #define SINK_RINGBUF_BYTES      (64 * 1024)
@@ -40,6 +41,8 @@ static volatile uint32_t g_recv = 0;      /* ESP-NOW 로 받은 프레임 */
 static volatile uint32_t g_sent = 0;      /* USB 로 완전히 나간 프레임 */
 static volatile uint32_t g_drop = 0;      /* ring buffer full */
 static volatile uint32_t g_foreign = 0;   /* 우리 프레임이 아닌 ESP-NOW 패킷 (주로 TX 자극) */
+static volatile uint32_t g_usb_timeout = 0; /* USB write 가 100ms 안에 못 나가 프레임을 포기한 횟수 */
+static uint8_t g_base_mac[6];
 
 /* sink 는 프레임을 해석하지 않는다. 서명·길이 확인에 필요한 앞부분만 안다. */
 #define CSI_FRAME_VERSION 4
@@ -90,11 +93,59 @@ static void usb_writer_task(void *arg)
         size_t off = 0;
         while (off < len) {
             int w = usb_serial_jtag_write_bytes(p + off, len - off, pdMS_TO_TICKS(100));
-            if (w <= 0) break;          /* host 가 안 읽는 중 — 이 프레임은 포기 */
+            if (w <= 0) { g_usb_timeout++; break; }   /* host 가 안 읽는 중 — 이 프레임은 포기 */
             off += (size_t)w;
         }
         vRingbufferReturnItem(g_ringbuf, p);
         if (off == len) g_sent++;
+    }
+}
+
+/* 싱크는 RX 처럼 IDENT 를 내지 않는다 — 내면 host 가 RX 로 착각해 registry 를 뒤진다.
+ * 대신 frame_type=2 SINK_STATUS 로 자기 카운터를 알린다. host 는 이걸로
+ * "RX 는 보냈다는데 host 엔 안 왔다" 가 링버퍼 드롭인지 USB 타임아웃인지 가른다.
+ * 헤더 규격은 esp32s3_csi_recv_poc 의 csi_frame_header_t 와 같다 (44B, CRC32). */
+#pragma pack(push, 1)
+typedef struct {
+    uint16_t magic; uint8_t version; uint8_t frame_type; uint16_t total_len; uint16_t raw_len;
+    uint32_t seq; uint64_t timestamp_us; int8_t rssi; uint8_t channel; int8_t noise_floor;
+    uint8_t rate; uint16_t sig_len; uint16_t boot_id; uint32_t tx_seq; uint8_t agc_gain;
+    int8_t fft_gain; uint16_t rx_id; float gain_comp; uint32_t crc32;
+} sink_hdr_t;
+#pragma pack(pop)
+_Static_assert(sizeof(sink_hdr_t) == 44, "sink_hdr_t must match csi_frame_header_t (44B)");
+
+static const uint32_t CRC32_NIBBLE[16] = {
+    0x00000000, 0x1DB71064, 0x3B6E20C8, 0x26D930AC, 0x76DC4190, 0x6B6B51F4, 0x4DB26158, 0x5005713C,
+    0xEDB88320, 0xF00F9344, 0xD6D6A3E8, 0xCB61B38C, 0x9B64C2B0, 0x86D3D2D4, 0xA00AE278, 0xBDBDF21C,
+};
+static uint32_t crc32_zlib(const uint8_t *b, size_t n)
+{
+    uint32_t c = 0xFFFFFFFFu;
+    for (size_t i = 0; i < n; ++i) { c ^= b[i]; c = (c >> 4) ^ CRC32_NIBBLE[c & 15]; c = (c >> 4) ^ CRC32_NIBBLE[c & 15]; }
+    return ~c;
+}
+
+static void status_task(void *arg)
+{
+    (void)arg;
+    uint8_t buf[sizeof(sink_hdr_t) + 48];
+    uint32_t seq = 0;
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        sink_hdr_t *h = (sink_hdr_t *)buf;
+        memset(buf, 0, sizeof(buf));
+        h->magic = 0x4353; h->version = CSI_FRAME_VERSION; h->frame_type = 2;
+        h->raw_len = 48; h->total_len = sizeof(sink_hdr_t) + 48;
+        h->seq = seq++; h->timestamp_us = (uint64_t)esp_timer_get_time(); h->channel = SINK_CHANNEL;
+        uint8_t *p = buf + sizeof(sink_hdr_t);
+        memcpy(p, g_base_mac, 6);
+        memcpy(p + 6, "sink", 4);
+        uint32_t ctr[8] = { g_recv, g_sent, g_drop, g_usb_timeout, g_foreign, 0, 0, 0 };
+        memcpy(p + 16, ctr, sizeof(ctr));   /* payload 48B: MAC 6 + "sink" 10 + 8×u32 */
+        uint32_t crc = crc32_zlib(buf, sizeof(buf));
+        memcpy(&h->crc32, &crc, 4);
+        if (xRingbufferSend(g_ringbuf, buf, sizeof(buf), 0) != pdTRUE) g_drop++;
     }
 }
 
@@ -107,8 +158,8 @@ static void hz_log_task(void *arg)
         uint32_t r = g_recv;
         /* 이 로그는 GPIO43 UART 로만 나간다 (console primary). USB 스트림은 오염되지 않는다. */
         ESP_LOGI(TAG, "5s: recv=%" PRIu32 " (+%" PRIu32 ", %.1fHz) usb=%" PRIu32
-                       " drop=%" PRIu32 " foreign=%" PRIu32,
-                 r, r - prev, (r - prev) / 5.0f, g_sent, g_drop, g_foreign);
+                       " drop=%" PRIu32 " foreign=%" PRIu32 " usb_timeout=%" PRIu32,
+                 r, r - prev, (r - prev) / 5.0f, g_sent, g_drop, g_foreign, g_usb_timeout);
         prev = r;
     }
 }
@@ -137,6 +188,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_now_init());
     ESP_ERROR_CHECK(esp_now_set_pmk((uint8_t *)"pmk1234567890123"));
     ESP_ERROR_CHECK(esp_now_register_recv_cb(espnow_recv_cb));
+    ESP_ERROR_CHECK(esp_efuse_mac_get_default(g_base_mac));
 
     usb_serial_jtag_driver_config_t usj = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
     usj.tx_buffer_size = SINK_USJ_TX_BUF_BYTES;
@@ -146,6 +198,7 @@ void app_main(void)
     ESP_ERROR_CHECK(g_ringbuf ? ESP_OK : ESP_ERR_NO_MEM);
     xTaskCreate(usb_writer_task, "usb_writer", 4096, NULL, 5, NULL);
     xTaskCreate(hz_log_task, "hz_log", 3072, NULL, 4, NULL);
+    xTaskCreate(status_task, "sink_status", 3072, NULL, 4, NULL);
 
     ESP_LOGI(TAG, "================ CSI SINK ================");
     ESP_LOGI(TAG, "channel=%d mac=" MACSTR, SINK_CHANNEL, MAC2STR(SINK_MAC));
