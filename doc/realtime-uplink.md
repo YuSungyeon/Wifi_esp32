@@ -67,6 +67,11 @@ idf.py -DCSI_UPLINK_ENABLED=0 -p <포트> flash
 업링크 모드에서 RX 는 **USB-Serial-JTAG 드라이버를 아예 설치하지 않는다** — USB 로
 데이터를 내보내지 않는다. USB 는 플래시·전원 용도로만 쓴다.
 
+다만 그 덕에 콘솔 secondary 경로가 비어 있어, 업링크 RX 의 USB 포트에는 **5초 진단 로그가
+텍스트로 나온다**: `5s: cb=… (+…, 99.4Hz) uplink_ok=… fail=… ringbuf_drop=…`.
+싱크 없이도 그 RX 의 CSI 콜백률과 업링크 성공률을 바로 볼 수 있다 (`screen`/`cat` 으로 충분).
+`fail=0` 이면 싱크가 켜져 ACK 하고 있다는 뜻이다.
+
 ## 수집
 
 싱크 포트를 평소처럼 읽으면 된다.

@@ -744,6 +744,9 @@ TX1·RX103 외부 전원, RX101(SINK)·RX102 USB. 개발한 것 전부를 실보
 
 RX103 을 `rx_id=1` 로 재플래시. 이때 `--identify` 가 싱크 백로그의 옛 IDENT 를 읽어 `rx_id=0`
 으로 보고하는 것을 잡았다 → [troubleshooting/06](../troubleshooting/06-measurement-pitfalls.md).
+RX102 도 `rx_id=2` 로 재플래시. 이때 업링크 RX 의 USB 포트에 5초 로그가 텍스트로 나온다는 것을
+확인 — USB 모드에서는 안 나오던 것. 싱크 없이 RX 상태를 볼 수 있는 경로가 생겼다
+→ [troubleshooting/02](../troubleshooting/02-serial-stream.md).
 
 ## 남은 일 / 다음 스프린트
 

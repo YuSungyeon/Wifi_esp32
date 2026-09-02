@@ -39,6 +39,11 @@
 - **해결**: IDENT payload 16B→32B, 카운터 4×u32(`csi_cb`, `sent`, `ringbuf_drop`, `send_fail`).
   reader 출력과 `session.json` 에 그대로 들어온다. 부수로 `resync=0` 확인.
 - **재발 방지**: 펌웨어 진단은 로그가 아니라 프레임으로 낸다. 애드혹으로 로그를 보려면 GPIO43.
+- **정정 (2026-09-03)**: 이건 **USB 모드에서만** 그렇다. 업링크 모드 RX 는 앱이 USB-Serial-JTAG
+  드라이버를 설치하지 않아 콘솔의 secondary 경로가 살아 있고, 5초 로그가 USB 로 그대로 나온다
+  (`I (25375) csi_recv: 5s: cb=2495 (+497, 99.4Hz) uplink_ok=2508 fail=0 ringbuf_drop=0`).
+  → 업링크 RX 를 USB 전원에 꽂아 두면 싱크 없이도 그 포트에서 CSI 콜백률·업링크 성공률을
+  바로 볼 수 있다. `fail=0` 이면 싱크가 켜져 ACK 하고 있다는 뜻이기도 하다.
 
 ## 2026-09-02 — ring buffer 가 4바이트 정렬 크기를 돌려줌 (프레임마다 4B 덧붙음)
 
