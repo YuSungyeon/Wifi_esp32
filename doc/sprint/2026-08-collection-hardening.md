@@ -750,6 +750,8 @@ RX102 도 `rx_id=2` 로 재플래시. 이때 업링크 RX 의 USB 포트에 5초
 
 RX101 싱크를 USB 에 꽂고 2-RX(rx_id 1·2) 무선 수집 60초: demux 정상, cross-RX 99.6%.
 손실 7.3% 가 이번엔 RX102(외부 전원 쪽)에 났다 — 이전엔 RX103 — **위치를 따라간다.**
+완화 1(싱크 static rx 버퍼 10→25, Kconfig 최대)은 효과 없음 — 7.6% 그대로. 기각.
+범위 밖 값(32/256)이 조용히 기본값으로 리셋되는 함정도 겪음 → [troubleshooting/08](../troubleshooting/08-wireless-uplink.md).
 
 ## 남은 일 / 다음 스프린트
 
