@@ -1,9 +1,9 @@
-# `seq`·`tx_seq` 전처리 분석
+# Sequence Analysis for `seq` and `tx_seq`
 
-> 상태: **SUPPORTING ANALYSIS** — 공식 구현 기준은 [전처리-설계.md](%5B전처리%5D-설계.md)
+> 상태: **SUPPORTING ANALYSIS** — 공식 구현 기준은 [Preprocessing Design](design.md)
 > 작성일: 2026-08-10
 > 근거 데이터: `mac_collector_output/raw/20260616/session_1~30` (record 2,583,125개)
-> 근거 문서: [sequence-patterns.md](../../doc/sequence-patterns.md) · [공식 전처리 설계](%5B전처리%5D-설계.md) · [LSTM 현재 전처리 구현](%5B전처리%5D-현재%20구현.md) · [data-schema.md](../../doc/data-schema.md)
+> 근거 문서: [sequence-patterns.md](../../../doc/sequence-patterns.md) · [Preprocessing Design](design.md) · [Legacy LSTM Preprocessing Implementation](legacy-preprocessing.md) · [data-schema.md](../../../doc/data-schema.md)
 
 ## 1. 결론 요약
 
@@ -104,7 +104,7 @@ grid 위치의 약 9%에서 최소 한 RX가 빠진다 — `present_mask` 없이
 
 ## 5. 공식 전처리 절차 요약 (9단계)
 
-[sequence-patterns.md 7절](../../doc/sequence-patterns.md)의 판정 순서와 [공식 전처리 설계](%5B전처리%5D-설계.md)를 합친 전체 흐름이다.
+[sequence-patterns.md 7절](../../../doc/sequence-patterns.md)의 판정 순서와 [Preprocessing Design](design.md)을 합친 전체 흐름이다.
 
 ```text
 1. RX별 JSONL을 파일 순서대로 읽는다 (tx_seq로 미리 정렬 금지)
@@ -239,9 +239,9 @@ present_mask: (3, T)      # 실제 수신 여부 (보간해도 False 유지)
 2. **평균과 표준편차는 train 데이터로만 계산한다.** 그 값을 validation과 test에도
    그대로 적용한다. Validation은 모델 설정 선택에 사용하고 test는 최종 모델의
    성능 확인에 한 번 사용한다.
-3. **label 이름과 번호를 고정한다.** Dataset metadata를 기준으로 `empty=0`,
-   `static=1`, `motion=2`를 사용한다. 현재 코드의 `action=2` 표기는 `motion=2`로
-   수정해야 한다.
+3. **label 이름과 번호를 고정한다.** Dataset metadata와 현재 공식 구현은
+   `empty=0`, `static=1`, `motion=2`를 사용한다. `action=2`는 구형
+   `Preprocessing.py`에만 남아 있는 과거 표기다.
 4. **모델에는 CSI만 넣는다.** 한 window의 입력은 `csi_amp`로 만든
    `(300, 192)` 배열이다. `seq`, `tx_seq`, `timestamp_us`는 학습 feature가 아니다.
    `session_id`와 시작 `tx_seq`는 결과를 원본 구간과 연결하기 위한 정보로만
@@ -263,9 +263,9 @@ present_mask: (3, T)      # 실제 수신 여부 (보간해도 False 유지)
 | 보간 frame을 수신 record로 집계 | `present_mask`는 원본 수신 여부 유지 |
 | 처음부터 `tx_seq` 오름차순 정렬 | 파일 순서 유지 → 손상 제거·segment 분리 후 정렬 |
 
-## 8. 현재 코드와의 거리
+## 8. 구형 `Preprocessing.py`와 공식 구현의 차이
 
-현재 [`Preprocessing.py`](../lstm/Preprocessing.py)(EXPERIMENTAL)는 공식 설계와 다음이 다르다. 구현 우선순위 순으로:
+구형 [`Preprocessing.py`](../../lstm/Preprocessing.py)(HISTORICAL)는 공식 구현과 다음이 다르다.
 
 1. **단일 손상 제거·boot segment 분리 없음** — 모든 record를 바로 `tx_seq` 정렬하므로 손상 record와 이전 실행의 잔여 record가 정렬·공통 범위 계산에 그대로 섞인다
 2. **RX 1대(`[102]`)** — 3-RX 교집합·mask 미구현
@@ -273,7 +273,7 @@ present_mask: (3, T)      # 실제 수신 여부 (보간해도 False 유지)
 4. `csi_amp[:52]` 절단 — 공식 baseline은 64개 전체 사용
 5. 결과 미저장·manifest 없음, label/split 하드코딩
 
-전체 구현 명세와 완료 조건 체크리스트는 [공식 전처리 설계](%5B전처리%5D-설계.md) 7~8절에 있다.
+전체 구현 명세와 완료 조건 체크리스트는 [Preprocessing Design](design.md) 7~8절에 있다.
 
 ## 9. 이 레포트가 결정하지 않는 것
 
@@ -282,4 +282,5 @@ present_mask: (3, T)      # 실제 수신 여부 (보간해도 False 유지)
 - `first_word_invalid` flag 처리 (현재 JSONL에 미저장)
 - 모델 구조 변경
 
-이 항목들은 정렬·품질 gate가 구현된 뒤 train/validation 비교로 별도 결정한다.
+이 항목들은 현재 baseline 범위에 포함되지 않으며, 필요할 때 train·validation
+비교로 별도 결정한다.

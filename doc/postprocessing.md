@@ -1,7 +1,6 @@
 # 후처리와 학습 파이프라인
 
-> 상태: visualization은 **CURRENT**, model preprocessing/training은
-> **EXPERIMENTAL**
+> 상태: visualization과 공식 3-RX preprocessing/LSTM baseline은 **CURRENT**
 
 ## 1. 입력 계약
 
@@ -229,20 +228,22 @@ RX   START   END     SPAN   OBSERVED  MISSING  RATIO   MAX_GAP
 5. 출력 파일이 session 디렉터리 밖으로 나가지 못하는지 확인
 6. 작은 가상 session과 실제 `20260616/session_1`에서 PNG 생성
 
-## 5. EXPERIMENTAL: 모델별 전처리와 학습
+## 5. 공식 전처리와 모델 학습
 
-모델 실행 코드는 `model_train/<model-name>/`, 전처리·설계·학습 문서는
-`model_train/docs/`에서 관리한다.
+모델 실행 코드는 `model_train/<model-name>/`, 전처리 문서는
+`model_train/docs/preprocessing/`, 모델 설계·학습 문서는
+`model_train/docs/model-training/`에서 관리한다.
 
 현재 LSTM 실험:
 
-- [공식 전처리 설계](../model_train/docs/%5B전처리%5D-설계.md)
-- [LSTM 현재 전처리 구현](../model_train/docs/%5B전처리%5D-현재%20구현.md)
-- [LSTM 모델 설계와 학습](../model_train/docs/%5B모델%5D-장단기메모리%20설계와%20학습.md)
+- [공식 전처리 설계](../model_train/docs/preprocessing/design.md)
+- [LSTM 모델 설계와 학습](../model_train/docs/model-training/lstm-training.md)
+- [LSTM baseline 학습·평가 보고서](../model_train/docs/model-training/lstm-baseline-report.md)
+- [구형 LSTM 전처리 구현](../model_train/docs/preprocessing/legacy-preprocessing.md)
 
-현재 구현은 단일 session·단일 RX·hardcoded path/label을 사용하는
-**EXPERIMENTAL** prototype이다. 공식 preprocessing/학습 pipeline으로 취급하지
-않는다.
+현재 공식 전처리는 3-RX 정렬, session 단위 split, train 통계 정규화를 구현한다.
+LSTM baseline은 고정된 3개 seed의 학습과 최종 평가를 완료했다. 단일
+session·단일 RX·hardcoded path를 사용한 구현은 역사적 참고 문서로만 남긴다.
 
 다른 모델을 추가할 때도 코드와 문서를 분리한다. 전체 목록은
-[model_train 문서](../model_train/docs/%5B문서%5D-목록.md)를 참조한다.
+[model_train 문서](../model_train/docs/README.md)를 참조한다.

@@ -1,14 +1,16 @@
-# 3-RX LSTM 모델 설계와 학습
+# 3-RX LSTM Design and Training
 
-> 상태: **IMPLEMENTED — 공식 3-RX LSTM 학습·검증·최종 평가 구현 완료**
+> 상태: **CURRENT — 공식 3-RX LSTM 학습·검증·최종 평가와 baseline 실험 완료**
 >
-> 입력 생성 코드: [`preprocess_3rx.py`](../preprocessing/preprocess_3rx.py)
+> 입력 생성 코드: [`preprocess_3rx.py`](../../preprocessing/preprocess_3rx.py)
 >
-> 학습 코드: [`LSTM.py`](../lstm/LSTM.py) · 테스트: [`test_lstm.py`](../../tests/test_lstm.py)
+> 학습 코드: [`LSTM.py`](../../lstm/LSTM.py) · 테스트: [`test_lstm.py`](../../../tests/test_lstm.py)
 >
-> 전처리 기준: [3-RX CSI 전처리 설계](%5B전처리%5D-설계.md)
+> 전처리 기준: [3-RX CSI Preprocessing Design](../preprocessing/design.md)
 >
-> 모델 비교 근거: [학습 모델 비교와 선정](%5B모델%5D-비교와%20선정.md)
+> 모델 비교 근거: [Model Comparison and Selection](model-comparison.md)
+>
+> 실제 실험 결과: [3-RX LSTM Baseline Training and Final Evaluation](lstm-baseline-report.md)
 
 이 문서는 `preprocess_3rx.py`가 만든 3-RX 전처리 결과만 입력으로 사용하는 LSTM
 baseline의 공식 설계이자 현재 구현 기준이다. `LSTM.py`는 구형
@@ -16,7 +18,8 @@ baseline의 공식 설계이자 현재 구현 기준이다. `LSTM.py`는 구형
 
 자동 테스트에서 소형 fixture로 학습·validation·checkpoint·최종 test 흐름을
 확인했고, 실제 `20260616` 산출물 전체에 대해서도 입력 계약과 NaN·무한대 검사를
-통과했다. 실제 데이터의 50 epoch 성능 실험은 별도로 실행해야 한다.
+통과했다. 실제 데이터의 seed·class-weight 비교와 최종 test는 2026-09-02
+완료했으며 상세 수치와 해석은 실험 결과 문서를 기준으로 한다.
 
 ## 1. 목적과 분류 대상
 
@@ -63,7 +66,7 @@ model_train/preprocessing/output/20260616/
 | `y.npy` | window별 class 번호, `int64` |
 | `windows.jsonl` | window의 session, 시작 `tx_seq`, 관측률 등 출처 metadata |
 | `normalization.npz` | train에서 계산한 `mean`, `std`, `std_safe` |
-| [`manifest.json`](%5B전처리%5D-매니페스트%20필드.md) | class map, RX 순서, split, 전처리 설정과 제외 근거 |
+| [`manifest.json`](../preprocessing/manifest-reference.md) | class map, RX 순서, split, 전처리 설정과 제외 근거 |
 
 현재 생성된 20260616 데이터의 shape와 class별 window 수는 다음과 같다.
 
@@ -446,21 +449,21 @@ class별 확률을 저장해 오분류 구간을 원본 session까지 추적할 
 공식 전처리는 현재 다음 명령으로 실행할 수 있다.
 
 ```bash
-.venv/bin/python model_train/preprocessing/preprocess_3rx.py \
+conda run -n wifi-csi-lstm python model_train/preprocessing/preprocess_3rx.py \
   --raw-dir mac_collector_output/raw/20260616
 ```
 
 최초 한 번 모델 실행 의존성을 설치한다.
 
 ```bash
-.venv/bin/pip install -r requirements-model.txt
+conda run -n wifi-csi-lstm python -m pip install -r requirements-model.txt
 ```
 
 먼저 실제 배열 전체의 shape, dtype, metadata, split, normalization, NaN·무한대를
 검증한다.
 
 ```bash
-.venv/bin/python model_train/lstm/LSTM.py validate \
+conda run -n wifi-csi-lstm python model_train/lstm/LSTM.py validate \
   --dataset-dir model_train/preprocessing/output/20260616
 ```
 
@@ -470,7 +473,7 @@ class별 확률을 저장해 오분류 구간을 원본 session까지 추적할 
 `model_train/lstm/runs/<시각>-seed<번호>-<weight>/`가 자동 생성된다.
 
 ```bash
-.venv/bin/python model_train/lstm/LSTM.py train \
+conda run -n wifi-csi-lstm python model_train/lstm/LSTM.py train \
   --dataset-dir model_train/preprocessing/output/20260616 \
   --seed 0 \
   --class-weight none
@@ -481,7 +484,7 @@ class별 확률을 저장해 오분류 구간을 원본 session까지 추적할 
 선택한 뒤, 선택된 각 seed의 run에만 다음 최종 test를 한 번 실행한다.
 
 ```bash
-.venv/bin/python model_train/lstm/LSTM.py test \
+conda run -n wifi-csi-lstm python model_train/lstm/LSTM.py test \
   --dataset-dir model_train/preprocessing/output/20260616 \
   --run-dir model_train/lstm/runs/<선택한-run-id>
 ```
@@ -504,5 +507,6 @@ class별 확률을 저장해 오분류 구간을 원본 session까지 추적할 
 
 `tests/test_lstm.py`의 소형 end-to-end 학습·test와 저장소 전체 테스트가 통과했다.
 실제 `20260616` 데이터는 28,585개 window의 계약과 전체 유한값 검사를 통과했다.
-이 확인은 코드 동작 검증이며, 모델 성능값은 실제 seed·class-weight 실험을 끝낸 뒤
+실제 seed·class-weight 6개 학습과 선택된 balanced seed 3개의 최종 test 결과는
+[3-RX LSTM Baseline Training and Final Evaluation](lstm-baseline-report.md)에
 별도로 기록한다.

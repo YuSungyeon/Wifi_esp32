@@ -1,11 +1,11 @@
-# 3-RX CSI 전처리 설계
+# 3-RX CSI Preprocessing Design
 
-> 상태: **OFFICIAL DESIGN — 구현 코드 있음, 20260616 실데이터 검증 대기**
+> 상태: **CURRENT CONTRACT — 공식 구현과 20260616 실데이터 검증 완료**
 > 대상 데이터: `mac_collector_output/raw/20260616/session_1` ~ `session_30`
-> 공식 구현: [`preprocess_3rx.py`](../preprocessing/preprocess_3rx.py) · 테스트: [`test_preprocess_3rx.py`](../../tests/test_preprocess_3rx.py)
-> 기존 실험 코드: [`Preprocessing.py`](../lstm/Preprocessing.py) (EXPERIMENTAL, 이 설계 미반영)
-> 기존 LSTM 전처리 구현: [`전처리-현재-구현.md`](%5B전처리%5D-현재%20구현.md)
-> 순번 판정 기준: [`seq`와 `tx_seq` 패턴](../../doc/sequence-patterns.md)
+> 공식 구현: [`preprocess_3rx.py`](../../preprocessing/preprocess_3rx.py) · 테스트: [`test_preprocess_3rx.py`](../../../tests/test_preprocess_3rx.py)
+> 구형 실험 코드: [`Preprocessing.py`](../../lstm/Preprocessing.py) (HISTORICAL, 이 설계 미반영)
+> 구형 LSTM 전처리 기록: [Legacy LSTM Preprocessing Implementation](legacy-preprocessing.md)
+> 순번 판정 기준: [`seq`와 `tx_seq` 패턴](../../../doc/sequence-patterns.md)
 
 ## 1. 목적
 
@@ -26,9 +26,10 @@ RX별 정상 구간 찾기
   → 유효한 3초 window 생성
 ```
 
-그래프를 사람이 보고 범위를 직접 입력하는 방식은 사용하지 않는다. 시각화와
-전처리가 같은 범위 계산 함수를 사용하게 하여, 그림에서 확인한 결과와 실제 학습
-입력이 다르게 선택되는 문제를 막는다.
+그래프를 사람이 보고 범위를 직접 입력하는 방식은 사용하지 않는다. 시각화 도구는
+RX별 원본 범위와 누락을 확인하는 진단 전용이며, 학습에 사용하는 공통 범위는 공식
+전처리가 자동 계산하고 `manifest.json`에 기록한다. 시각화 결과를 학습 범위로
+수동 입력하지 않는다.
 
 ## 2. 설계 기준
 
@@ -511,7 +512,8 @@ static = 1
 motion = 2
 ```
 
-현재 코드의 `action=2` 표기는 같은 뜻인 `motion=2`로 수정한다.
+구형 `Preprocessing.py`의 `action=2` 표기와 달리 공식 구현과 산출물은
+`motion=2`를 사용한다.
 
 각 window에는 최소한 다음 출처 metadata를 함께 저장한다.
 
@@ -599,7 +601,7 @@ amplitude를 저장한다. Train에서 계산한 `mean`과 `std_safe`는
 결과를 manifest에 기록한다.
 
 파일 형식과 모든 최상위·세션·RX·normalization 필드의 상세 의미는
-[`manifest.json` 필드 설명](%5B전처리%5D-매니페스트%20필드.md)을 따른다.
+[`manifest.json` 필드 설명](manifest-reference.md)을 따른다.
 
 ```text
 session_id
@@ -629,13 +631,13 @@ Manifest는 모델 입력값이 아니라 전처리 결과의 검사·재현용 
 확인한 뒤 유리하도록 제외 기준이나 보간 기준을 바꾸는 것을 막기 위해, 사용한
 임계값도 함께 저장한다.
 
-## 7. 현재 코드에서 바꿔야 할 점
+## 7. 구형 `Preprocessing.py`와 공식 구현의 차이
 
-이 설계의 공식 구현은 [`preprocess_3rx.py`](../preprocessing/preprocess_3rx.py)다.
+이 설계의 공식 구현은 [`preprocess_3rx.py`](../../preprocessing/preprocess_3rx.py)다.
 아래 표는 기존 LSTM 실험 코드 `Preprocessing.py`가 이 공식 설계와 어떻게 다른지
 기록한 것이며, 기존 실험 코드는 이 설계를 구현하지 않았다.
 
-| 현재 코드 | 공식 설계 |
+| 구형 `Preprocessing.py` | 공식 구현 |
 |---|---|
 | `RX_IDS=[102]` | RX 101·102·103 사용 |
 | 모든 record를 바로 `tx_seq` 정렬 | 파일 순서로 단일 손상 제거와 RX 경계를 먼저 판정 |
@@ -650,23 +652,23 @@ Manifest는 모델 입력값이 아니라 전처리 결과의 검사·재현용 
 
 ## 8. 구현 완료 조건
 
-- [ ] 파일 순서를 보존한 상태에서 단일 손상 record와 RX 경계를 찾는다.
-- [ ] `received_at_unix_us`를 정렬·segment·제외 판정에 사용하지 않는다.
-- [ ] `received_at_unix_us`만 바꿔도 전처리 결과가 같음을 자동 테스트한다.
-- [ ] 정상 record 사이에 낀 단일 이상 record만 제외하고 앞뒤 segment는 유지한다.
-- [ ] 손상 record 제거 뒤에도 지속되는 `tx_seq` 감소가 있으면 session을 제외한다.
-- [ ] RX 3대의 안정 segment 교집합을 자동 선택한다.
-- [ ] session 11 RX 103의 손상 record를 제거하고 `29963 frame`, `989 window`를 사용한다.
-- [ ] session 22는 RX 102의 3-record 수집과 공통 길이 부족으로 제외된다.
-- [ ] session 22를 제외한 29개 세션은 약 30,000 frame 공통 범위를 선택한다.
-- [ ] 범위 안의 실제 누락을 `present_mask`로 구분한다.
-- [ ] 5 frame 이하만 보간한다.
-- [ ] 긴 gap과 겹치는 window만 제외한다.
-- [ ] 최종 feature shape가 `(N,300,192)`다.
-- [ ] label 번호가 `empty=0`, `static=1`, `motion=2`로 고정되고 `action=2` 표기가 남지 않는다.
-- [ ] 세션별 선택·제외 근거가 manifest에 남는다.
-- [ ] 시각화와 전처리가 같은 범위 계산 함수를 사용한다.
-- [ ] 단일 이상·경계·교집합·보간·window 제외 규칙을 자동 테스트한다.
+- [x] 파일 순서를 보존한 상태에서 단일 손상 record와 RX 경계를 찾는다.
+- [x] `received_at_unix_us`를 정렬·segment·제외 판정에 사용하지 않는다.
+- [x] `received_at_unix_us`만 바꿔도 전처리 결과가 같음을 자동 테스트한다.
+- [x] 정상 record 사이에 낀 단일 이상 record만 제외하고 앞뒤 segment는 유지한다.
+- [x] 손상 record 제거 뒤에도 지속되는 `tx_seq` 감소가 있으면 session을 제외한다.
+- [x] RX 3대의 안정 segment 교집합을 자동 선택한다.
+- [x] session 11 RX 103의 손상 record를 제거하고 `29963 frame`, `989 window`를 사용한다.
+- [x] session 22는 RX 102의 3-record 수집과 공통 길이 부족으로 제외된다.
+- [x] session 22를 제외한 29개 세션은 약 30,000 frame 공통 범위를 선택한다.
+- [x] 범위 안의 실제 누락을 `present_mask`로 구분한다.
+- [x] 5 frame 이하만 보간한다.
+- [x] 긴 gap과 겹치는 window만 제외한다.
+- [x] 최종 feature shape가 `(N,300,192)`다.
+- [x] label 번호가 `empty=0`, `static=1`, `motion=2`로 고정된다.
+- [x] 세션별 선택·제외 근거가 manifest에 남는다.
+- [x] 시각화는 진단 전용이며 학습 범위는 전처리가 자동 계산해 manifest에 기록한다.
+- [x] 단일 이상·경계·교집합·보간·window 제외 규칙을 자동 테스트한다.
 
 ## 9. 구현하지 않는 것
 

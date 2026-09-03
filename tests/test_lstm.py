@@ -98,7 +98,7 @@ def build_dataset(base: Path) -> Path:
 
     manifest = {
         "generated_by": "test fixture",
-        "design_doc": "model_train/docs/[전처리]-설계.md",
+        "design_doc": "model_train/docs/preprocessing/design.md",
         "raw_dir": "fixture",
         "dry_run": False,
         "config": {

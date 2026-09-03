@@ -1,10 +1,10 @@
-# `manifest.json` 필드 설명
+# `manifest.json` Field Reference
 
 > 상태: **CURRENT — `preprocess_3rx.py`와 20260616 실제 산출물 기준**
 >
-> 생성 코드: [`preprocess_3rx.py`](../preprocessing/preprocess_3rx.py)
+> 생성 코드: [`preprocess_3rx.py`](../../preprocessing/preprocess_3rx.py)
 >
-> 전처리 기준: [3-RX CSI 전처리 설계](%5B전처리%5D-설계.md)
+> 전처리 기준: [3-RX CSI Preprocessing Design](design.md)
 
 ## 1. 파일 이름과 역할
 
@@ -97,16 +97,23 @@ Manifest의 전체 구조를 줄이면 다음과 같다.
 | `raw_dir` | string | 입력으로 읽은 `session_*` 디렉터리들의 상위 경로 |
 | `dry_run` | boolean | 실제 `X.npy`, `y.npy`, normalization을 저장하지 않는 점검 실행 여부 |
 
-20260616 실제 값은 다음과 같다.
+현재 생성기가 새 manifest에 기록하는 값은 다음과 같다.
 
 ```json
 {
   "generated_by": "model_train/preprocessing/preprocess_3rx.py",
-  "design_doc": "model_train/docs/[전처리]-설계.md",
+  "design_doc": "model_train/docs/preprocessing/design.md",
   "raw_dir": "mac_collector_output/raw/20260616",
   "dry_run": false
 }
 ```
+
+`20260616/manifest.json`은 문서 이동 전에 생성되어 `design_doc`에 기존 경로
+`model_train/docs/[전처리]-설계.md`를 보존한다. 이 파일은 완료된 LSTM run의
+`dataset_manifest_sha256` 대상이므로 경로 문자열만 고쳐 다시 저장하지 않는다.
+기존 값이 가리키는 현재 문서는
+[3-RX CSI Preprocessing Design](design.md)이다. 새로 생성한 manifest부터 위의
+영문 경로를 기록한다.
 
 `dry_run=true`이면 세션 품질 검사와 window 수 계산은 수행하지만 split별 배열과
 normalization 파일은 만들지 않는다. 이때 최상위 `normalization`은 `null`이다.

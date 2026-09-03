@@ -23,7 +23,8 @@ scripts/csi_serial_reader.py (RX별 process)
        │
        ├─ scripts/visualize_csi.py
        ├─ model_train/preprocessing/preprocess_3rx.py (official 3-RX windows)
-       └─ model_train/lstm/Preprocessing.py → LSTM.py (experimental)
+       ├─ model_train/lstm/LSTM.py (official baseline training/evaluation)
+       └─ model_train/lstm/Preprocessing.py (historical single-RX code)
 ```
 
 SoftAP/UDP production firmware, UDP collector, `flash_rx.py`, `flash_tx.py`, `meshsense_config.py`, `add/main.py`는 제거되었다. 다시 참조하거나 문서에 복원하지 않는다. 결정 근거는 `doc/adr-poc-only.md`다.
@@ -40,9 +41,10 @@ SoftAP/UDP production firmware, UDP collector, `flash_rx.py`, `flash_tx.py`, `me
 | `mac_collector/tx_registry.csv` | TX USB MAC ↔ TX node ID |
 | `mac_collector/session_meta.yaml` | run ID와 실험·수집 조건 |
 | `scripts/visualize_csi.py` | RX별 waterfall PNG |
-| `model_train/preprocessing/preprocess_3rx.py` | 공식 3-RX 전처리 구현 (`model_train/docs/[전처리]-설계.md` 기준) |
-| `model_train/<model-name>/` | 모델별 실험 단계 전처리·학습 코드 |
-| `model_train/docs/` | 전처리·모델 비교·설계·학습 문서 |
+| `model_train/preprocessing/preprocess_3rx.py` | 공식 3-RX 전처리 구현 (`model_train/docs/preprocessing/design.md` 기준) |
+| `model_train/<model-name>/` | 모델별 학습·평가 코드(현재 상태는 모델 문서 기준) |
+| `model_train/docs/preprocessing/` | 전처리 설계·분석·manifest 문서 |
+| `model_train/docs/model-training/` | 모델 비교·설계·학습 결과 문서 |
 
 `mac_collector/` 디렉터리 이름은 registry/session 파일 호환을 위해 남아 있으며 UDP collector를 의미하지 않는다.
 

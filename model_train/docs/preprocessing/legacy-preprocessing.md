@@ -1,20 +1,20 @@
-# 구형 LSTM 전처리 구현 참고
+# Legacy LSTM Preprocessing Implementation
 
-> 상태: **LEGACY — 공식 학습 경로에서 사용하지 않음**
-> 구현: [`Preprocessing.py`](../lstm/Preprocessing.py)
-> 입력 계약: [JSONL record schema](../../doc/data-schema.md)
-> 순번 판정 기준: [`seq`와 `tx_seq` 패턴](../../doc/sequence-patterns.md)
-> 공식 전처리 설계: [`전처리-설계.md`](%5B전처리%5D-설계.md)
+> 상태: **HISTORICAL — 공식 학습 경로에서 사용하지 않음**
+> 구형 구현: [`Preprocessing.py`](../../lstm/Preprocessing.py)
+> 입력 계약: [JSONL record schema](../../../doc/data-schema.md)
+> 순번 판정 기준: [`seq`와 `tx_seq` 패턴](../../../doc/sequence-patterns.md)
+> 현재 공식 기준: [3-RX CSI Preprocessing Design](design.md)
 
 이 문서의 1~5절은 사용하지 않는 구형 `Preprocessing.py`가 만드는 변수와 배열
 형태를 보존한 참고 자료다. 6절도 공식 설계를 이해하기 위해 남긴 기존 설명이며
-설계 기준이 아니다. 현재 공식 전처리는 [`preprocess_3rx.py`](../preprocessing/preprocess_3rx.py),
-공식 학습은 [`LSTM.py`](../lstm/LSTM.py)를 사용한다. 구형 `Preprocessing.py`는
+설계 기준이 아니다. 현재 공식 전처리는 [`preprocess_3rx.py`](../../preprocessing/preprocess_3rx.py),
+공식 학습은 [`LSTM.py`](../../lstm/LSTM.py)를 사용한다. 구형 `Preprocessing.py`는
 파일을 import하는 순간 전처리를 실행하므로 공식 학습 코드에서 import하지 않는다.
 
-## 1. 현재 설정
+## 1. 구형 코드의 설정
 
-| 변수 | 현재 값 | 의미 |
+| 변수 | 구형 코드 값 | 의미 |
 |---|---:|---|
 | `SESSION_DIR` | `.../20260525/session_2` | 읽을 session 경로. source에 고정 |
 | `RX_IDS` | `[102]` | 사용할 RX ID 목록 |
@@ -28,7 +28,7 @@
 | `N_SUB` | `52` | 한 RX에서 사용할 amplitude 수 |
 | `LABEL_NAME`, `LABEL`, `SPLIT` | `empty`, `0`, `train` | 현재는 source에 고정 |
 
-현재 `RX_IDS` 길이를 `R`이라고 하면 현재는 `R=1`이다. 아래의 `T`는 보간 뒤
+구형 코드의 `RX_IDS` 길이를 `R`이라고 하면 `R=1`이다. 아래의 `T`는 보간 뒤
 공통 sequence grid 길이, `N`은 최종 window 개수다.
 
 ## 2. 입력 JSONL record
@@ -309,8 +309,8 @@ window shape = (300, 156)
 ```text
 X.shape = (N, 300, R × 52)
 
-현재 RX 1개: X.shape = (N, 300, 52)
-향후 RX 3개: X.shape = (N, 300, 156)
+구형 RX 1개: X.shape = (N, 300, 52)
+당시 계획한 RX 3개: X.shape = (N, 300, 156)
 ```
 
 각 축은 다음 순서다.
@@ -354,9 +354,9 @@ from Preprocessing import LABEL, LABEL_NAME, SPLIT, X, y
 실행됐다. 현재 공식 `LSTM.py`에는 이 import가 없으며, 공식 전처리가 저장한
 `X.npy`, `y.npy`, `windows.jsonl`을 직접 읽는다.
 
-## 5. 현재 한계와 공식 설계 연결
+## 5. 구형 코드의 한계와 공식 설계 연결
 
-현재 한계:
+구형 코드의 한계:
 
 - session path, RX ID, label, split이 source에 고정돼 있다.
 - metadata reader 함수는 있지만 호출하지 않는다.
@@ -367,7 +367,8 @@ from Preprocessing import LABEL, LABEL_NAME, SPLIT, X, y
 - tensor와 metadata를 파일로 저장하지 않는다.
 - 여러 session을 train/validation/test로 나누지 않는다.
 
-다음 변경은 [공식 전처리 설계](%5B전처리%5D-설계.md)에 따라 구현한다.
+당시에는 다음 변경을 목표로 했으며, 현재는 [Preprocessing Design](design.md)에
+따라 공식 `preprocess_3rx.py`에 구현되어 있다.
 
 1. CLI/config로 session과 RX 목록 입력
 2. 중복·비단조 `tx_seq` 검증과 누락 정책 정의
@@ -376,12 +377,12 @@ from Preprocessing import LABEL, LABEL_NAME, SPLIT, X, y
 5. 여러 session을 session 단위로 train/validation/test 분리
 6. tensor, label, device order, mapping version 저장
 
-모델의 Tensor 변환과 학습은 [LSTM 모델 설계와 학습](%5B모델%5D-장단기메모리%20설계와%20학습.md)을 참조한다.
+현재 모델의 Tensor 변환과 학습은 [3-RX LSTM Design and Training](../model-training/lstm-training.md)을 참조한다.
 
 ## 6. 참고: 공식 설계를 이해하기 위한 기존 설명
 
 > 이 절은 교육용 shape·예시를 보존한 참고 자료다. 전처리의 공식 판정 규칙과
-> 임계값은 [전처리-설계.md](%5B전처리%5D-설계.md)가 우선한다.
+> 임계값은 [Preprocessing Design](design.md)이 우선한다.
 
 대상 경로:
 
@@ -405,7 +406,7 @@ mac_collector_output/raw/20260616/
 
 ### 6.1 Label 계약
 
-이 dataset의 class는 다음으로 고정할 계획이다.
+당시 이 dataset의 class를 다음으로 고정할 계획이었다.
 
 ```text
 empty  → 0
@@ -413,8 +414,8 @@ static → 1
 motion → 2
 ```
 
-현재 코드의 `action → 2`는 dataset metadata의 `motion`과 맞지 않으므로 구현
-전에 `motion → 2`로 변경해야 한다. `action`과 `motion`을 같은 class로 암묵적으로
+구형 코드의 `action → 2`는 dataset metadata의 `motion`과 맞지 않았다. 공식
+구현은 `motion → 2`로 변경했으며, `action`을 같은 class로 암묵적으로
 취급하지 않는다.
 
 ### 6.2 Session 단위 split
@@ -680,7 +681,7 @@ RX 102의 마지막 값을 반복하거나 직선으로 늘리면 실제로 측�
 끝 값을 반복할 수 있으므로 반드시 교집합 내부에서만 호출한다.
 
 RX별 전체 범위와 내부 누락을 눈으로 확인하는 진단 도구는
-[RX별 `tx_seq` 범위 시각화](../../doc/postprocessing.md#4-current-rx별-tx_seq-범위-시각화)를
+[RX별 `tx_seq` 범위 시각화](../../../doc/postprocessing.md#4-current-rx별-tx_seq-범위-시각화)를
 사용한다. 시각화 도구는 공통 범위를 계산하거나 전처리 결과를 보간하거나
 session을 자동 제외하지 않는다. 세 RX 교집합은 전처리 구현에서 별도로 계산한다.
 
@@ -883,9 +884,11 @@ window 2: tx_grid index  60 ~ 359
 | split별 `X` | `(N_split,300,192)` | 여러 window |
 | split별 `y` | `(N_split,)` | class 번호 |
 
-### 6.7 전처리 산출물
+### 6.7 당시 계획한 전처리 산출물 (미채택)
 
-전처리 결과는 split별 Tensor와 재현 metadata로 저장할 계획이다.
+다음 구조는 공식 구현 전에 검토했던 계획이며 채택되지 않았다. 현재 산출물은
+[Manifest Reference](manifest-reference.md)에 설명된 `manifest.json`,
+`normalization.npz`, split별 `X.npy`·`y.npy`·`windows.jsonl`을 사용한다.
 
 ```text
 dataset_20260616/
@@ -897,12 +900,12 @@ dataset_20260616/
 └── test.npz
 ```
 
-`manifest.yaml`에는 class map, split, 제외 session과 이유, RX 순서, 모든 threshold,
+당시 계획에서는 `manifest.yaml`에 class map, split, 제외 session과 이유, RX 순서, 모든 threshold,
 subcarrier mapping version을 저장한다. `quality-report.json`에는 session·RX별
 record 수, RX boot 경계, 단일 손상 record, 정리 후 남은 `tx_seq` 감소, 선택
 segment, 공통 범위, 관측률, gap과 최종 window 수를 저장한다.
 
-각 split 파일에는 최소 다음 값을 둔다.
+당시 계획한 각 split 파일의 값은 다음과 같았다.
 
 ```text
 X:                   (N_split, 300, 192), float32
@@ -918,7 +921,7 @@ train/test 혼입 여부를 검증할 수 있다.
 ### 6.8 구형 코드의 구현 전 상태
 
 이 절 전체는 당시 **PLANNED**였던 계약을 보존한 내용이다. 구형 `Preprocessing.py`는 단일 session,
-`RX_IDS=[102]`, 무제한 `np.interp`, `(N,300,52)` 입력을 사용한다. 반면 PLANNED
+`RX_IDS=[102]`, 무제한 `np.interp`, `(N,300,52)` 입력을 사용한다. 당시 계획한
 계약의 목표 입력은 3-RX·64 feature 기준 `(N,300,192)`이며, 재부팅 segment,
 단일 손상 제거, 3-RX 교집합, 품질 gate, mask와 split 저장은 현재 공식
 `preprocess_3rx.py`에 구현되어 있다.
@@ -972,7 +975,7 @@ train/test 혼입 여부를 검증할 수 있다.
 
    </details>
 
-### 6.10 구현할 핵심 처리 로직
+### 6.10 당시 계획한 핵심 처리 로직
 
 1. 파일 순서의 이전(A)·가운데(B)·다음(C) record를 비교한다. B를 제외했을 때
    A보다 C의 `tx_seq`가 커야 단일 손상 판정을 계속한다.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """3-RX CSI 전처리 공식 구현.
 
-`model_train/docs/[전처리]-설계.md` (OFFICIAL DESIGN)의 처리 순서를 그대로 구현한다.
+`model_train/docs/preprocessing/design.md` (CURRENT CONTRACT)의 처리 순서를 구현한다.
 
     1. RX별 JSONL을 파일 순서대로 읽기
     2. 이전·현재·다음의 seq, tx_seq로 단일 손상 record 제거
@@ -754,7 +754,7 @@ def run(raw_dir, output_dir, cfg=DEFAULT_CONFIG, splits=None, dry_run=False):
 
     manifest = {
         "generated_by": "model_train/preprocessing/preprocess_3rx.py",
-        "design_doc": "model_train/docs/[전처리]-설계.md",
+        "design_doc": "model_train/docs/preprocessing/design.md",
         "raw_dir": str(raw_dir),
         "dry_run": dry_run,
         "config": asdict(cfg),
@@ -777,7 +777,7 @@ def run(raw_dir, output_dir, cfg=DEFAULT_CONFIG, splits=None, dry_run=False):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="3-RX CSI 전처리 (model_train/docs/[전처리]-설계.md 공식 구현)"
+        description="3-RX CSI 전처리 (model_train/docs/preprocessing/design.md 공식 구현)"
     )
     parser.add_argument(
         "--raw-dir",

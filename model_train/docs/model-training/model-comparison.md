@@ -1,10 +1,10 @@
-# 학습 모델 비교와 선정 권고
+# Model Comparison and Selection
 
-> 상태: **PLANNED** — 모델 후보 비교·선정 근거 문서.
-> 이 문서의 성능 수치는 **외부 공개 벤치마크(SenseFi)** 결과이며, 이 프로젝트 데이터로 측정한 값이 아니다.
-> 자체 데이터 성능 비교는 5절 프로토콜로 실행한 뒤 그 결과를 이 문서 6절 표에 기록한다.
+> 상태: **PLANNED** — LSTM 기준모델은 완료, 나머지 모델 비교는 실행 전.
+> 2절의 성능 수치는 **외부 공개 벤치마크(SenseFi)** 결과이며, 이 프로젝트 데이터로 측정한 값이 아니다.
+> 자체 데이터의 완료된 LSTM 결과와 남은 비교 계획은 5~6절에 기록한다.
 > 작성일: 2026-08-10
-> 관련 문서: [공식 전처리 설계](%5B전처리%5D-설계.md) · [seq·tx_seq 분석](%5B전처리%5D-시퀀스%20분석.md) · [LSTM 설계·학습](%5B모델%5D-장단기메모리%20설계와%20학습.md)
+> 관련 문서: [Preprocessing Design](../preprocessing/design.md) · [Sequence Analysis](../preprocessing/sequence-analysis.md) · [3-RX LSTM Design and Training](lstm-training.md) · [LSTM Baseline Report](lstm-baseline-report.md)
 
 ## 1. 무엇이 모델 선택을 좌우하는가 (이 프로젝트의 조건)
 
@@ -31,7 +31,7 @@ SenseFi는 WiFi CSI 인식용 딥러닝 모델 11종을 같은 조건에서 비�
 | ResNet101 | 94.99% | 95.31% | 42.6M |
 | RNN | 83.53% | 84.64% | 0.01~0.03M |
 | GRU | 94.18% | 97.66% | 0.03~0.08M |
-| **LSTM (현 baseline 구조)** | 87.18% | 97.14% | 0.04~0.11M |
+| **LSTM** | 87.18% | 97.14% | 0.04~0.11M |
 | BiLSTM | 90.19% | **99.69%** | 0.08~0.21M |
 | CNN+GRU | 96.72% | 93.75% | 0.06~1.43M |
 | ViT (Transformer) | 96.53% | 93.75% | 1.1~10.6M |
@@ -82,7 +82,7 @@ SenseFi는 WiFi CSI 인식용 딥러닝 모델 11종을 같은 조건에서 비�
 
 외부 벤치마크는 후보 선정까지만 쓰고, 최종 선택은 **우리 데이터에서 같은 조건으로 비교**해 결정한다.
 
-공정 비교 조건 — 모든 모델에 동일 적용:
+공정 비교 조건 — 남은 후보 모델에 동일 적용:
 
 ```text
 전처리      : 공식 3-RX 전처리 설계 — 모델별로 다르게 만들지 않음
@@ -91,29 +91,38 @@ SenseFi는 WiFi CSI 인식용 딥러닝 모델 11종을 같은 조건에서 비�
 학습        : Adam 1e-3, batch 32, 최대 50 epoch
             : validation macro-F1 기준 early stopping·best checkpoint
 seed        : 고정 3개(예: 0, 1, 2)로 각 모델 3회 학습 → 평균±표준편차 보고
-모델 선택   : validation만 사용. test는 전 모델 확정 후 각 1회
+모델 선택   : validation과 session group 기반 교차검증만 사용
 ```
 
-판정 기준 (우선순위 순):
+기존 test split은 2026-09-02 LSTM 기준모델 평가에서 이미 사용했다. 따라서 이
+split은 더 이상 untouched holdout이 아니며, 이후 후보 모델의 설정 선택이나
+hyperparameter 조정에 사용하지 않는다. 동일 split에서 산출한 추가 test 결과는
+기준모델과의 탐색적 비교로만 표시한다. 최종 모델의 일반화 성능을 새로 주장할 때는
+별도의 untouched holdout session을 확보한다.
 
-1. test **macro-F1** — 특히 **static class recall** (최난이도 구분)
-2. **session-level 정확도** — 같은 session의 window softmax 확률을 class별로 평균한 뒤 예측
+모델 선택 기준 (우선순위 순):
+
+1. validation 및 session group 교차검증의 **macro-F1** — 특히 **static class recall**
+2. 같은 검증의 **session-level 정확도** — 같은 session의 window softmax 확률을 class별로 평균한 뒤 예측
 3. 파라미터 수·학습 시간 — 동률이면 단순한 모델 채택
 4. seed 간 편차 — 편차가 크면 불안정한 모델로 감점
 
 통계 baseline(0순위)은 window별 RX·서브캐리어 평균/표준편차/시간분산 등 고정 feature를 만들어 RandomForest로 같은 split에서 평가한다. 이 값이 곧 "딥러닝이 넘어야 할 하한"이다.
 
-## 6. 자체 비교 결과 (실행 후 기록)
+## 6. 자체 비교 결과
 
-> 아직 실행 전이다. 5절 프로토콜 실행 후 아래 표를 채우고 이 문서 상태를 갱신한다.
+> LSTM 기준모델은 완료했다. 나머지 후보는 5절 프로토콜 실행 후 표를 채운다.
 
-| 모델 | params | val macro-F1 | test macro-F1 | static recall | session-level acc | 학습시간/epoch |
+| 모델 | params | val macro-F1 | 탐색적 test macro-F1 | 탐색적 test static recall | 탐색적 test session acc | 학습시간/epoch |
 |---|---:|---:|---:|---:|---:|---:|
-| 통계+RF (하한) | | | | | | |
-| 1D-CNN | | | | | | |
-| GRU | | | | | | |
-| BiLSTM | | | | | | |
-| LSTM (대조군) | | | | | | |
+| 통계+RF (하한) | 예정 | 예정 | 예정 | 예정 | 예정 | 예정 |
+| 1D-CNN | 예정 | 예정 | 예정 | 예정 | 예정 | 예정 |
+| GRU | 예정 | 예정 | 예정 | 예정 | 예정 | 예정 |
+| BiLSTM | 예정 | 예정 | 예정 | 예정 | 예정 | 예정 |
+| LSTM (대조군, balanced) | 297,347 | 0.9860 ± 0.0104 | 0.7051 ± 0.0066 | 0.6241 ± 0.0207 | 0.6667 ± 0.0000 | 17.8초 |
+
+LSTM 수치는 seed 0·1·2의 평균과 모집단 표준편차이며, 상세 결과와 재현 산출물은
+[3-RX LSTM Baseline Training and Final Evaluation](lstm-baseline-report.md)을 따른다.
 
 ## 7. 이 문서가 결정하지 않는 것
 

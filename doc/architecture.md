@@ -30,8 +30,11 @@ Mac
              │
              ├─ session_meta_snapshot.yaml
              ├─ visualize_csi.py → csi_waterfall.png
-             ├─ model_train/<model-name>/ (experimental code)
-             └─ model_train/docs/ (preprocessing·training documents)
+             ├─ model_train/preprocessing/ (official 3-RX preprocessing)
+             ├─ model_train/<model-name>/ (model training code)
+             └─ model_train/docs/
+                  ├─ preprocessing/
+                  └─ model-training/
 ```
 
 다음 경로는 지원하지 않는다.
@@ -54,8 +57,9 @@ Mac
 | `tx_registry.csv` | TX 물리 보드 식별 | USB chip MAC | `tx_node_id` |
 | `session_meta.yaml` | run과 실험 조건의 SSOT | 운영자 입력 | snapshot |
 | `visualize_csi.py` | RX별 amplitude 시각화 | JSONL | PNG |
-| `model_train/lstm/Preprocessing.py` | `tx_seq` 기반 window 실험 | JSONL | in-memory `X`, `y` |
-| `model_train/lstm/LSTM.py` | 단일 session 분류 실험 | `X`, `y` | 학습된 in-memory model |
+| `model_train/preprocessing/preprocess_3rx.py` | 공식 3-RX 정렬·window·split·normalization | JSONL과 session metadata | split별 배열, metadata, manifest |
+| `model_train/lstm/LSTM.py` | 공식 LSTM 기준모델 학습·검증·평가 | 전처리 산출물 | checkpoint, metric, prediction |
+| `model_train/lstm/Preprocessing.py` | 구형 단일 RX 전처리 기록 | JSONL | in-memory `X`, `y` |
 
 ## 3. 제어 흐름
 
@@ -197,7 +201,7 @@ Frame과 JSONL field는 [serial frame schema](data-schema.md)가 유일한 data 
 | run ID와 label/환경 | `session_meta.yaml` |
 | RF channel/bandwidth/rate | TX/RX firmware source constants |
 | binary frame | `serial-frame-schema.md` + producer/reader constants |
-| 모델 window/feature | `model_train/docs/` 문서와 `model_train/<model-name>/` 코드 — experimental |
+| 모델 window/feature | `model_train/docs/preprocessing/design.md`와 `model_train/preprocessing/preprocess_3rx.py` |
 
 RF 설정은 현재 compile-time constant다. 별도의 network configuration file은 없다.
 
@@ -208,9 +212,11 @@ RF 설정은 현재 compile-time constant다. 별도의 network configuration fi
 - `visualize_csi.py`: 각 RX를 Mac 수신 시각 기준 100Hz grid로 독립 보간해 PNG 생성
 - `measure_csi_hz.py`: 마지막 재부팅 이후 RX `timestamp_us` 기준 수집률·gap·sequence 진단
 
-`model_train/<model-name>/`의 코드는 실험 단계다. 단일 RX·단일 session·hardcoded
-path/label이며 CLI pipeline에 연결되지 않았다. 모델별 현재 상태와 목표는
-`model_train/docs/`의 전처리·모델 문서에 기록한다.
+공식 전처리는 RX101·RX102·RX103을 `tx_seq`로 정렬하고 session 단위 split과
+train 통계 normalization을 저장한다. LSTM 기준모델은 이 산출물로 학습·평가를
+완료했다. 현재 전처리 계약은 `model_train/docs/preprocessing/`, 모델별 구현과
+실험 결과는 `model_train/docs/model-training/`에 기록한다. 단일 RX·단일
+session·hardcoded path를 사용한 구형 코드는 역사적 참고 자료로만 유지한다.
 
 ## 10. 아키텍처 변경으로 취급하는 항목
 
