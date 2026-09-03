@@ -161,7 +161,7 @@ def render_combined_waterfall_png(
         plot_axes[-1].set_xlabel("Time (s, from first packet per RX)")
     if last_im is not None:
         cax = fig.add_subplot(gs[:, 1])
-        fig.colorbar(last_im, cax=cax, label="Amplitude (on-device norm)")
+        fig.colorbar(last_im, cax=cax, label="CSI amplitude (sqrt(I² + Q²))")
     fig.suptitle("CSI amplitude waterfall")
     out_path = session_dir / out_name
     fig.savefig(out_path)

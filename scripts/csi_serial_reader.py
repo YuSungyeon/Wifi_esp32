@@ -8,9 +8,8 @@
         --output-dir mac_collector_output \\
         --session-id 1
 
-JSONL 스키마는 기존 mac_collector/udp_collector_mvp.py와 호환:
-  received_at_unix_us, session_id, device_id, seq, timestamp_us,
-  channel, rssi_dbm, noise_floor_dbm, sample_count, csi_amp
+JSONL 스키마:
+  doc/data-schema.md 의 record schema v1
 출력 경로:
   <output-dir>/raw/<YYYYMMDD>/session_<id>/device_<device-id>.jsonl
 """
@@ -34,6 +33,8 @@ except ImportError:
 
 
 CSI_FRAME_MAGIC = 0x4353  # 'CS' (LE bytes: 0x53 0x43)
+CSI_FRAME_VERSION = 2
+CSI_MAX_RAW_BYTES = 384
 # v2 format: 32 bytes header (adds tx_seq u32 at the end)
 HEADER_FORMAT = "<HBBHHIQbBbBHHI"
 HEADER_SIZE = struct.calcsize(HEADER_FORMAT)  # 32
@@ -150,7 +151,14 @@ def main() -> int:
             except struct.error:
                 invalid += 1
                 continue
-            if hdr.magic != CSI_FRAME_MAGIC or hdr.raw_len > 4096:
+            if (
+                hdr.magic != CSI_FRAME_MAGIC
+                or hdr.version != CSI_FRAME_VERSION
+                or hdr.raw_len <= 0
+                or hdr.raw_len > CSI_MAX_RAW_BYTES
+                or hdr.raw_len % 2 != 0
+                or hdr.total_len != HEADER_SIZE + hdr.raw_len
+            ):
                 invalid += 1
                 continue
             # raw 페이로드
@@ -163,6 +171,9 @@ def main() -> int:
 
             amps = compute_amplitudes(raw)
             record = {
+                "record_schema_version": 1,
+                "transport": "usb_serial_jtag",
+                "csi_representation": "raw_iq_amplitude",
                 "received_at_unix_us": int(time.time() * 1_000_000),
                 "source_ip": "usb-serial",
                 "source_port": 0,

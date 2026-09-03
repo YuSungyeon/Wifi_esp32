@@ -1,101 +1,106 @@
 # MeshSense 호스트 스크립트
 
-`device_registry.csv`(RX) · `tx_registry.csv`(TX) · **`meshsense_config.json`**(망 설정 SSOT).
+현재 호스트 흐름은 ESP-NOW TX/RX 펌웨어 플래시와 multi-RX USB 수집만 지원합니다.
 
-## 터미널 가이드 CLI (권장)
-
-실험 순서(TX → Wi-Fi·IP 확인 → RX → 수집기)를 단계별로 안내합니다.
+## 권장 진입점
 
 ```bash
-python scripts/meshsense_cli.py          # 메인 메뉴 → [1] 전체 가이드
-python scripts/meshsense_cli.py --quick  # 가이드 없이 메뉴만
+python3 scripts/meshsense_cli.py
 ```
 
-플래시는 USB MAC으로 `tx_registry.csv` / `device_registry.csv` 를 조회해 TX·RX를 자동 분기합니다.  
-플래시 완료 여부는 `mac_collector/flash_state.json` (`flash_state.py`, ●/○)에 기록되며, 보드 관리 **목록·검증**에 표시됩니다.  
-CSI PNG용 Python: 프로젝트 `.venv` + 루트 `requirements-viz.txt` (사전 점검·수집 종료 시 자동 안내).  
-보드 등록·삭제는 메뉴 **[3] 보드 관리** 또는 `device_registry.py` / `tx_registry.py` CLI.  
-수집기는 `udp_collector_mvp.py` 를 호출합니다.
+메뉴:
 
-**다른 Mac** 에서는 플래시 전 `python3 scripts/idf_bootstrap.py -y` 와 CLI **[5] 사전 점검** 을 권장합니다 (`idf_env.py` 가 Homebrew·pyenv·IDF venv PATH 를 통일). 상세: [esp-idf-troubleshooting.md](../doc/overview/esp-idf-troubleshooting.md).
+1. 전체 가이드: 환경 → TX → RX → USB 수집
+2. 보드 플래시: USB MAC으로 TX/RX 자동 판별
+3. 보드 관리: registry 목록·등록·삭제·검증
+4. USB 시리얼 수집: 연결된 RX reader 병렬 실행
+5. 사전 점검: ESP-IDF, registry, session metadata, pyserial 확인
 
-## 최초 설정
+## 최초 환경
 
 ```bash
-git clone --recursive <repo-url>   # esp-idf 서브모듈 포함
-cd Wifi_esp32
-cp scripts/meshsense_config.example.json scripts/meshsense_config.json
-# ap.pass, collector.ip 등 (Mac on TX SoftAP: ipconfig getifaddr en0)
-
-# ESP-IDF 툴체인 (최초 1회, 10–30분·수 GB)
-python scripts/idf_bootstrap.py -y
+git submodule update --init esp-idf
+python3 scripts/idf_bootstrap.py -y
+python3 -m pip install pyserial
 ```
 
-이미 clone 한 경우: `git submodule update --init esp-idf`
-
-### ESP-IDF (프로젝트 로컬)
-
-| 경로 | 설명 |
-|------|------|
-| `esp-idf/` | git submodule 또는 bootstrap clone (`v5.2.2`) |
-| `~/.espressif/` | 툴체인·Python venv (ESP-IDF 기본, 전역) |
-| `.espressif/` (프로젝트 루트) | bootstrap 완료 마커 `.meshsense_tools_ready` (gitignore) |
-
-`flash_rx.py` / `flash_tx.py`는 실행 시 `idf_bootstrap`으로 위 경로를 준비한 뒤 빌드·플래시합니다.  
-오류 시: [doc/overview/esp-idf-troubleshooting.md](../doc/overview/esp-idf-troubleshooting.md).  
-전역 `~/esp/esp-idf`만 쓰려면 `--skip-idf-bootstrap` (기존 `export.sh` 필요).
-
-수동: `python scripts/idf_bootstrap.py` · `MESHESENSE_IDF_PATH=/path/to/esp-idf`
-
-### 기타
-
-- **esptool** — USB MAC 읽기: [`esptool_mac.py`](esptool_mac.py) (`pip install esptool` 또는 IDF venv)
-- Mac 수집기·후처리는 ESP-IDF **불필요**
-
-## TX 플래시
+시각화가 필요하면:
 
 ```bash
-python scripts/tx_registry.py add --port /dev/cu.usbmodem101 --board-name TX1
-python scripts/flash_tx.py -p /dev/cu.usbmodem101 --monitor
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-viz.txt
 ```
 
-## RX 플래시
+## Registry와 session
+
+| 파일 | 역할 |
+|---|---|
+| `mac_collector/tx_registry.csv` | TX USB chip MAC과 `tx_node_id` |
+| `mac_collector/device_registry.csv` | RX USB MAC과 `device_id`, 설치 정보 |
+| `mac_collector/session_meta.yaml` | run `session_id`, label, 환경, 수집 방식 |
+| `mac_collector/flash_state.json` | CLI의 로컬 플래시 상태 표시 |
+
+Registry CLI:
 
 ```bash
-python scripts/device_registry.py add --port /dev/cu.usbmodem102 --board-name RX1
-python scripts/flash_rx.py -p /dev/cu.usbmodem102
+python3 scripts/tx_registry.py verify
+python3 scripts/device_registry.py verify
+python3 scripts/tx_registry.py add --port /dev/cu.usbmodem101 --board-name TX1
+python3 scripts/device_registry.py add --port /dev/cu.usbmodem102 --board-name RX101
 ```
 
-## meshsense_config.json
+## 파일별 책임
 
-| 블록 | 용도 |
-|------|------|
-| `ap.ssid` / `ap.pass` | TX SoftAP = RX STA 접속 Wi-Fi |
-| `ap.channel`, `interval_ms`, … | TX 전용 |
-| `collector.ip` / `collector.port` | RX → Mac 수집기 |
+| 파일 | 책임 |
+|---|---|
+| `meshsense_cli.py` | 공식 interactive workflow |
+| `csi_serial_reader.py` | RX binary stream → JSONL |
+| `device_registry.py`, `registry.py` | RX registry CRUD/조회 |
+| `tx_registry.py` | TX registry CRUD/조회 |
+| `esptool_mac.py` | USB 연결 보드 MAC 확인 |
+| `idf_bootstrap.py` | ESP-IDF submodule/toolchain 준비 |
+| `idf_env.py`, `idf_paths.py`, `idf_util.py` | ESP-IDF 실행 환경 |
+| `flash_state.py` | CLI 플래시 상태 |
+| `measure_csi_hz.py` | JSONL 수집률·gap 측정 |
+| `visualize_csi.py` | RX별 waterfall PNG |
+| `visualize_tx_seq_overlap.py` | RX별 `tx_seq` 전체 범위·존재·누락 PNG |
 
-## Registry
+## RX별 `tx_seq` 범위 시각화
 
-| 대상 | 파일 | CLI |
-|------|------|-----|
-| RX | `mac_collector/device_registry.csv` | `python scripts/device_registry.py` |
-| TX | `mac_collector/tx_registry.csv` | `python scripts/tx_registry.py` |
+한 session의 RX 101·102·103에 대해 각 JSONL의 최소~최대 `tx_seq` 범위와
+범위 안의 실제 존재·누락을 한 PNG와 터미널 표로 보여 준다. 공통 범위를
+계산하거나 누락을 보간하지 않는 진단 전용 도구다.
 
-## TODO
+```bash
+.venv/bin/python scripts/visualize_tx_seq_overlap.py \
+  --session-dir mac_collector_output/raw/20260616/session_1
+```
 
-- [ ] **`session_meta.yaml` `network:` 자동 동기화**: `meshsense_config.json`의 `ap`/`collector`를 `session_meta.yaml` `network:`에 반영 (run `session_id`는 yaml 전용). 상세: [collector.md](../doc/mac-collector/collector.md).
+상세 동작은 [후처리 문서의 RX별 tx_seq 범위 시각화](../doc/postprocessing.md#4-current-rx별-tx_seq-범위-시각화)를 참조한다.
 
-## 파일
+## 수집률 측정
 
-| 파일 | 설명 |
-|------|------|
-| `meshsense_config.py` | 통합 설정 로드 |
-| `meshsense_config.example.json` | 설정 템플릿 |
-| `registry.py` / `tx_registry.py` | CSV 라이브러리 (+ TX CLI) |
-| `idf_bootstrap.py` | submodule + `install.sh esp32s3` → `.espressif/` |
-| `idf_env.py` / `idf_paths.py` | `export.sh`·PATH·venv (Mac/ Python 환경 차이 흡수) |
-| `esptool_mac.py` | esptool로 USB MAC 읽기 |
-| `idf_util.py` | `idf.py` subprocess |
-| `meshsense_cli.py` | 터미널 메뉴·전체 가이드·플래시·수집기 |
-| `flash_rx.py` / `flash_tx.py` | bootstrap → registry → build·flash |
-| `device_registry.py` | RX registry CLI |
+RX callback 시각 기준 수집률을 확인하려면 다음처럼 실행합니다.
+
+```bash
+python3 scripts/measure_csi_hz.py \
+  --gap-ms 200 \
+  mac_collector_output/raw/YYYYMMDD/session_<id>
+```
+
+`--gap-ms`는 긴 수신 공백으로 셀 기준값이며 기본값은 200ms입니다.
+
+RX가 재부팅돼 `seq`와 `timestamp_us`가 함께 감소하면 그전 데이터는 버립니다.
+마지막 재부팅 이후 데이터만 계산하고 결과는 장치별 한 행의 표로 출력합니다.
+표에는 재부팅 횟수, 남은 record 수, RX 기준 Hz, sequence 기반 추정 Hz, 수신
+간격, 큰 gap, sequence 누락·중복·순서 이상을 표시합니다.
+
+## 수집 시 주의
+
+- TX는 ESP-NOW를 계속 보내도록 전원을 유지합니다.
+- RX는 모두 USB로 Mac에 연결합니다.
+- RX 포트를 `idf.py monitor`와 reader가 동시에 열 수 없습니다.
+- `session_meta.yaml`의 `session_id`를 바꾼 뒤 수집합니다.
+- 같은 날짜/session ID의 JSONL은 append되므로 ID를 재사용하지 않습니다.
+
+상세 절차는 [빠른 시작](../doc/quickstart.md), data contract는 [serial frame schema](../doc/data-schema.md)를 참조하세요.
