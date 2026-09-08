@@ -22,7 +22,8 @@ model_train/
 │       ├── model-comparison.md
 │       ├── lstm-training.md
 │       ├── lstm-baseline-report.md
-│       └── training-results-summary.md
+│       ├── training-results-summary.md
+│       └── public-dataset-review.md
 ├── preprocessing/                      공통 3-RX 전처리 코드
 │   └── preprocess_3rx.py
 └── lstm/                               LSTM 실행 코드
@@ -40,6 +41,7 @@ model_train/
 | 5 | 모델 학습 | [3-RX LSTM Design and Training](model-training/lstm-training.md) | **CURRENT** | 공식 3-RX 입력을 사용하는 LSTM 구조·학습·평가 방법 |
 | 6 | 모델 학습 | [3-RX LSTM Baseline Training and Final Evaluation](model-training/lstm-baseline-report.md) | **SUPPORTING ANALYSIS** | Seed·class-weight 비교와 최종 test 결과·한계 |
 | 7 | 모델 학습 | [Training Results Summary](model-training/training-results-summary.md) | **SUPPORTING ANALYSIS** | 현재까지의 학습 결과와 담당별 다음 작업 요약 |
+| 8 | 모델 학습 | [Public Wi-Fi CSI Dataset Review](model-training/public-dataset-review.md) | **SUPPORTING ANALYSIS** | 외부 공개 데이터셋 후보·적합성·이용 조건과 적용 계획 |
 
 ## Historical Reference
 
@@ -52,5 +54,7 @@ model_train/
 전처리가 만든 공통 산출물을 입력으로 사용한다.
 
 공식 LSTM 실행법과 생성 파일은 5번 문서, 실제 baseline 상세 결과는 6번 문서를
-기준으로 한다. 빠른 공유용 결과는 7번 문서를 사용한다. 구형 `Preprocessing.py`는
-공식 LSTM 학습 경로에서 import하거나 실행하지 않는다.
+기준으로 한다. 빠른 공유용 결과는 7번 문서, 외부 데이터 도입 검토는 8번 문서를
+사용한다. 외부 데이터용 변환·학습 경로는 아직 구현되지 않았으며 공식 전처리
+계약과 구분한다. 구형 `Preprocessing.py`는 공식 LSTM 학습 경로에서 import하거나
+실행하지 않는다.
