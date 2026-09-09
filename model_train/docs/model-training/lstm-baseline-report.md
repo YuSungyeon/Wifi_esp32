@@ -95,7 +95,7 @@ motion = 1.1266923
 
 1. Class weight `none`, `balanced` 각각을 seed 0·1·2로 학습한다.
 2. 각 run에서 validation window-level macro-F1이 가장 높은 checkpoint를 저장한다.
-3. 두 방식의 seed 3개 validation macro-F1 평균과 class별 지표를 비교한다.
+3. 두 방식의 seed 3개 validation window-level macro-F1 평균과 class별 지표를 비교한다.
 4. Validation에서 선택한 한 방식의 seed 3개만 test한다.
 5. Test 결과를 본 뒤 설정이나 checkpoint를 다시 선택하지 않는다.
 
@@ -152,16 +152,18 @@ train window accuracy = 1.0
 
 #### 긴 run에서 관찰한 현상
 
-- 일부 validation window가 오답에서 정답으로 바뀌면서 validation window-level
-  macro-F1은 아주 조금 높아졌다.
-- Macro-F1은 최종적으로 선택한 class가 맞았는지를 평가한다.
-- Validation loss는 최종 class뿐 아니라 각 class에 부여한 확률도 평가한다.
-- 따라서 맞힌 window가 조금 늘더라도, 여전히 틀린 window에서 오답에 매우 높은
-  확률을 주면 validation loss는 증가할 수 있다.
+- 긴 run에서는 validation window-level macro-F1이 조금 좋아지는 동안
+  validation loss가 증가했다.
+- Macro-F1은 최종 class 예측으로 계산한 클래스별 F1의 평균이다. 이 값의 상승이
+  전체 정답 window 수의 증가를 반드시 뜻하지는 않는다.
+- Validation loss는 실제 정답 class에 부여한 확률이 낮을수록 커진다.
+- 일부 오답을 더 강하게 확신하거나, 정답으로 분류한 window의 정답 확률이
+  낮아지는 경우에도 loss가 증가할 수 있다.
 
-즉, 학습을 더 진행하면서 정답으로 분류한 validation window는 조금 늘었지만,
-일부 오답에 대한 확신도 함께 커졌다. 이는 모델이 train 데이터에 지나치게
-맞춰지고 있을 가능성을 보여준다.
+이는 과적합을 의심할 근거다. 다만 epoch별 window 확률을 저장하지 않았으므로
+어느 현상이 loss 증가에 얼마나 기여했는지는 확정하지 못했다. 확인된 수치와
+추가 분석에 필요한 기록은 [Troubleshooting Log](troubleshooting-log.md)의
+학습·validation loss 항목에 정리했다.
 
 ### 5.2 Class weight 비교
 

@@ -23,7 +23,8 @@ model_train/
 │       ├── lstm-training.md
 │       ├── lstm-baseline-report.md
 │       ├── training-results-summary.md
-│       └── public-dataset-review.md
+│       ├── public-dataset-review.md
+│       └── troubleshooting-log.md
 ├── preprocessing/                      공통 3-RX 전처리 코드
 │   └── preprocess_3rx.py
 └── lstm/                               LSTM 실행 코드
@@ -42,6 +43,7 @@ model_train/
 | 6 | 모델 학습 | [3-RX LSTM Baseline Training and Final Evaluation](model-training/lstm-baseline-report.md) | **SUPPORTING ANALYSIS** | Seed·class-weight 비교와 최종 test 결과·한계 |
 | 7 | 모델 학습 | [Training Results Summary](model-training/training-results-summary.md) | **SUPPORTING ANALYSIS** | 현재까지의 학습 결과와 담당별 다음 작업 요약 |
 | 8 | 모델 학습 | [Public Wi-Fi CSI Dataset Review](model-training/public-dataset-review.md) | **SUPPORTING ANALYSIS** | 외부 공개 데이터셋 후보·적합성·이용 조건과 적용 계획 |
+| 9 | 모델 학습 | [Model Training and Evaluation Troubleshooting Log](model-training/troubleshooting-log.md) | **SUPPORTING ANALYSIS** | 전처리·학습·평가의 문제와 조치, 설명 정정 및 미해결 과제 |
 
 ## Historical Reference
 
