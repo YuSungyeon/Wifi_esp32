@@ -24,7 +24,10 @@ model_train/
 │       ├── lstm-baseline-report.md
 │       ├── training-results-summary.md
 │       ├── public-dataset-review.md
-│       └── troubleshooting-log.md
+│       ├── troubleshooting-log.md
+│       └── session-signal-audit.md
+├── analysis/                           기존 데이터·모델 산출물 진단
+│   └── session_signal_audit.py
 ├── preprocessing/                      공통 3-RX 전처리 코드
 │   └── preprocess_3rx.py
 └── lstm/                               LSTM 실행 코드
@@ -44,6 +47,7 @@ model_train/
 | 7 | 모델 학습 | [Training Results Summary](model-training/training-results-summary.md) | **SUPPORTING ANALYSIS** | 현재까지의 학습 결과와 담당별 다음 작업 요약 |
 | 8 | 모델 학습 | [Public Wi-Fi CSI Dataset Review](model-training/public-dataset-review.md) | **SUPPORTING ANALYSIS** | 외부 공개 데이터셋 후보·적합성·이용 조건과 적용 계획 |
 | 9 | 모델 학습 | [Model Training and Evaluation Troubleshooting Log](model-training/troubleshooting-log.md) | **SUPPORTING ANALYSIS** | 전처리·학습·평가의 문제와 조치, 설명 정정 및 미해결 과제 |
+| 10 | 모델 학습 | [Session 10 and 19 Signal Audit](model-training/session-signal-audit.md) | **SUPPORTING ANALYSIS** | 환경 snapshot을 제외한 원본 대조와 세션 신호·예측 비교 |
 
 ## Historical Reference
 

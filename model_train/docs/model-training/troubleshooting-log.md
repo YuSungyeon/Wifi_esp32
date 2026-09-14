@@ -19,6 +19,7 @@
 | 학습 종료 | Train accuracy가 1.0인데도 학습이 계속됨 | 정상 동작 확인 |
 | Validation loss | 일부 run에서 macro-F1은 소폭 상승하나 loss는 증가 | 현상 확인, 확률 변화 원인은 미확정 |
 | Test 일반화 | 높은 validation 성능과 달리 세션 10·19 반복 오분류 | 미해결 |
+| 수집 환경 기록 | 사용자 확인상 snapshot의 환경 정보가 부정확 | 분석 근거에서 제외, 실제 환경은 미확인 |
 | 재현성·Git | 학습 시 dirty 작업 트리, 원격 추적 대상 혼동 | 기록 확인·문서 커밋 분리, 당시 변경 복원은 미확정 |
 
 ## 2. Preprocessing Issues
@@ -226,6 +227,14 @@ test window macro-F1은 `0.7051 ± 0.0066`이었다. 세 seed 모두 같은 두 
 주원인인지는 확정하지 않았다. 데이터셋이 유일한 원인이라고 단정하지 않는다.
 Class weight 도입도 이 일반화 문제를 해결한 것은 아니다.
 
+**2026-09-10 추가 분석:** 사용자 확인에 따라 `session_meta_snapshot.yaml`의
+환경 정보는 사용하지 않았다. 원본에서 29개 세션의 28,585개 window를 재구성해
+기존 입력과 일치함을 확인했다. 평균 CSI 형태와 train 세션의 거리 비교에서는 S10이
+static, S19가 empty에 더 가까웠다. S19는 약 90초 전후 RX102 신호 변화와 오분류
+증가가 함께 나타났다. [Session Signal Audit](session-signal-audit.md)에 원본
+로그 확인, 신호·예측 그림, 수치와 한계를 기록했다. 실제 라벨·환경은 독립적으로
+확인하지 못했으며 오분류의 주원인은 미확정이다.
+
 **다음 조치:** 수집 담당자와 라벨·위치·배치·수집 기록을 대조하고 모델 담당자는
 세션별 특징 분포를 비교한다. 설정 선택은 train/validation에서 수행하고, 기존 test
 재사용 결과는 탐색적 분석으로 구분한다. 최종 검증에는 새 미사용 holdout이 필요하다.
@@ -256,7 +265,8 @@ Dirty였다는 사실이 학습 코드 변경이나 run 간 코드 차이를 입
 ## 7. Remaining Work
 
 1. Epoch별 validation 확률·loss 기록을 추가해 loss 증가 원인을 직접 분석한다.
-2. Session 10·19의 수집 조건과 라벨을 대조하고 일반화 실패 가설을 검증한다.
+2. Session 10·19의 실제 수집 조건과 라벨을 독립적인 근거로 확인한다. 원본 record·
+   reader 로그 대조와 신호 1차 비교는 완료했으며, snapshot 환경 정보는 사용하지 않는다.
 3. Train/validation에서 세션 단위 교차검증과 모델·전처리 개선을 비교한다.
 4. 새로운 독립 holdout을 확보하고 선택 완료된 설정만 최종 평가한다.
 5. 외부 데이터는 [Public Dataset Review](public-dataset-review.md)의 입력·라벨
