@@ -1,7 +1,7 @@
 # 현재 아키텍처
 
 > 상태: **CURRENT**
-> 기준일: 2026-07-22
+> 기준일: 2026-09-09
 > 결정: [ADR-0001 — ESP-NOW/USB 단일 경로](adr-poc-only.md)
 
 ## 1. 시스템 경계
@@ -21,26 +21,47 @@ ESP32-S3 RX × N
   callback → 64KiB ring buffer → USB-Serial-JTAG
              │ RX별 USB 연결
              ▼
-Mac
-  meshsense_cli.py
+Mac — 수집 (실시간)
+  meshsense_gui.py (비개발자 권장) 또는 meshsense_cli.py
     └─ csi_serial_reader.py × N
-         binary v2 validation
-         raw I/Q → sqrt(I² + Q²)
-         device별 JSONL append
+         binary v4 검증(CRC-32, [data-schema.md](data-schema.md))
+         raw I/Q를 변환 없이 그대로 저장
              │
-             ├─ session_meta_snapshot.yaml
-             ├─ visualize_csi.py → csi_waterfall.png
-             ├─ model_train/<model-name>/ (experimental code)
-             └─ model_train/docs/ (preprocessing·training documents)
+             ▼
+  mac_collector_output/raw/YYYYMMDD/<HHMMSS>_<label>_s<id>/
+    device_<id>.csi              raw I/Q, 배타적 생성(append 아님)
+    session.json                 라벨 SSOT + 코드 출처(git commit) + RX별 품질 통계
+    session_meta_snapshot.yaml   수집 시점 실험 조건
+             │
+             ├─ visualize_csi.py → 같은 디렉터리에 csi_waterfall.png (`.csi` 직접 읽음)
+             │
+             ▼
+Mac — 전처리 (수집과 분리된 별도 단계)
+  export_jsonl.py
+    .csi → JSONL record schema v1 (raw_iq_amplitude)
+             │
+             ▼
+  mac_collector_output/jsonl/raw/YYYYMMDD/session_<id>/device_<id>.jsonl
+             │
+             ├─ model_train/preprocessing/preprocess_3rx.py (공식 3-RX 전처리, OFFICIAL DESIGN)
+             │    tx_seq 정렬 → 3-RX 공통 구간 → 3초 window (N,300,192) → train 통계로 normalize
+             └─ model_train/<model-name>/ (실험 단계 모델 코드)
 ```
+
+수집(`.csi` 저장까지)과 전처리(JSONL 내보내기 이후)는 서로 다른 단계다. 수집은 실시간
+USB 스트림을 그대로 저장하고, 전처리는 저장된 `.csi`를 나중에 원하는 만큼 다시 내보내고
+다시 돌릴 수 있다 — `.csi`가 정본이고 JSONL은 파생물이다.
 
 다음 경로는 지원하지 않는다.
 
 - SoftAP association
-- RX→Mac UDP CSI 전송
-- UDP collector
+- RX→Mac **UDP** CSI 전송, UDP collector
 - production/PoC 이중 firmware 선택
 - `meshsense_config.json` 기반 network 설정
+
+실시간 분류를 위해 RX를 방 안에 흩어 놓아야 할 때는 USB 대신 ESP-NOW 무선 업링크 +
+USB 싱크 경로를 쓴다. 이 경로는 위 수집 도구를 그대로 재사용하며(리더는 싱크 포트를
+RX처럼 읽는다) 상세는 [realtime-uplink.md](realtime-uplink.md)를 따른다.
 
 ## 2. 모듈 구조
 
@@ -48,14 +69,18 @@ Mac
 |---|---|---|---|
 | `esp32s3_csi_send_poc` | 고정 RF 조건에서 CSI 유도 frame 송신 | 없음 | ESP-NOW broadcast |
 | `esp32s3_csi_recv_poc` | CSI capture와 binary frame 생성 | ESP-NOW frame | USB-Serial-JTAG bytes |
-| `meshsense_cli.py` | 보드 식별·flash·multi-RX 수집 orchestration | registry, session meta, USB ports | reader processes, logs |
-| `csi_serial_reader.py` | binary frame 검증·변환·저장 | RX USB stream | JSONL |
+| `meshsense_gui.py` | 브라우저 제어판 — 보드·수집·세션·진단 (비개발자용 권장 경로) | registry, session meta, USB ports | reader processes, session 폴더 |
+| `meshsense_cli.py` | 보드 식별·flash·multi-RX 수집 orchestration (터미널) | registry, session meta, USB ports | reader processes, logs |
+| `csi_serial_reader.py` | binary v4 frame 검증(CRC-32)·IDENT 식별·`.csi` 저장 | RX USB stream | `device_<id>.csi`, `session.json` |
+| `csi_store.py` | frame 규격·검증·진폭·유효 서브캐리어의 Python 단일 소스 | — | — |
+| `csi_session.py` | 세션 디렉터리·manifest(`session.json`)·`session_id` 자동 순번 | — | — |
 | `device_registry.csv` | RX 물리 보드와 논리 ID 연결 | USB chip MAC | `device_id` |
 | `tx_registry.csv` | TX 물리 보드 식별 | USB chip MAC | `tx_node_id` |
 | `session_meta.yaml` | run과 실험 조건의 SSOT | 운영자 입력 | snapshot |
+| `export_jsonl.py` | `.csi` → JSONL record schema v1 내보내기 | `device_<id>.csi`, `session.json` | `device_<id>.jsonl`, `labels.json` |
 | `visualize_csi.py` | RX별 amplitude 시각화 | JSONL | PNG |
-| `model_train/lstm/Preprocessing.py` | `tx_seq` 기반 window 실험 | JSONL | in-memory `X`, `y` |
-| `model_train/lstm/LSTM.py` | 단일 session 분류 실험 | `X`, `y` | 학습된 in-memory model |
+| `model_train/preprocessing/preprocess_3rx.py` | 공식 3-RX 전처리 — `tx_seq` 정렬·공통 구간·window | JSONL | `X.npy`, `y.npy`, manifest, normalization |
+| `model_train/<model-name>/` | 모델별 실험 단계 전처리·학습 코드 | JSONL 또는 전처리 산출물 | in-memory model |
 
 ## 3. 제어 흐름
 
@@ -89,14 +114,20 @@ Firmware 내부에서는 무선 실험을 위해 STA MAC을 `1a:00:00:00:00:00`�
    - `devices.expected_device_ids`는 현재 실험 기록용이며 CLI의 자동 filter로 사용하지 않는다.
 
 4. **세션 ID와 메타데이터 고정**
-   - CLI가 `mac_collector/session_meta.yaml`의 `session_id`를 읽는다.
-   - 이 ID가 출력 경로와 JSONL의 `session_id`가 된다.
-   - 수집 시작 시점의 `session_meta.yaml`을 `session_meta_snapshot.yaml`로 복사해 당시 라벨·환경·acquisition 조건을 데이터와 함께 보존한다.
+   - `csi_session.next_session_id`가 `mac_collector_output/raw/`에 이미 있는 세션 디렉터리 이름에서
+     순번을 스캔해 최댓값+1을 다음 `session_id`로 정한다 — 사람이 손으로 올릴 값이 아니다.
+   - 세션 디렉터리 이름 자체에 수집 시각과 라벨이 들어간다: `<HHMMSS>_<label>_s<session_id>`.
+   - `mac_collector/session_meta.yaml`은 라벨을 포함한 실험 조건의 SSOT이며, 수집 시작 시점의
+     내용을 `session_meta_snapshot.yaml`로 복사해 데이터와 함께 보존한다.
 
 5. **RX별 reader process 실행**
-   - CLI가 RX마다 `csi_serial_reader.py`를 별도 process로 실행한다.
-   - 각 process에는 USB port, `device_id`, `session_id`, output directory를 전달한다.
-   - reader는 RX가 보낸 binary v2 header와 raw I/Q를 검증하고, I/Q를 amplitude로 변환한 뒤 해당 device JSONL에 append한다.
+   - RX마다 `csi_serial_reader.py`를 별도 process로 실행한다.
+   - 각 process에는 USB port, `device_id`, session 디렉터리를 전달한다.
+   - reader는 RX가 보낸 binary v4 header(CRC-32 포함)를 검증하고, **변환 없이** raw I/Q를
+     그대로 `device_<id>.csi`에 이어붙인다 — 진폭 계산이나 정규화는 하지 않는다.
+   - `.csi`는 배타적 생성(`open("xb")`)이라 이미 파일이 있으면 append 대신 즉시 에러를 낸다.
+   - 수집 종료 시 `csi_session.finalize_session`이 RX별 CRC 실패·resync·seq gap 등의 품질
+     통계와 라벨을 `session.json`에 기록한다.
    - reader의 stdout/stderr는 터미널과 `log/reader_session<session>_dev<id>_<timestamp>.log`에 동시에 기록된다.
 
 6. **수집 대기와 종료**
@@ -115,9 +146,15 @@ Firmware 내부에서는 무선 실험을 위해 STA MAC을 `1a:00:00:00:00:00`�
 ```text
 RX USB binary stream
   → csi_serial_reader.py × RX 수
-  → raw/YYYYMMDD/session_<id>/device_<id>.jsonl
-  → session_meta_snapshot.yaml
-  → (선택) csi_waterfall.png
+  → raw/YYYYMMDD/<HHMMSS>_<label>_s<id>/device_<id>.csi
+  → session.json (라벨·품질 통계) + session_meta_snapshot.yaml
+```
+
+전처리 입력이 필요할 때만 다음을 실행해 JSONL을 별도로 만든다(§9, [data-schema.md](data-schema.md) §3-4).
+
+```text
+export_jsonl.py
+  → jsonl/raw/YYYYMMDD/session_<id>/device_<id>.jsonl + labels.json
 ```
 
 ## 4. TX firmware
@@ -177,17 +214,23 @@ ESP_LOG와 binary frame이 같은 USB interface를 공유할 수 있다. Reader�
 ## 7. 데이터 저장
 
 ```text
-mac_collector_output/raw/YYYYMMDD/session_<session_id>/
-├── device_101.jsonl
-├── device_102.jsonl
-├── device_103.jsonl
+mac_collector_output/raw/YYYYMMDD/<HHMMSS>_<label>_s<session_id>/
+├── device_101.csi
+├── device_102.csi
+├── device_103.csi
+├── session.json
 ├── session_meta_snapshot.yaml
-└── csi_waterfall.png
+└── csi_waterfall.png            (선택, visualize_csi.py)
 ```
 
-Reader는 JSONL을 append 모드로 연다. 같은 날짜와 같은 `session_id`를 다시 사용하면 기존 파일 뒤에 이어 쓰므로 session ID는 run마다 새로 지정한다.
+디렉터리 이름에 수집 시각이 들어가 충돌이 불가능하다. `.csi`는 배타적 생성(`open("xb")`)이라
+같은 파일에 다시 쓰려 하면 append가 아니라 즉시 에러가 난다 — 예전 `session_<id>` + JSONL
+append 레이아웃은 실제로 여러 run이 한 파일에 섞이는 사고를 냈다.
 
-Frame과 JSONL field는 [serial frame schema](data-schema.md)가 유일한 data contract다.
+`visualize_csi.py`는 이 디렉터리의 `.csi`를 직접 읽어 같은 위치에 PNG를 만든다(구 JSONL
+세션에는 `.jsonl`로 폴백). JSONL 내보내기와는 별개다.
+
+Frame과 `.csi`/JSONL field는 [serial frame schema](data-schema.md)가 유일한 data contract다.
 
 ## 8. 설정 SSOT
 
@@ -196,8 +239,9 @@ Frame과 JSONL field는 [serial frame schema](data-schema.md)가 유일한 data 
 | TX/RX 물리 보드 구분 | `tx_registry.csv`, `device_registry.csv` |
 | run ID와 label/환경 | `session_meta.yaml` |
 | RF channel/bandwidth/rate | TX/RX firmware source constants |
-| binary frame | `serial-frame-schema.md` + producer/reader constants |
-| 모델 window/feature | `model_train/docs/` 문서와 `model_train/<model-name>/` 코드 — experimental |
+| binary frame·`.csi`·JSONL field | `data-schema.md` + producer/reader constants |
+| 공식 3-RX 전처리(window/split/normalize) | `model_train/docs/[전처리]-설계.md` + `preprocess_3rx.py` — official design |
+| 모델별 feature/학습 설정 | `model_train/docs/` 문서와 `model_train/<model-name>/` 코드 — experimental |
 
 RF 설정은 현재 compile-time constant다. 별도의 network configuration file은 없다.
 
@@ -208,9 +252,19 @@ RF 설정은 현재 compile-time constant다. 별도의 network configuration fi
 - `visualize_csi.py`: 각 RX를 Mac 수신 시각 기준 100Hz grid로 독립 보간해 PNG 생성
 - `measure_csi_hz.py`: 마지막 재부팅 이후 RX `timestamp_us` 기준 수집률·gap·sequence 진단
 
-`model_train/<model-name>/`의 코드는 실험 단계다. 단일 RX·단일 session·hardcoded
-path/label이며 CLI pipeline에 연결되지 않았다. 모델별 현재 상태와 목표는
-`model_train/docs/`의 전처리·모델 문서에 기록한다.
+수집(`.csi`)과 모델 입력 사이는 두 단계로 나뉜다.
+
+1. `export_jsonl.py` — `.csi`를 [JSONL record schema v1](data-schema.md#3-jsonl-record-schema-v1-전처리-입력)로 내보낸다. **CURRENT.**
+2. `model_train/preprocessing/preprocess_3rx.py` — JSONL을 입력받아 RX 101·102·103의
+   `tx_seq` 정렬, 손상 record 제거, 공통 구간 선택, 5-frame 이하 보간, 3초/300-frame
+   window 생성, train 통계 normalization까지 수행해 `(N,300,192)` Tensor와 manifest를
+   만든다. 이 설계와 구현은 **OFFICIAL DESIGN**이며 상세는
+   [`model_train/docs/[전처리]-설계.md`](../model_train/docs/%5B전처리%5D-설계.md)를 따른다.
+
+`model_train/<model-name>/`(예: `lstm/`)의 학습 코드는 이와 별개로 **실험 단계**다.
+일부는 단일 RX·단일 session·hardcoded path/label을 쓰며 위 공식 전처리 산출물을 아직
+쓰지 않는 코드도 있다. CLI/GUI pipeline에 자동으로 연결되지 않으며, 모델별 현재 상태와
+목표는 `model_train/docs/`의 전처리·모델 문서에 기록한다.
 
 ## 10. 아키텍처 변경으로 취급하는 항목
 

@@ -29,7 +29,41 @@
 
 TX와 RX 설정은 함께 변경해야 한다. channel/bandwidth/rate 중 하나만 바꾸면 frame 수신과 CSI shape가 달라질 수 있다.
 
-### 2.1 `STA` mode이지만 association은 없음
+### 2.1 HT20과 HT40의 차이, 그리고 왜 HT20을 쓰는가
+
+Wi-Fi가 신호를 실어 보내는 주파수 폭을 **대역폭(bandwidth)**이라 한다. HT20은 20MHz
+폭, HT40은 두 개의 20MHz를 이어붙인(채널 본딩) 40MHz 폭이다.
+
+도로에 비유하면 HT20은 편도 1차선, HT40은 편도 2차선을 합친 도로다. 차선이 넓을수록
+(대역폭이 넓을수록) 한 번에 더 많은 데이터를 실어 보낼 수 있어 일반적인 Wi-Fi 통신은
+더 빨라진다. 다만 그만큼 전파 자원을 더 넓게 차지하고, 주변 채널과 겹칠 가능성도
+커진다.
+
+CSI 관점에서는 대역폭이 곧 "몇 개의 주파수 성분(서브캐리어)을 측정하는가"를 정한다.
+
+| 대역폭 | OFDM 서브캐리어 수 | raw CSI 크기 |
+|---|---:|---|
+| HT20 | 64 | 128 bytes (I/Q pair 64개) |
+| HT40 | 128 | 256~384 bytes (I/Q pair 128개) |
+
+MeshSense는 데이터를 빠르게 보내는 것이 목적이 아니라 "무선 신호가 사람의 움직임에
+따라 얼마나 변하는지"를 측정하는 것이 목적이므로, 넓은 차선(HT40)이 주는 속도 이점이
+필요 없다. 오히려 HT40은 서브캐리어가 두 배(128개)로 늘어나 모델이 기대하는 64개
+입력 shape와 어긋난다. 그래서 HT20으로 고정한다.
+
+**HT40을 실제로 사용한 적이 있다.** 현재 ESP-NOW/USB 구조(AP 없는 버전, `38fe40a`,
+2026-05-23)를 처음 만들었을 때는 TX/RX 모두 `WIFI_BW_HT40` /
+`WIFI_PHY_MODE_HT40`이었다. 같은 날 커밋 `237dd75`("ht40 -> 20")에서 HT20으로
+바꾸며 RX의 `htltf_en`도 함께 껐다 — ESP32-S3 CSI 하드웨어는 HT20에서도
+`lltf_en`과 `htltf_en`을 동시에 켜면 LLTF(64) + HT-LTF(64)를 이어붙여 raw
+256 bytes(=128 SC)를 내기 때문에, LLTF만 남겨 64 SC로 통일했다. 즉 HT40 사용 이력은
+지금의 ESP-NOW/USB 구조가 만들어진 첫날 하루뿐이며, 이후로는 HT20만 사용한다.
+
+소스에는 ESP32-C5/C6/C61 대상 분기(`#if CONFIG_IDF_TARGET_ESP32C5 ...`)에
+`WIFI_BW_HT40` 설정이 여전히 남아 있지만, 이 프로젝트가 실제로 빌드하는 대상은
+ESP32-S3이므로 이 분기는 지금 실행되지 않는다.
+
+### 2.2 `STA` mode이지만 association은 없음
 
 `STA`(Station)는 Wi-Fi 라디오의 인터페이스 역할을 뜻한다. 반면 `association`은 STA가 특정 AP에 접속해 AP의 네트워크에 참여하는 절차를 뜻한다. 따라서 다음 두 상태는 동시에 가능하다.
 
@@ -217,7 +251,7 @@ uart_writer_task
 
 | 상수 | 값 | 의미 |
 |---|---:|---|
-| `CSI_FRAME_VERSION` | 2 | binary contract version |
+| `CSI_FRAME_VERSION` | 4 | binary contract version |
 | `CSI_MAX_RAW_BYTES` | 384 | firmware safety upper bound |
 | `CSI_RINGBUF_BYTES` | 64KiB | callback/USB decoupling |
 | `CSI_USJ_TX_BUF_BYTES` | 16KiB | USB driver TX buffer |
@@ -228,10 +262,11 @@ Ring buffer가 가득 차면 callback은 기다리지 않고 `g_ringbuf_drop`을
 
 ## 6. Binary stream
 
-RX는 32-byte packed v2 header 뒤에 raw CSI를 붙여 USB로 보낸다.
+RX는 44-byte packed v4 header 뒤에 raw CSI(또는 IDENT/SINK_STATUS payload)를 붙여
+CRC-32와 함께 USB로 보낸다.
 
 ```text
-[header 32 bytes][raw CSI raw_len bytes]
+[header 44 bytes][payload raw_len bytes]
 ```
 
 정확한 field 계약은 [serial frame schema](data-schema.md)를 참조한다.
