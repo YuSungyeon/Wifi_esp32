@@ -4,28 +4,28 @@
 #
 # session_id 는 여기에 두지 않습니다 — 수집한 세션들의 최댓값+1로 자동 부여됩니다.
 
-# 수집 시작 프롬프트의 기본 라벨 (empty / static / action)
+# 수집 시작 프롬프트의 기본 라벨 (empty / static / motion)
 label_target: "empty"
 
 # 실험일 (수집 폴더 날짜와 별개로 기록)
-date: "2026-08-26"
+date: "2026-09-16"
 
-# 실험 공간
+# 실험 공간 — 측정용으로 표시한 구역. 전체 방은 6m x 7m, 그 안에 이 구역을 표시해 측정한다
 room:
   width_m: 3.0
   height_m: 3.0
-  description: "실험 공간 설명 (배치·가구·특이사항)"
+  description: "전체 방 6m x 7m 안에 테이프로 표시한 3m x 3m 측정 구역. 파일럿 블록 2개: 같은 구역 안에서 보드 배치를 바꿔 조건을 나눈다 (배치 1 / 배치 2)."
 
 # 실험 설계
 experiment:
-  objective: "3-class activity classification"
+  objective: "파일럿 — 이 배치로 3-class(empty/static/motion)가 갈리는지 확인 (collection-protocol.md §5)"
   split_strategy: "session-wise"
 
 # 이번 실험에 켤 RX device_id (device_registry.csv 와 대응)
 devices:
-  expected_device_ids: [101, 103]
+  expected_device_ids: [101, 102, 103]
 
 # 운영자·현장 메모
 operator:
   name: ""
-  notes: "피험자 수, 동작 프로토콜, 환경 변화 등을 기록"
+  notes: "피험자 1명(S1 로 기록), 배치 번호(1/2), 동작 프로토콜(motion=구역 안 자유 보행), 환경 변화 등을 기록"
