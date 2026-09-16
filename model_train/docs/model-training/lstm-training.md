@@ -23,6 +23,11 @@ baseline의 공식 설계이자 현재 구현 기준이다. `LSTM.py`는 구형
 
 ## 1. 목적과 분류 대상
 
+세션 앞뒤 5초 제거 재학습은 [경계 제거 실험](trim-boundary-experiment.md)에 별도로
+기록한다. 기존 balanced 설정과 seed 0·1·2, 세션 split을 고정하고 제거 후 train
+정규화·class weight를 다시 계산한다. 이미 확인한 test를 재사용하므로 탐색적
+비교이며 독립 최종 검증으로 해석하지 않는다.
+
 RX101·RX102·RX103에서 같은 TX frame을 수신해 만든 3초 CSI window 하나를 다음
 세 class 중 하나로 분류한다.
 

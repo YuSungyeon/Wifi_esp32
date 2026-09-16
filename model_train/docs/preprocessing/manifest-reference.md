@@ -8,6 +8,12 @@
 
 ## 1. 파일 이름과 역할
 
+경계 제거 옵션을 사용하면 `config.trim_frames`에 한쪽 제거 frame 수를 기록한다.
+세션의 `common_*`와 `observed_ratio`는 제거 전 기준이며, `trim`의
+`frames_each_side`, `start_tx_seq`, `end_tx_seq`, `length`는 제거 후 사용 범위를
+나타낸다. `trim`은 정상 공통 구간이 선택되고 제거 옵션이 활성화된 경우에만 있다.
+Window와 보간 통계는 제거 후 기준이다. 기본값 0에서는 기존 세션 필드를 유지한다.
+
 실제 파일 이름은 `manifest.jsonl`이 아니라 **`manifest.json`**이다.
 
 ```text

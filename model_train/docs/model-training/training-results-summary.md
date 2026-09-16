@@ -1,10 +1,18 @@
 # Training Results Summary
 
-> 상태: **SUPPORTING ANALYSIS — 2026-09-02 기준 학습·최종 평가 완료**
+> 상태: **SUPPORTING ANALYSIS — 2026-09-02 baseline 완료, 2026-09-16 경계 제거 비교 완료**
 >
 > 상세 보고서: [3-RX LSTM Baseline Training and Final Evaluation](lstm-baseline-report.md)
 
 ## 실험 개요
+
+2026-09-16에 [세션 앞뒤 5초 제거 재학습](trim-boundary-experiment.md)을 추가로
+실행했다. 같은 중앙 test 구간에서 기존→재학습 macro-F1은 `0.7061→0.7136`,
+empty↔static 교차 오분류율은 `43.83%→42.68%`였다. 그러나 세 seed 모두 S10·19를
+여전히 오분류했고 session accuracy는 `66.67%`로 동일했다. 경계 제거만으로
+구분 문제는 해결되지 않았다. 이미 확인한 test를 사용한 탐색적 비교다.
+
+아래 수치와 설명은 원래 baseline 실험을 기준으로 한다.
 
 - 데이터: `20260616` 수집분, 사용 가능 session 29개
 - 입력: 3 RX × CSI amplitude 64개, 3초 window `(300, 192)`
@@ -58,7 +66,8 @@ class weight의 test 개선 효과는 비교할 수 없다.
    실사용 허용 오분류 수준을 사전에 정하고 window/session·class별 결과를 함께 확인한다.
 
 구체적인 목적과 실행 방법은 [보고서의 후속 작업](lstm-baseline-report.md#9-후속-작업)에
-정리했다. 원본 대조·신호 비교는 완료했으며, 교차검증·추가 수집·모델 학습은 아직 실행하지 않았다.
+정리했다. 원본 대조·신호 비교와 앞뒤 5초 제거 재학습은 완료했으며,
+세션 교차검증·추가 수집·다른 모델 개선 실험은 아직 실행하지 않았다.
 
 기존 test split은 이미 결과를 확인했으므로 후속 모델의 설정 선택에는 사용하지
 않는다. 같은 split의 추가 결과는 기존 LSTM과의 탐색적 비교로만 취급한다.

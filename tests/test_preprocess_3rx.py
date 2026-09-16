@@ -2,6 +2,7 @@ import json
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -448,6 +449,55 @@ class EndToEndTest(unittest.TestCase):
                 json.dumps(manifest_a["sessions"], sort_keys=True),
                 json.dumps(manifest_b["sessions"], sort_keys=True),
             )
+
+
+class BoundaryTrimTest(unittest.TestCase):
+    def test_trim_removes_edge_values_and_recomputes_train_statistics(self):
+        cfg = replace(EndToEndTest.CFG, trim_frames=10)
+        with tempfile.TemporaryDirectory() as directory:
+            raw, out = Path(directory) / "raw", Path(directory) / "out"
+            for sid in (1, 11, 21):
+                lines = normal_session_lines(sid)
+                for records in lines.values():
+                    for index, row in enumerate(records):
+                        if index < 10 or index >= 190:
+                            row["csi_amp"] = [9999.0] * 64
+                write_session(raw, sid, lines)
+            manifest = pp.run(raw, out, cfg=cfg, splits=EndToEndTest.SPLITS)
+            for split in pp.SPLIT_ORDER:
+                x = np.load(out / split / "X.npy")
+                self.assertEqual(x.shape, (6, 50, 192))
+                self.assertLess(x.max(), 9999)
+                rows = [json.loads(line) for line in (out / split / "windows.jsonl").read_text().splitlines()]
+                self.assertEqual(rows[0]["window_start_tx_seq"], 1010)
+                self.assertLessEqual(rows[-1]["window_start_tx_seq"] + cfg.window - 1, 1189)
+            with np.load(out / "normalization.npz") as stats:
+                self.assertAlmostEqual(stats["mean"][0], 102.0)
+                self.assertEqual(int(stats["train_frame_count"]), 300)
+            for entry in manifest["sessions"]:
+                self.assertEqual(entry["common_length"], 200)
+                self.assertEqual(entry["trim"]["length"], 180)
+
+    def test_removed_frames_cannot_fill_missing_trim_boundary(self):
+        cfg = replace(EndToEndTest.CFG, trim_frames=10)
+        with tempfile.TemporaryDirectory() as directory:
+            lines = normal_session_lines(1)
+            del lines[101][10]  # first retained frame missing in RX101
+            session = write_session(Path(directory), 1, lines)
+            result = pp.process_session(session, 1, "empty", "train", cfg)
+            self.assertTrue(np.isnan(result["combined"][0, 0]))
+            self.assertEqual(result["valid_starts"][0], 25)
+            self.assertEqual(result["manifest"]["windows_excluded_by_gap"], 1)
+
+    def test_short_trimmed_session_is_excluded_and_negative_trim_rejected(self):
+        cfg = replace(EndToEndTest.CFG, trim_frames=80)
+        with tempfile.TemporaryDirectory() as directory:
+            session = write_session(Path(directory), 1, normal_session_lines(1))
+            result = pp.process_session(session, 1, "empty", "train", cfg)
+            self.assertFalse(result["used"])
+            self.assertIn("경계 제거 후 공통 길이가 window보다 짧음", result["manifest"]["exclusion_reasons"])
+        with self.assertRaises(ValueError):
+            pp.PreprocessConfig(trim_frames=-1)
 
 
 class SessionGateTest(unittest.TestCase):

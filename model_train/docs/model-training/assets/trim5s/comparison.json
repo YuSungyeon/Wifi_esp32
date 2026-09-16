@@ -1,0 +1,787 @@
+{
+  "status": "complete",
+  "interpretation": "exploratory; previously inspected test sessions",
+  "dataset_dir": "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/lstm-test/model_train/preprocessing/output/20260616-trim5s",
+  "dataset_manifest_sha256": "dce3280f652320fa07831f14fd09b208a3886d08118cffde8a549f49195daffb",
+  "source_sha256": {
+    "model_train/lstm/LSTM.py": "36cb8019de081b8979b711977f0833bbb1869f5f5b234a9cf8884bc000d9321f",
+    "model_train/preprocessing/preprocess_3rx.py": "eaba0fdbb371f82c847150ee93b4a507ccd5ef093fad6b2cc9f502fd23716e2d",
+    "model_train/analysis/trim_boundary_experiment.py": "19ef5b3b412ee32340beca696f61d06d2bbdc5e816301424f15b47a5abbd81a6",
+    "model_train/docs/model-training/trim-boundary-experiment.md": "ae5f1ddd976abfe505153871906578a0954c678bb69e58ec77803672f295f702"
+  },
+  "seeds": [
+    {
+      "seed": 0,
+      "baseline_run": "/Users/jaehyeog/my/Wifi_esp32/model_train/lstm/runs/20260902-205721-200700-seed0-balanced",
+      "trimmed_run": "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/lstm-test/model_train/analysis/output/20260916-trim5s/seed0-balanced",
+      "training": {
+        "best_epoch": 1,
+        "best_validation_macro_f1": 0.966024147375855,
+        "epochs_completed": 6,
+        "stopped_early": true,
+        "test_completed": true,
+        "test_window_macro_f1": 0.710605116235525,
+        "test_session_macro_f1": 0.6666666666666666
+      },
+      "baseline_full": {
+        "accuracy": 0.700540175557056,
+        "macro_f1": 0.6990440496799529,
+        "empty_recall": 0.4946455889852116,
+        "static_recall": 0.6049445005045408,
+        "motion_recall": 1.0,
+        "empty_static_mean_f1": 0.5485660745199294,
+        "empty_static_accuracy": 0.5500887648998225,
+        "empty_static_cross_error": 0.44991123510017755,
+        "session_accuracy": 0.6666666666666666
+      },
+      "baseline_central": {
+        "accuracy": 0.7014507953155042,
+        "macro_f1": 0.6998534338358459,
+        "empty_recall": 0.4947201689545935,
+        "static_recall": 0.6074228959749085,
+        "motion_recall": 1.0,
+        "empty_static_mean_f1": 0.5497801507537688,
+        "empty_static_accuracy": 0.5513527712109272,
+        "empty_static_cross_error": 0.44864722878907276,
+        "session_accuracy": 0.6666666666666666
+      },
+      "retrained_central": {
+        "accuracy": 0.7128124453766824,
+        "macro_f1": 0.710605116235525,
+        "empty_recall": 0.4947201689545935,
+        "static_recall": 0.6414009409304757,
+        "motion_recall": 1.0,
+        "empty_static_mean_f1": 0.5659076743532876,
+        "empty_static_accuracy": 0.5684265826109798,
+        "empty_static_cross_error": 0.4315734173890202,
+        "session_accuracy": 0.6666666666666666
+      },
+      "baseline_central_sessions": [
+        {
+          "session_id": 9,
+          "window_count": 937,
+          "window_accuracy": 1.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 1.0,
+            "static": 1.4234831979820228e-08,
+            "motion": 1.0180558618344548e-08
+          }
+        },
+        {
+          "session_id": 10,
+          "window_count": 957,
+          "window_accuracy": 0.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 7.729240358855805e-09,
+            "static": 1.0,
+            "motion": 6.927845408455369e-09
+          }
+        },
+        {
+          "session_id": 19,
+          "window_count": 957,
+          "window_accuracy": 0.21525600835945663,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 0.7844915390014648,
+            "static": 0.21550531685352325,
+            "motion": 3.103891913269763e-06
+          }
+        },
+        {
+          "session_id": 20,
+          "window_count": 956,
+          "window_accuracy": 1.0,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 7.626571374430569e-09,
+            "static": 1.0,
+            "motion": 6.2881380102908224e-09
+          }
+        },
+        {
+          "session_id": 29,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 1.5725261093280096e-08,
+            "static": 1.2705496210685396e-08,
+            "motion": 1.0
+          }
+        },
+        {
+          "session_id": 30,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 1.2483173605914999e-08,
+            "static": 1.089784884555911e-08,
+            "motion": 1.0
+          }
+        }
+      ],
+      "retrained_central_sessions": [
+        {
+          "session_id": 9,
+          "window_count": 937,
+          "window_accuracy": 1.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 0.9673869609832764,
+            "static": 0.03009696863591671,
+            "motion": 0.002516704611480236
+          }
+        },
+        {
+          "session_id": 10,
+          "window_count": 957,
+          "window_accuracy": 0.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 5.882056211703457e-05,
+            "static": 0.9995383620262146,
+            "motion": 0.00040148626430891454
+          }
+        },
+        {
+          "session_id": 19,
+          "window_count": 957,
+          "window_accuracy": 0.2831765935214211,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 0.7139117121696472,
+            "static": 0.2854384779930115,
+            "motion": 0.0006568270619027317
+          }
+        },
+        {
+          "session_id": 20,
+          "window_count": 956,
+          "window_accuracy": 1.0,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 4.0171100408770144e-05,
+            "static": 0.9997202754020691,
+            "motion": 0.00024265138199552894
+          }
+        },
+        {
+          "session_id": 29,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 0.0014744149520993233,
+            "static": 0.00038142927223816514,
+            "motion": 0.9981445074081421
+          }
+        },
+        {
+          "session_id": 30,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 0.0013703539734706283,
+            "static": 0.0003619431226979941,
+            "motion": 0.9982677102088928
+          }
+        }
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline_run": "/Users/jaehyeog/my/Wifi_esp32/model_train/lstm/runs/20260902-210816-041966-seed1-balanced",
+      "trimmed_run": "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/lstm-test/model_train/analysis/output/20260916-trim5s/seed1-balanced",
+      "training": {
+        "best_epoch": 3,
+        "best_validation_macro_f1": 0.9209999734560074,
+        "epochs_completed": 8,
+        "stopped_early": true,
+        "test_completed": true,
+        "test_window_macro_f1": 0.7125770680483224,
+        "test_session_macro_f1": 0.6666666666666666
+      },
+      "baseline_full": {
+        "accuracy": 0.7037474679270763,
+        "macro_f1": 0.7019465903075385,
+        "empty_recall": 0.4946455889852116,
+        "static_recall": 0.6145307769929365,
+        "motion_recall": 1.0,
+        "empty_static_mean_f1": 0.5534241718960027,
+        "empty_static_accuracy": 0.5549074308901851,
+        "empty_static_cross_error": 0.44407811311184375,
+        "session_accuracy": 0.6666666666666666
+      },
+      "baseline_central": {
+        "accuracy": 0.7054710714909981,
+        "macro_f1": 0.7035590550732164,
+        "empty_recall": 0.4947201689545935,
+        "static_recall": 0.6194458964976477,
+        "motion_recall": 1.0,
+        "empty_static_mean_f1": 0.5557301252879765,
+        "empty_static_accuracy": 0.5573942737063304,
+        "empty_static_cross_error": 0.44181770422905176,
+        "session_accuracy": 0.6666666666666666
+      },
+      "retrained_central": {
+        "accuracy": 0.7149099807725922,
+        "macro_f1": 0.7125770680483224,
+        "empty_recall": 0.4947201689545935,
+        "static_recall": 0.6476738107684266,
+        "motion_recall": 1.0,
+        "empty_static_mean_f1": 0.5688656020724836,
+        "empty_static_accuracy": 0.571578670869451,
+        "empty_static_cross_error": 0.428421329130549,
+        "session_accuracy": 0.6666666666666666
+      },
+      "baseline_central_sessions": [
+        {
+          "session_id": 9,
+          "window_count": 937,
+          "window_accuracy": 1.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 0.9999053478240967,
+            "static": 4.7706166697025765e-06,
+            "motion": 8.54634927236475e-05
+          }
+        },
+        {
+          "session_id": 10,
+          "window_count": 957,
+          "window_accuracy": 0.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 3.214805474271998e-06,
+            "static": 0.9999800324440002,
+            "motion": 2.535962630645372e-05
+          }
+        },
+        {
+          "session_id": 19,
+          "window_count": 957,
+          "window_accuracy": 0.24242424242424243,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 0.757543683052063,
+            "static": 0.23986183106899261,
+            "motion": 0.0025899475440382957
+          }
+        },
+        {
+          "session_id": 20,
+          "window_count": 956,
+          "window_accuracy": 0.9968619246861925,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 0.0013358817668631673,
+            "static": 0.9968287348747253,
+            "motion": 0.0018340452807024121
+          }
+        },
+        {
+          "session_id": 29,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 5.185366535442881e-05,
+            "static": 2.0476594727369957e-05,
+            "motion": 0.9999305605888367
+          }
+        },
+        {
+          "session_id": 30,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 4.6631801524199545e-05,
+            "static": 2.015227437368594e-05,
+            "motion": 0.9999361038208008
+          }
+        }
+      ],
+      "retrained_central_sessions": [
+        {
+          "session_id": 9,
+          "window_count": 937,
+          "window_accuracy": 1.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 0.9999409914016724,
+            "static": 1.857366441981867e-05,
+            "motion": 4.24094068876002e-05
+          }
+        },
+        {
+          "session_id": 10,
+          "window_count": 957,
+          "window_accuracy": 0.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 1.6049292753450572e-05,
+            "static": 0.9999539256095886,
+            "motion": 2.309922274434939e-05
+          }
+        },
+        {
+          "session_id": 19,
+          "window_count": 957,
+          "window_accuracy": 0.29571577847439917,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 0.7017005681991577,
+            "static": 0.2980667054653168,
+            "motion": 0.00023049551236908883
+          }
+        },
+        {
+          "session_id": 20,
+          "window_count": 956,
+          "window_accuracy": 1.0,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 1.3372906323638745e-05,
+            "static": 0.9999523758888245,
+            "motion": 2.5376741177751683e-05
+          }
+        },
+        {
+          "session_id": 29,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 5.188149225432426e-05,
+            "static": 5.561614307225682e-05,
+            "motion": 0.9998868107795715
+          }
+        },
+        {
+          "session_id": 30,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 5.1696526497835293e-05,
+            "static": 5.545851672650315e-05,
+            "motion": 0.9998878836631775
+          }
+        }
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline_run": "/Users/jaehyeog/my/Wifi_esp32/model_train/lstm/runs/20260902-211113-658687-seed2-balanced",
+      "trimmed_run": "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/lstm-test/model_train/analysis/output/20260916-trim5s/seed2-balanced",
+      "training": {
+        "best_epoch": 11,
+        "best_validation_macro_f1": 0.9921388510530239,
+        "epochs_completed": 16,
+        "stopped_early": true,
+        "test_completed": true,
+        "test_window_macro_f1": 0.7176541263047232,
+        "test_session_macro_f1": 0.6666666666666666
+      },
+      "baseline_full": {
+        "accuracy": 0.7165766374071574,
+        "macro_f1": 0.714191600334139,
+        "empty_recall": 0.4946455889852116,
+        "static_recall": 0.6528758829465187,
+        "motion_recall": 1.0,
+        "empty_static_mean_f1": 0.5712874005012086,
+        "empty_static_accuracy": 0.5741820948516358,
+        "empty_static_cross_error": 0.4258179051483642,
+        "session_accuracy": 0.6666666666666666
+      },
+      "baseline_central": {
+        "accuracy": 0.7175319000174795,
+        "macro_f1": 0.7150367267987515,
+        "empty_recall": 0.4947201689545935,
+        "static_recall": 0.6555148980658652,
+        "motion_recall": 1.0,
+        "empty_static_mean_f1": 0.5725550901981273,
+        "empty_static_accuracy": 0.5755187811925401,
+        "empty_static_cross_error": 0.4244812188074599,
+        "session_accuracy": 0.6666666666666666
+      },
+      "retrained_central": {
+        "accuracy": 0.7203286138786925,
+        "macro_f1": 0.7176541263047232,
+        "empty_recall": 0.4947201689545935,
+        "static_recall": 0.6638787245164662,
+        "motion_recall": 1.0,
+        "empty_static_mean_f1": 0.5764811894570849,
+        "empty_static_accuracy": 0.5797215655371684,
+        "empty_static_cross_error": 0.42027843446283164,
+        "session_accuracy": 0.6666666666666666
+      },
+      "baseline_central_sessions": [
+        {
+          "session_id": 9,
+          "window_count": 937,
+          "window_accuracy": 1.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 0.9995018839836121,
+            "static": 0.0003615617461036891,
+            "motion": 0.00013632116315420717
+          }
+        },
+        {
+          "session_id": 10,
+          "window_count": 957,
+          "window_accuracy": 0.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 6.959452002774924e-05,
+            "static": 0.9996517896652222,
+            "motion": 0.00027931161457672715
+          }
+        },
+        {
+          "session_id": 19,
+          "window_count": 957,
+          "window_accuracy": 0.3113897596656217,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 0.6309149861335754,
+            "static": 0.3582439124584198,
+            "motion": 0.010841257870197296
+          }
+        },
+        {
+          "session_id": 20,
+          "window_count": 956,
+          "window_accuracy": 1.0,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 5.052026244811714e-05,
+            "static": 0.9996911883354187,
+            "motion": 0.0002652639814186841
+          }
+        },
+        {
+          "session_id": 29,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 2.8173190003144555e-05,
+            "static": 5.456194412545301e-05,
+            "motion": 0.9999228119850159
+          }
+        },
+        {
+          "session_id": 30,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 2.7500322175910696e-05,
+            "static": 5.3567320719594136e-05,
+            "motion": 0.9999244809150696
+          }
+        }
+      ],
+      "retrained_central_sessions": [
+        {
+          "session_id": 9,
+          "window_count": 937,
+          "window_accuracy": 1.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 0.9999992847442627,
+            "static": 2.9101133804942947e-06,
+            "motion": 2.217098199253087e-06
+          }
+        },
+        {
+          "session_id": 10,
+          "window_count": 957,
+          "window_accuracy": 0.0,
+          "true_label_id": 0,
+          "true_label": "empty",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 1.4786336350880447e-06,
+            "static": 0.9999998807907104,
+            "motion": 1.0074116971736657e-06
+          }
+        },
+        {
+          "session_id": 19,
+          "window_count": 957,
+          "window_accuracy": 0.3281086729362591,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 0,
+          "predicted_label": "empty",
+          "mean_probabilities": {
+            "empty": 0.6591691374778748,
+            "static": 0.33981919288635254,
+            "motion": 0.0010116066550835967
+          }
+        },
+        {
+          "session_id": 20,
+          "window_count": 956,
+          "window_accuracy": 1.0,
+          "true_label_id": 1,
+          "true_label": "static",
+          "predicted_label_id": 1,
+          "predicted_label": "static",
+          "mean_probabilities": {
+            "empty": 1.0647681847331114e-06,
+            "static": 0.9999999403953552,
+            "motion": 7.0323767431546e-07
+          }
+        },
+        {
+          "session_id": 29,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 1.7977833977056434e-06,
+            "static": 9.066650363820372e-07,
+            "motion": 0.999999463558197
+          }
+        },
+        {
+          "session_id": 30,
+          "window_count": 957,
+          "window_accuracy": 1.0,
+          "true_label_id": 2,
+          "true_label": "motion",
+          "predicted_label_id": 2,
+          "predicted_label": "motion",
+          "mean_probabilities": {
+            "empty": 1.6076986639745883e-06,
+            "static": 8.711770078662084e-07,
+            "motion": 0.9999997615814209
+          }
+        }
+      ]
+    }
+  ],
+  "aggregate": {
+    "baseline_full": {
+      "accuracy": {
+        "mean": 0.7069547602970966,
+        "std": 0.006928543398027778
+      },
+      "macro_f1": {
+        "mean": 0.7050607467738769,
+        "std": 0.006564325331055767
+      },
+      "empty_recall": {
+        "mean": 0.49464558898521166,
+        "std": 5.551115123125783e-17
+      },
+      "static_recall": {
+        "mean": 0.624117053481332,
+        "std": 0.020708724061511828
+      },
+      "motion_recall": {
+        "mean": 1.0,
+        "std": 0.0
+      },
+      "empty_static_mean_f1": {
+        "mean": 0.557759215639047,
+        "std": 0.009769309657543818
+      },
+      "empty_static_accuracy": {
+        "mean": 0.5597260968805479,
+        "std": 0.010409508265259063
+      },
+      "empty_static_cross_error": {
+        "mean": 0.4399357511201285,
+        "std": 0.01026292710664756
+      },
+      "session_accuracy": {
+        "mean": 0.6666666666666666,
+        "std": 0.0
+      }
+    },
+    "baseline_central": {
+      "accuracy": {
+        "mean": 0.7081512556079939,
+        "std": 0.006833155556291688
+      },
+      "macro_f1": {
+        "mean": 0.7061497385692713,
+        "std": 0.006463581413422102
+      },
+      "empty_recall": {
+        "mean": 0.4947201689545935,
+        "std": 0.0
+      },
+      "static_recall": {
+        "mean": 0.6274612301794738,
+        "std": 0.020435171425794412
+      },
+      "motion_recall": {
+        "mean": 1.0,
+        "std": 0.0
+      },
+      "empty_static_mean_f1": {
+        "mean": 0.5593551220799575,
+        "std": 0.009644684822220433
+      },
+      "empty_static_accuracy": {
+        "mean": 0.5614219420365992,
+        "std": 0.010268579705160175
+      },
+      "empty_static_cross_error": {
+        "mean": 0.4383153839418615,
+        "std": 0.010171813838688464
+      },
+      "session_accuracy": {
+        "mean": 0.6666666666666666,
+        "std": 0.0
+      }
+    },
+    "retrained_central": {
+      "accuracy": {
+        "mean": 0.7160170133426558,
+        "std": 0.003166737340022405
+      },
+      "macro_f1": {
+        "mean": 0.7136121035295235,
+        "std": 0.0029693556623644167
+      },
+      "empty_recall": {
+        "mean": 0.4947201689545935,
+        "std": 0.0
+      },
+      "static_recall": {
+        "mean": 0.6509844920717894,
+        "std": 0.009470415223349812
+      },
+      "motion_recall": {
+        "mean": 1.0,
+        "std": 0.0
+      },
+      "empty_static_mean_f1": {
+        "mean": 0.5704181552942854,
+        "std": 0.004454033493546639
+      },
+      "empty_static_accuracy": {
+        "mean": 0.5732422730058664,
+        "std": 0.0047588401161723715
+      },
+      "empty_static_cross_error": {
+        "mean": 0.4267577269941336,
+        "std": 0.0047588401161723715
+      },
+      "session_accuracy": {
+        "mean": 0.6666666666666666,
+        "std": 0.0
+      }
+    }
+  }
+}

@@ -82,6 +82,11 @@ class PreprocessConfig:
     reboot_small_seq: int = 10  # seq가 이 값 이하로 돌아가면 재부팅 후보
     reboot_min_drop: int = 100  # 또는 seq가 이만큼 이상 감소
     zero_std_epsilon: float = 1e-6
+    trim_frames: int = 0  # 공통 구간 양쪽에서 각각 제거 (100Hz 기준)
+
+    def __post_init__(self):
+        if isinstance(self.trim_frames, bool) or not isinstance(self.trim_frames, int) or self.trim_frames < 0:
+            raise ValueError("trim_frames는 0 이상의 정수여야 한다")
 
 
 DEFAULT_CONFIG = PreprocessConfig()
@@ -525,6 +530,22 @@ def process_session(session_dir, session_id, label_name, split, cfg):
                         f"RX {rx} 관측률 {ratio:.4f} < {cfg.min_observed_ratio}"
                     )
 
+    grid_chosen = chosen
+    trim = None
+    if chosen is not None and cfg.trim_frames:
+        grid_chosen = dict(chosen)
+        grid_chosen["common_start"] += cfg.trim_frames
+        grid_chosen["common_end"] -= cfg.trim_frames
+        grid_chosen["common_length"] -= 2 * cfg.trim_frames
+        trim = {
+            "frames_each_side": cfg.trim_frames,
+            "start_tx_seq": grid_chosen["common_start"],
+            "end_tx_seq": grid_chosen["common_end"],
+            "length": max(0, grid_chosen["common_length"]),
+        }
+        if grid_chosen["common_length"] < cfg.window:
+            reasons.append("경계 제거 후 공통 길이가 window보다 짧음")
+
     used = not reasons
     combined = None
     valid_starts = []
@@ -535,7 +556,7 @@ def process_session(session_dir, session_id, label_name, split, cfg):
     window_start_tx_seqs = []
 
     if used:
-        aligned, present, duplicates = build_grid(chosen, cfg)
+        aligned, present, duplicates = build_grid(grid_chosen, cfg)
         interpolated = interpolate_short_gaps(aligned, present, cfg)
         interpolated_counts = {
             rx: int(interpolated[r].sum()) for r, rx in enumerate(cfg.rx_order)
@@ -548,7 +569,7 @@ def process_session(session_dir, session_id, label_name, split, cfg):
         combined = aligned.transpose(1, 0, 2).reshape(
             T, len(cfg.rx_order) * cfg.features_per_rx
         )
-        window_start_tx_seqs = [chosen["common_start"] + s for s in valid_starts]
+        window_start_tx_seqs = [grid_chosen["common_start"] + s for s in valid_starts]
 
     manifest_entry = {
         "session_id": session_id,
@@ -579,6 +600,8 @@ def process_session(session_dir, session_id, label_name, split, cfg):
         "used": used,
         "exclusion_reasons": reasons,
     }
+    if trim is not None:
+        manifest_entry["trim"] = trim
     return {
         "session_id": session_id,
         "label": label,
@@ -790,19 +813,34 @@ def main(argv=None):
         help="출력 위치 (기본: model_train/preprocessing/output/<raw 폴더명>)",
     )
     parser.add_argument(
+        "--trim-seconds",
+        type=float,
+        default=0.0,
+        help="공통 구간 앞뒤에서 각각 제거할 초 (100Hz 기준, 기본 0)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="X/y/normalization 저장 없이 manifest와 요약만 생성",
     )
     args = parser.parse_args(argv)
 
+    frames = args.trim_seconds * 100
+    if not np.isfinite(frames) or frames < 0 or not np.isclose(frames, round(frames), rtol=0, atol=1e-8):
+        parser.error("--trim-seconds는 0 이상이며 0.01초 단위여야 한다")
+    cfg = PreprocessConfig(trim_frames=int(round(frames)))
+
     raw_dir = Path(args.raw_dir)
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        output_dir = Path(__file__).resolve().parent / "output" / raw_dir.name
+        suffix = f"-trim{cfg.trim_frames}" if cfg.trim_frames else ""
+        output_dir = Path(__file__).resolve().parent / "output" / (raw_dir.name + suffix)
 
-    manifest = run(raw_dir, output_dir, dry_run=args.dry_run)
+    if cfg.trim_frames and output_dir.exists() and any(output_dir.iterdir()):
+        parser.error("경계 제거 실험은 비어 있는 별도 --output-dir를 사용해야 한다")
+
+    manifest = run(raw_dir, output_dir, cfg=cfg, dry_run=args.dry_run)
 
     print(f"raw: {raw_dir}")
     print(f"out: {output_dir}{'  (dry-run)' if args.dry_run else ''}")

@@ -48,6 +48,7 @@ model_train/
 | 8 | 모델 학습 | [Public Wi-Fi CSI Dataset Review](model-training/public-dataset-review.md) | **SUPPORTING ANALYSIS** | 외부 공개 데이터셋 후보·적합성·이용 조건과 적용 계획 |
 | 9 | 모델 학습 | [Model Training and Evaluation Troubleshooting Log](model-training/troubleshooting-log.md) | **SUPPORTING ANALYSIS** | 전처리·학습·평가의 문제와 조치, 설명 정정 및 미해결 과제 |
 | 10 | 모델 학습 | [Session 10 and 19 Signal Audit](model-training/session-signal-audit.md) | **SUPPORTING ANALYSIS** | 환경 snapshot을 제외한 원본 대조와 세션 신호·예측 비교 |
+| 11 | 모델 학습 | [Session Boundary Trim Experiment](model-training/trim-boundary-experiment.md) | **SUPPORTING ANALYSIS** | 세션 앞뒤 5초 제거 재학습과 동일 중앙 구간에서의 baseline 비교 |
 
 ## Historical Reference
 
