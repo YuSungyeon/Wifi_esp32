@@ -214,6 +214,11 @@ class DatasetAndModelTest(unittest.TestCase):
                 num_workers=0,
                 device="cpu",
             )
+            # 모델 종류 필드가 없던 기존 LSTM checkpoint도 계속 읽어야 한다.
+            checkpoint_path = run_dir / "best-model.pt"
+            checkpoint = lm._load_checkpoint(checkpoint_path, torch.device("cpu"))
+            self.assertEqual(checkpoint.pop("model_type"), "lstm")
+            torch.save(checkpoint, checkpoint_path)
             result = lm.run_test(test_args)
             self.assertEqual(result["window_level"]["sample_count"], 6)
             self.assertEqual(result["session_level"]["metrics"]["sample_count"], 6)

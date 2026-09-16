@@ -16,6 +16,11 @@
 baseline의 공식 설계이자 현재 구현 기준이다. `LSTM.py`는 구형
 `Preprocessing.py`를 실행하거나 import하지 않고, 저장된 공식 split을 직접 읽는다.
 
+데이터 처리·학습·평가 runner는 [1D-CNN](cnn1d-training.md)에서도 재사용한다.
+`ModelSpec`으로 모델 구조와 설정 타입을 주입하며 LSTM 명령의 기본 구조는 동일하다.
+새 run의 config에는 `model_type`과 `parameter_count`, checkpoint에는 `model_type`을
+추가 기록한다. 모델 종류가 없는 기존 checkpoint는 LSTM으로 해석한다.
+
 자동 테스트에서 소형 fixture로 학습·validation·checkpoint·최종 test 흐름을
 확인했고, 실제 `20260616` 산출물 전체에 대해서도 입력 계약과 NaN·무한대 검사를
 통과했다. 실제 데이터의 seed·class-weight 비교와 최종 test는 2026-09-02

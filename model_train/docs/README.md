@@ -1,6 +1,6 @@
 # Model Training Documentation
 
-> 상태: **CURRENT** — 전처리와 공식 3-RX LSTM 코드는 구현되었고, 3-RX LSTM
+> 상태: **CURRENT** — 전처리와 공식 3-RX LSTM·1D-CNN 코드는 구현되었고, 3-RX LSTM
 > 기준모델 실험은 완료되었으며, 다른 모델 비교 실험은 **PLANNED**
 
 어떤 모델을 시도할지에 대한 후보 비교·선정 근거는
@@ -21,6 +21,7 @@ model_train/
 │   └── model-training/                  모델 학습 문서
 │       ├── model-comparison.md
 │       ├── lstm-training.md
+│       ├── cnn1d-training.md
 │       ├── lstm-baseline-report.md
 │       ├── training-results-summary.md
 │       ├── public-dataset-review.md
@@ -30,8 +31,10 @@ model_train/
 │   └── session_signal_audit.py
 ├── preprocessing/                      공통 3-RX 전처리 코드
 │   └── preprocess_3rx.py
-└── lstm/                               LSTM 실행 코드
-    └── LSTM.py
+├── lstm/                               LSTM 실행 코드와 공통 학습·평가 runner
+│   └── LSTM.py
+└── cnn1d/                              1D-CNN 실행 코드
+    └── CNN1D.py
 ```
 
 ## 읽는 순서
@@ -48,6 +51,7 @@ model_train/
 | 8 | 모델 학습 | [Public Wi-Fi CSI Dataset Review](model-training/public-dataset-review.md) | **SUPPORTING ANALYSIS** | 외부 공개 데이터셋 후보·적합성·이용 조건과 적용 계획 |
 | 9 | 모델 학습 | [Model Training and Evaluation Troubleshooting Log](model-training/troubleshooting-log.md) | **SUPPORTING ANALYSIS** | 전처리·학습·평가의 문제와 조치, 설명 정정 및 미해결 과제 |
 | 10 | 모델 학습 | [Session 10 and 19 Signal Audit](model-training/session-signal-audit.md) | **SUPPORTING ANALYSIS** | 환경 snapshot을 제외한 원본 대조와 세션 신호·예측 비교 |
+| 11 | 모델 학습 | [3-RX 1D-CNN Training](model-training/cnn1d-training.md) | **CURRENT** | 시간축 CNN 구조·학습·평가 방법, 실제 비교 실험은 미실행 |
 
 ## Historical Reference
 

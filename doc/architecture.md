@@ -59,6 +59,7 @@ Mac
 | `visualize_csi.py` | RX별 amplitude 시각화 | JSONL | PNG |
 | `model_train/preprocessing/preprocess_3rx.py` | 공식 3-RX 정렬·window·split·normalization | JSONL과 session metadata | split별 배열, metadata, manifest |
 | `model_train/lstm/LSTM.py` | 공식 LSTM 기준모델 학습·검증·평가 | 전처리 산출물 | checkpoint, metric, prediction |
+| `model_train/cnn1d/CNN1D.py` | 1D-CNN 학습·검증·평가 (LSTM의 공통 runner 사용) | 전처리 산출물 | checkpoint, metric, prediction |
 | `model_train/lstm/Preprocessing.py` | 구형 단일 RX 전처리 기록 | JSONL | in-memory `X`, `y` |
 
 ## 3. 제어 흐름

@@ -25,10 +25,10 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type
 
 import numpy as np
 import torch
@@ -56,13 +56,11 @@ EARLY_STOPPING_PATIENCE = 5
 
 
 @dataclass(frozen=True)
-class TrainConfig:
-    """한 번의 학습 run을 완전히 재현하기 위한 설정."""
+class TrainingConfig:
+    """공식 3-RX 모델이 공유하는 입력·학습 설정."""
 
     input_size: int = INPUT_SIZE
     window_size: int = WINDOW_SIZE
-    hidden_size: int = HIDDEN_SIZE
-    num_layers: int = NUM_LAYERS
     num_classes: int = NUM_CLASSES
     dropout: float = DROPOUT
     batch_size: int = BATCH_SIZE
@@ -73,6 +71,24 @@ class TrainConfig:
     seed: int = 0
     class_weight: str = "none"
     num_workers: int = 0
+
+    def model_config(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class TrainConfig(TrainingConfig):
+    hidden_size: int = HIDDEN_SIZE
+    num_layers: int = NUM_LAYERS
+
+    def model_config(self) -> Dict[str, Any]:
+        return {
+            "input_size": self.input_size,
+            "hidden_size": self.hidden_size,
+            "num_layers": self.num_layers,
+            "num_classes": self.num_classes,
+            "dropout": self.dropout,
+        }
 
 
 @dataclass
@@ -168,6 +184,16 @@ class LSTMClassifier(nn.Module):
         # 각 window의 마지막 hidden state를 한 번에 Linear 층으로 보낸다.
         last_step = lstm_out[:, -1, :]
         return self.fc(self.dropout(last_step))
+
+
+@dataclass(frozen=True)
+class ModelSpec:
+    name: str
+    config_type: Type[TrainingConfig]
+    classifier: Type[nn.Module]
+
+
+LSTM_SPEC = ModelSpec("lstm", TrainConfig, LSTMClassifier)
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -439,7 +465,7 @@ def select_device(requested: str = "auto") -> torch.device:
 def make_dataloader(
     contract: DatasetContract,
     split: str,
-    config: TrainConfig,
+    config: TrainingConfig,
     pin_memory: bool,
 ) -> DataLoader:
     dataset = CSIMemmapDataset(
@@ -743,12 +769,13 @@ def _save_checkpoint(
     optimizer: torch.optim.Optimizer,
     epoch: int,
     validation: Dict[str, Any],
-    config: TrainConfig,
+    config: TrainingConfig,
     contract: DatasetContract,
     class_weights: Optional[np.ndarray],
     dataset_manifest_hash: str,
     normalization_hash: str,
     source: Dict[str, Any],
+    model_type: str = "lstm",
 ) -> None:
     checkpoint = {
         "model_state_dict": model.state_dict(),
@@ -756,13 +783,8 @@ def _save_checkpoint(
         "epoch": epoch,
         "validation_metrics": validation,
         "class_map": contract.manifest["label_map"],
-        "model_config": {
-            "input_size": config.input_size,
-            "hidden_size": config.hidden_size,
-            "num_layers": config.num_layers,
-            "num_classes": config.num_classes,
-            "dropout": config.dropout,
-        },
+        "model_type": model_type,
+        "model_config": config.model_config(),
         "train_config": asdict(config),
         "preprocessing_config": contract.manifest["config"],
         "normalization": {
@@ -853,23 +875,15 @@ def _write_test_predictions(
             fp.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def run_train(args: argparse.Namespace) -> Path:
+def run_train(args: argparse.Namespace, *, model_spec: ModelSpec = LSTM_SPEC) -> Path:
     contract = validate_dataset_contract(
         args.dataset_dir,
         check_finite=not args.skip_full_scan,
     )
-    config = TrainConfig(
-        hidden_size=args.hidden_size,
-        num_layers=args.num_layers,
-        dropout=args.dropout,
-        batch_size=args.batch_size,
-        learning_rate=args.learning_rate,
-        max_epochs=args.epochs,
-        patience=args.patience,
-        min_delta=args.min_delta,
-        seed=args.seed,
-        class_weight=args.class_weight,
-        num_workers=args.num_workers,
+    argument_values = {**vars(args), "max_epochs": args.epochs}
+    config = model_spec.config_type(
+        **{field.name: argument_values[field.name]
+           for field in fields(model_spec.config_type) if field.name in argument_values}
     )
     if config.batch_size < 1 or config.max_epochs < 1 or config.patience < 1:
         raise ValueError("batch-size, epochs, patience는 1 이상이어야 함")
@@ -878,6 +892,7 @@ def run_train(args: argparse.Namespace) -> Path:
 
     set_random_seed(config.seed)
     device = select_device(args.device)
+    model = model_spec.classifier(**config.model_config()).to(device)
     run_dir = _prepare_run_dir(
         args.run_dir
         if args.run_dir is not None
@@ -899,13 +914,9 @@ def run_train(args: argparse.Namespace) -> Path:
         "dataset_dir": str(contract.dataset_dir),
         "dataset_manifest_sha256": manifest_hash,
         "normalization_sha256": normalization_hash,
-        "model": {
-            "input_size": config.input_size,
-            "hidden_size": config.hidden_size,
-            "num_layers": config.num_layers,
-            "num_classes": config.num_classes,
-            "dropout": config.dropout,
-        },
+        "model_type": model_spec.name,
+        "model": config.model_config(),
+        "parameter_count": sum(p.numel() for p in model.parameters() if p.requires_grad),
         "training": asdict(config),
         "train_class_counts": train_class_counts,
         "class_weights": class_weights.tolist() if class_weights is not None else None,
@@ -924,13 +935,6 @@ def run_train(args: argparse.Namespace) -> Path:
         contract.split_metadata_paths["validation"]
     )
 
-    model = LSTMClassifier(
-        input_size=config.input_size,
-        hidden_size=config.hidden_size,
-        num_layers=config.num_layers,
-        num_classes=config.num_classes,
-        dropout=config.dropout,
-    ).to(device)
     weight_tensor = (
         torch.tensor(class_weights, dtype=torch.float32, device=device)
         if class_weights is not None
@@ -941,7 +945,7 @@ def run_train(args: argparse.Namespace) -> Path:
     evaluation_criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
-    print("[공식 3-RX LSTM 학습]")
+    print(f"[공식 3-RX {model_spec.name.upper()} 학습]")
     print(f"  dataset: {contract.dataset_dir}")
     print(f"  run: {run_dir}")
     print(f"  device: {device}")
@@ -1015,6 +1019,7 @@ def run_train(args: argparse.Namespace) -> Path:
                     manifest_hash,
                     normalization_hash,
                     source,
+                    model_type=model_spec.name,
                 )
             else:
                 epochs_without_improvement += 1
@@ -1046,7 +1051,7 @@ def run_train(args: argparse.Namespace) -> Path:
     return run_dir
 
 
-def run_test(args: argparse.Namespace) -> Dict[str, Any]:
+def run_test(args: argparse.Namespace, *, model_spec: ModelSpec = LSTM_SPEC) -> Dict[str, Any]:
     run_dir = Path(args.run_dir).resolve()
     checkpoint_path = run_dir / "best-model.pt"
     if not checkpoint_path.is_file():
@@ -1063,6 +1068,8 @@ def run_test(args: argparse.Namespace) -> Dict[str, Any]:
     )
     device = select_device(args.device)
     checkpoint = _load_checkpoint(checkpoint_path, device)
+    if checkpoint.get("model_type", "lstm") != model_spec.name:
+        raise ValueError(f"checkpoint model_type이 {model_spec.name}과 다름")
     manifest_hash = _sha256(contract.dataset_dir / "manifest.json")
     normalization_hash = _sha256(contract.normalization_path)
     if checkpoint.get("dataset_manifest_sha256") != manifest_hash:
@@ -1071,13 +1078,13 @@ def run_test(args: argparse.Namespace) -> Dict[str, Any]:
         raise ValueError("학습 때와 test의 normalization이 다름")
 
     model_config = checkpoint["model_config"]
-    model = LSTMClassifier(**model_config).to(device)
+    model = model_spec.classifier(**model_config).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
 
     stored_train_config = checkpoint["train_config"]
-    config = TrainConfig(**stored_train_config)
+    config = model_spec.config_type(**stored_train_config)
     if args.num_workers is not None:
-        config = TrainConfig(**{**asdict(config), "num_workers": args.num_workers})
+        config = model_spec.config_type(**{**asdict(config), "num_workers": args.num_workers})
     test_loader = make_dataloader(
         contract,
         "test",
@@ -1147,8 +1154,18 @@ def run_validate(args: argparse.Namespace) -> DatasetContract:
     return contract
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="공식 3-RX LSTM 학습·평가")
+def _add_lstm_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--hidden-size", type=int, default=HIDDEN_SIZE)
+    parser.add_argument("--num-layers", type=int, default=NUM_LAYERS)
+
+
+def build_parser(
+    *,
+    model_name: str = "LSTM",
+    output_root: Path = DEFAULT_OUTPUT_ROOT,
+    add_model_arguments: Callable[[argparse.ArgumentParser], None] = _add_lstm_arguments,
+) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=f"공식 3-RX {model_name} 학습·평가")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     def add_dataset_arguments(command: argparse.ArgumentParser) -> None:
@@ -1170,7 +1187,7 @@ def build_parser() -> argparse.ArgumentParser:
     train_parser = subparsers.add_parser("train", help="train+validation 및 checkpoint 저장")
     add_dataset_arguments(train_parser)
     train_parser.add_argument("--run-dir", type=Path, default=None)
-    train_parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    train_parser.add_argument("--output-root", type=Path, default=output_root)
     train_parser.add_argument("--seed", type=int, default=0)
     train_parser.add_argument(
         "--class-weight",
@@ -1178,8 +1195,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="none",
     )
     train_parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
-    train_parser.add_argument("--hidden-size", type=int, default=HIDDEN_SIZE)
-    train_parser.add_argument("--num-layers", type=int, default=NUM_LAYERS)
+    add_model_arguments(train_parser)
     train_parser.add_argument("--dropout", type=float, default=DROPOUT)
     train_parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE)
     train_parser.add_argument("--epochs", type=int, default=MAX_EPOCHS)
