@@ -13,14 +13,14 @@
 | 5 | [binary/JSONL 계약](data-schema.md) | **CURRENT CONTRACT** — frame v4·`.csi` 저장소·JSONL 내보내기 |
 | 6 | [실시간 경로](realtime-uplink.md) | **CURRENT** — ESP-NOW 업링크 + USB 싱크 (무선 배치) |
 | 7 | [`seq`와 `tx_seq` 패턴](sequence-patterns.md) | **CURRENT** — 두 순번의 차이·이상 패턴·실데이터 집계 |
-| 8 | [공식 전처리 설계](../model_train/docs/%5B전처리%5D-설계.md) | **OFFICIAL DESIGN** — 모든 모델이 공유하는 3-RX 전처리 기준 |
-| 9 | [후처리](postprocessing.md) | **CURRENT + EXPERIMENTAL** — 수집률·시각화와 모델 문서 연결 |
+| 8 | [공식 전처리 설계](../model_train/docs/preprocessing/design.md) | **CURRENT CONTRACT** — 모든 모델이 공유하는 3-RX 전처리 기준 |
+| 9 | [후처리](postprocessing.md) | **CURRENT** — 수집률·시각화와 공식 3-RX 모델 pipeline 연결 |
 | 10 | [호스트 스크립트](../scripts/README.md) | **CURRENT** — CLI와 도구 책임 |
 | 11 | [트러블슈팅](troubleshooting/README.md) | **CURRENT + HISTORICAL** — 종류별·시간순 (환경·수집률·스트림·리셋·세션·신호·측정·도구·무선) |
 | 12 | [문서 주도 개발 규칙](documentation-policy.md) | **PROCESS CONTRACT** |
 | 13 | [ADR-0001](adr-poc-only.md) | **ACCEPTED** — PoC 단일 경로 결정 |
 | 14 | [수집 환경 정비 스프린트](sprint/2026-08-collection-hardening.md) | **HISTORICAL** — frame v4·세션/라벨 정비의 시도·막힌 지점·실측 |
-| 15 | [모델 학습 문서](../model_train/docs/%5B문서%5D-목록.md) | **EXPERIMENTAL** — 전처리·모델 비교·설계·학습 문서 |
+| 15 | [모델 학습 문서](../model_train/docs/README.md) | **CURRENT** — 전처리·모델 비교·설계·학습 문서 인덱스 |
 
 ## 문서 상태 규칙
 
@@ -43,8 +43,10 @@ Wifi_esp32/
 ├── esp32s3_csi_sink/            실시간 경로 SINK firmware (업링크 → USB)
 ├── scripts/                     flash·registry·reader·visualization CLI
 ├── mac_collector/               registry·session metadata 보관
-├── model_train/                 실험 단계 모델 코드
-│   └── docs/                    전처리·모델 설계·학습 문서
+├── model_train/                 공식 전처리와 모델 학습 코드
+│   └── docs/
+│       ├── preprocessing/       전처리 설계·분석 문서
+│       └── model-training/      모델 설계·학습 결과 문서
 ├── mac_collector_output/        수집 결과 `.csi` 세션·JSONL 내보내기 (git 제외)
 └── log/                         reader 로그 (git 제외)
 ```

@@ -43,9 +43,11 @@ Mac — 전처리 (수집과 분리된 별도 단계)
              ▼
   mac_collector_output/jsonl/raw/YYYYMMDD/session_<id>/device_<id>.jsonl
              │
-             ├─ model_train/preprocessing/preprocess_3rx.py (공식 3-RX 전처리, OFFICIAL DESIGN)
-             │    tx_seq 정렬 → 3-RX 공통 구간 → 3초 window (N,300,192) → train 통계로 normalize
-             └─ model_train/<model-name>/ (실험 단계 모델 코드)
+             ├─ model_train/preprocessing/preprocess_3rx.py (공식 3-RX 전처리, CURRENT CONTRACT)
+             │    tx_seq 정렬 → 3-RX 공통 구간 → 3초 window → session 단위 split → normalize
+             ├─ model_train/lstm/ (LSTM 기준모델, 학습·평가 완료)
+             ├─ model_train/cnn1d/ (1D-CNN, LSTM과 공통 runner 사용)
+             └─ model_train/docs/ (preprocessing/·model-training/)
 ```
 
 수집(`.csi` 저장까지)과 전처리(JSONL 내보내기 이후)는 서로 다른 단계다. 수집은 실시간
@@ -79,8 +81,10 @@ RX처럼 읽는다) 상세는 [realtime-uplink.md](realtime-uplink.md)를 따른
 | `session_meta.yaml` | run과 실험 조건의 SSOT | 운영자 입력 | snapshot |
 | `export_jsonl.py` | `.csi` → JSONL record schema v1 내보내기 | `device_<id>.csi`, `session.json` | `device_<id>.jsonl`, `labels.json` |
 | `visualize_csi.py` | RX별 amplitude 시각화 | JSONL | PNG |
-| `model_train/preprocessing/preprocess_3rx.py` | 공식 3-RX 전처리 — `tx_seq` 정렬·공통 구간·window | JSONL | `X.npy`, `y.npy`, manifest, normalization |
-| `model_train/<model-name>/` | 모델별 실험 단계 전처리·학습 코드 | JSONL 또는 전처리 산출물 | in-memory model |
+| `model_train/preprocessing/preprocess_3rx.py` | 공식 3-RX 정렬·window·split·normalization | JSONL과 session metadata | split별 배열, metadata, manifest |
+| `model_train/lstm/LSTM.py` | 공식 LSTM 기준모델 학습·검증·평가 | 전처리 산출물 | checkpoint, metric, prediction |
+| `model_train/cnn1d/CNN1D.py` | 1D-CNN 학습·검증·평가 (LSTM의 공통 runner 사용) | 전처리 산출물 | checkpoint, metric, prediction |
+| `model_train/lstm/Preprocessing.py` | 구형 단일 RX 전처리 기록 (역사적 참고용) | JSONL | in-memory `X`, `y` |
 
 ## 3. 제어 흐름
 
@@ -240,8 +244,8 @@ Frame과 `.csi`/JSONL field는 [serial frame schema](data-schema.md)가 유일�
 | run ID와 label/환경 | `session_meta.yaml` |
 | RF channel/bandwidth/rate | TX/RX firmware source constants |
 | binary frame·`.csi`·JSONL field | `data-schema.md` + producer/reader constants |
-| 공식 3-RX 전처리(window/split/normalize) | `model_train/docs/[전처리]-설계.md` + `preprocess_3rx.py` — official design |
-| 모델별 feature/학습 설정 | `model_train/docs/` 문서와 `model_train/<model-name>/` 코드 — experimental |
+| 공식 3-RX 전처리(window/split/normalize) | `model_train/docs/preprocessing/design.md` + `preprocess_3rx.py` — CURRENT CONTRACT |
+| 모델별 feature/학습 설정 | `model_train/docs/model-training/` 문서와 `model_train/lstm/`·`model_train/cnn1d/` 코드 |
 
 RF 설정은 현재 compile-time constant다. 별도의 network configuration file은 없다.
 
@@ -257,14 +261,15 @@ RF 설정은 현재 compile-time constant다. 별도의 network configuration fi
 1. `export_jsonl.py` — `.csi`를 [JSONL record schema v1](data-schema.md#3-jsonl-record-schema-v1-전처리-입력)로 내보낸다. **CURRENT.**
 2. `model_train/preprocessing/preprocess_3rx.py` — JSONL을 입력받아 RX 101·102·103의
    `tx_seq` 정렬, 손상 record 제거, 공통 구간 선택, 5-frame 이하 보간, 3초/300-frame
-   window 생성, train 통계 normalization까지 수행해 `(N,300,192)` Tensor와 manifest를
-   만든다. 이 설계와 구현은 **OFFICIAL DESIGN**이며 상세는
-   [`model_train/docs/[전처리]-설계.md`](../model_train/docs/%5B전처리%5D-설계.md)를 따른다.
+   window 생성, session 단위 split, train 통계 normalization까지 수행해 split별 배열과
+   manifest를 만든다. **CURRENT CONTRACT** — LSTM과 1D-CNN 두 모델이 이미 이 산출물로
+   학습·평가를 완료했다. 상세는
+   [`model_train/docs/preprocessing/design.md`](../model_train/docs/preprocessing/design.md).
 
-`model_train/<model-name>/`(예: `lstm/`)의 학습 코드는 이와 별개로 **실험 단계**다.
-일부는 단일 RX·단일 session·hardcoded path/label을 쓰며 위 공식 전처리 산출물을 아직
-쓰지 않는 코드도 있다. CLI/GUI pipeline에 자동으로 연결되지 않으며, 모델별 현재 상태와
-목표는 `model_train/docs/`의 전처리·모델 문서에 기록한다.
+`model_train/lstm/`·`model_train/cnn1d/`의 학습 코드는 이 공식 전처리 산출물을 입력으로
+쓴다 — 모델별 구현과 실험 결과는 `model_train/docs/model-training/`에 기록한다. 단일
+RX·단일 session·hardcoded path를 쓴 구형 코드(`lstm/Preprocessing.py`)는 역사적 참고
+자료로만 유지한다.
 
 ## 10. 아키텍처 변경으로 취급하는 항목
 

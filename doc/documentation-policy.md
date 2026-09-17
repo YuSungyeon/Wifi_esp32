@@ -36,8 +36,9 @@ MeshSense에서는 코드가 동작해도 문서가 현재 상태를 설명하�
 
 현재값과 과거값을 같은 표의 “현재 설정”으로 섞지 않는다.
 
-`model_train/docs/`의 파일명은 `카테고리-내용.md` 형식의 한글 이름을 사용한다.
-예: `전처리-설계.md`, `모델-비교와-선정.md`.
+`model_train/docs/`는 `preprocessing/`과 `model-training/`으로 분류하고,
+파일명은 영어 소문자 kebab-case를 사용한다. 예: `design.md`,
+`model-comparison.md`.
 
 ## 3. 변경별 선행 문서
 
@@ -47,7 +48,7 @@ MeshSense에서는 코드가 동작해도 문서가 현재 상태를 설명하�
 | TX/RX RF·CSI 설정 | `firmware.md` |
 | binary header/JSONL field | `data-schema.md` |
 | flash·수집 실행 순서 | `quickstart.md`, `scripts/README.md` |
-| window/feature/label/split | `model_train/docs/`의 전처리·모델 설계 문서 |
+| window/feature/label/split | `model_train/docs/preprocessing/`과 `model_train/docs/model-training/`의 설계 문서 |
 | 개발 방식/완료 조건 | 이 문서 |
 
 ## 4. Data contract 변경
@@ -108,7 +109,7 @@ ADR은 Context, Decision, Consequences, Status를 포함한다. 채택된 결정
 - frame/record field: serial frame schema
 - 실행 순서: quickstart
 - firmware 상수: firmware document
-- 공식 전처리 설계: `model_train/docs/전처리-설계.md`
-- 모델 현재값: `model_train/docs/`의 모델별 문서
+- 공식 전처리 설계: `model_train/docs/preprocessing/design.md`
+- 모델 현재값: `model_train/docs/model-training/`의 모델별 문서
 
 다른 문서는 상세값을 복사하기보다 canonical 문서에 링크한다.

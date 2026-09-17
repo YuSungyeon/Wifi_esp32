@@ -60,6 +60,7 @@ model_train/preprocessing/output/
 
 # --- 모델 학습 산출물 (checkpoint, 지표, 예측) ---
 model_train/lstm/runs/
+model_train/cnn1d/runs/
 
 # --- 로컬 질의응답 기록 (Git에 올리지 않음) ---
 doc/qa-log.md
