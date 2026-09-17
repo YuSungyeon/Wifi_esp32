@@ -1,6 +1,7 @@
 # 3-RX 1D-CNN Training
 
-> 상태: **CURRENT** — 구현 및 CPU 소형 fixture 검증 완료. 실제 데이터 비교 실험은 미실행.
+> 상태: **CURRENT** — 소형 fixture 검증 및 2026-09-17 실제 데이터 MPS 학습·평가 완료.
+> 실험 결과: [1D-CNN과 LSTM 비교 보고서](cnn1d-vs-lstm-report.md).
 
 실행 코드: [`CNN1D.py`](../../cnn1d/CNN1D.py).
 입력은 [공식 전처리](../preprocessing/design.md)의 `(N, 300, 192)` raw amplitude다.
@@ -65,4 +66,6 @@ Run에는 config, dataset manifest, normalization, seed, source commit,
 잘못된 구조·입력 거부, 소형 데이터 학습, checkpoint 복원 후 예측 일치,
 모델 종류 불일치 거부, test 결과 저장·재실행 거부를 검사한다.
 학습 중에는 train·validation DataLoader만 생성하는지도 확인한다.
-실제 데이터 성능과 CUDA/MPS 실행은 이 fixture 검증에 포함되지 않는다.
+Fixture 검증과 별도로 실제 데이터 MPS 학습 6회와 선택된 seed 3개의 test를 완료했다.
+CNN은 validation 동률 규칙으로 none을 선택했으며 test macro-F1은 0.7015 ± 0.0084였다.
+세션 일반화 개선 여부와 학습 비용은 위 비교 보고서를 따른다. CUDA 실행은 검증하지 않았다.

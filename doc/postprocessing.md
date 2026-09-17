@@ -244,7 +244,7 @@ RX   START   END     SPAN   OBSERVED  MISSING  RATIO   MAX_GAP
 
 현재 공식 전처리는 3-RX 정렬, session 단위 split, train 통계 정규화를 구현한다.
 LSTM baseline은 고정된 3개 seed의 학습과 최종 평가를 완료했다.
-1D-CNN 학습·평가 코드는 소형 fixture로 검증했으며 실제 비교 실험은 미실행이다. 단일
+1D-CNN도 실제 데이터 학습·평가를 완료했으며 [LSTM 비교 보고서](../model_train/docs/model-training/cnn1d-vs-lstm-report.md)에 결과를 기록했다. 단일
 session·단일 RX·hardcoded path를 사용한 구현은 역사적 참고 문서로만 남긴다.
 
 다른 모델을 추가할 때도 코드와 문서를 분리한다. 전체 목록은

@@ -1,0 +1,48 @@
+{
+  "verified_test_runs": [
+    {
+      "run_dir": "/Users/jaehyeog/my/Wifi_esp32/model_train/lstm/runs/20260902-205721-200700-seed0-balanced",
+      "prediction_sha256": "b5a30d62eda5ac180ba43330598d9fac51a3c9245893871c5745ae0f803a263b",
+      "windows": 5924,
+      "metrics_recomputed": true
+    },
+    {
+      "run_dir": "/Users/jaehyeog/my/Wifi_esp32/model_train/lstm/runs/20260902-210816-041966-seed1-balanced",
+      "prediction_sha256": "1c712f0e9ce76b3b777b775be51c14c7daf917cc856ea0554c8155b5a5b67d66",
+      "windows": 5924,
+      "metrics_recomputed": true
+    },
+    {
+      "run_dir": "/Users/jaehyeog/my/Wifi_esp32/model_train/lstm/runs/20260902-211113-658687-seed2-balanced",
+      "prediction_sha256": "96f0d979d489a67eed263bcf7352878fb14f704ca20c2e367f851ccbc24024c5",
+      "windows": 5924,
+      "metrics_recomputed": true
+    },
+    {
+      "run_dir": "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed0-none",
+      "prediction_sha256": "9c14f4be8247d032553d2233f56b5c061c012d6b27ad35f141e7784a89fc7d7b",
+      "windows": 5924,
+      "metrics_recomputed": true
+    },
+    {
+      "run_dir": "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed1-none",
+      "prediction_sha256": "ea62a887e4c82fe9dcbafa3f9d3bee8902c318ba319c1af52cb66cba06799ff1",
+      "windows": 5924,
+      "metrics_recomputed": true
+    },
+    {
+      "run_dir": "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed2-none",
+      "prediction_sha256": "1bf843894527b4c542bf3db888f35f483911cabbb49e2c201f60c8923365e9c7",
+      "windows": 5924,
+      "metrics_recomputed": true
+    }
+  ],
+  "prediction_rows_checked": 35544,
+  "training_code_matches_commit": "0a563fe23596aa86590336b5e2e06a6e7bbdb6a7",
+  "checks": [
+    "window identity/label matches original test data",
+    "softmax probabilities and argmax",
+    "confusion matrix and macro-F1 recomputed",
+    "session mean probabilities and accuracy recomputed"
+  ]
+}
