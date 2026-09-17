@@ -82,10 +82,16 @@ Reader 는 프레임을 **변환 없이 그대로** 이어붙인다. 저장 단�
 
 ```text
 mac_collector_output/raw/<YYYYMMDD>/<HHMMSS>_<label>_s<session_id>/
-    device_<device_id>.csi        44B 헤더 + raw I/Q 프레임의 연속
-    session.json                  세션 manifest (라벨 SSOT)
-    session_meta_snapshot.yaml    수집 시점 실험 조건
+    device_<device_id>.csi          44B 헤더 + raw I/Q 프레임의 연속
+    session.json                    세션 manifest (라벨 SSOT)
+    session_meta_snapshot.yaml      수집 시점 실험 조건
+    device_registry_snapshot.csv    수집 시점 RX 좌표(선택 — 없으면 옛 세션)
+    tx_registry_snapshot.csv        수집 시점 TX 좌표(선택 — 없으면 옛 세션)
 ```
+
+`device_registry.csv`/`tx_registry.csv`는 배치가 바뀔 때마다 덮어쓰는 **현재값**
+파일이라, 스냅샷 없이는 그 세션을 찍은 시점의 좌표를 나중에 복원할 수 없다 —
+session_meta 와 같은 이유로 수집 시점에 그대로 복사해 둔다.
 
 - 디렉터리 이름에 수집 시각이 들어가 **충돌이 불가능**하다. `.csi` 는 배타적 생성(`open("xb")`)
   이라, 충돌하면 append 가 아니라 즉시 에러다. v2 의 `session_<id>` + append 조합은 실제로

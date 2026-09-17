@@ -85,6 +85,8 @@ def create_session(
     label: str,
     session_id: int,
     session_meta: Optional[Path] = None,
+    device_registry: Optional[Path] = None,
+    tx_registry: Optional[Path] = None,
     pipeline: str = "usb",
 ) -> Path:
     """세션 디렉터리를 만들고 초기 매니페스트를 쓴다. 이미 있으면 FileExistsError."""
@@ -97,6 +99,17 @@ def create_session(
     if session_meta and Path(session_meta).is_file():
         (d / "session_meta_snapshot.yaml").write_text(
             Path(session_meta).read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    # device_registry.csv/tx_registry.csv 는 계속 바뀌는 현재값이라, 이 세션을 찍을 때
+    # 실제로 어떤 좌표였는지는 스냅샷 없이는 나중에 알 방법이 없다 (파일 하나가 배치
+    # 이력을 덮어쓰며 지나간다). session_meta 와 같은 이유로 같이 남긴다.
+    if device_registry and Path(device_registry).is_file():
+        (d / "device_registry_snapshot.csv").write_text(
+            Path(device_registry).read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    if tx_registry and Path(tx_registry).is_file():
+        (d / "tx_registry_snapshot.csv").write_text(
+            Path(tx_registry).read_text(encoding="utf-8"), encoding="utf-8"
         )
 
     write_manifest(

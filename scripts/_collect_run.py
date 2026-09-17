@@ -20,6 +20,8 @@ from csi_session import create_session, finalize_session, next_session_id, summa
 READER = REPO_ROOT / "scripts" / "csi_serial_reader.py"
 VISUALIZE = REPO_ROOT / "scripts" / "visualize_csi.py"
 SESSION_META = REPO_ROOT / "mac_collector" / "session_meta.yaml"
+DEVICE_REGISTRY = REPO_ROOT / "mac_collector" / "device_registry.csv"
+TX_REGISTRY = REPO_ROOT / "mac_collector" / "tx_registry.csv"
 OUTPUT_DIR = REPO_ROOT / "mac_collector_output"
 RC_NOTE = {0: "정상", 2: "RX 아님 — 제외", 3: "스트림 정지(보드 확인 필요)", 4: "파일 충돌"}
 
@@ -32,7 +34,8 @@ def main() -> int:
         return 1
 
     session_id = next_session_id(OUTPUT_DIR)
-    sd = create_session(OUTPUT_DIR, label=label, session_id=session_id, session_meta=SESSION_META)
+    sd = create_session(OUTPUT_DIR, label=label, session_id=session_id, session_meta=SESSION_META,
+                        device_registry=DEVICE_REGISTRY, tx_registry=TX_REGISTRY)
     print(f"[세션] {sd.relative_to(REPO_ROOT)}  (label={label}, session_id={session_id})", flush=True)
     print(f"[포트] {', '.join(ports)}", flush=True)
 

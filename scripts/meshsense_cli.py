@@ -789,7 +789,8 @@ def _collect_poc_interactive() -> bool:
 
     try:
         session_dir = create_session(
-            OUTPUT_DIR, label=label, session_id=session_id, session_meta=SESSION_META
+            OUTPUT_DIR, label=label, session_id=session_id, session_meta=SESSION_META,
+            device_registry=DEVICE_REGISTRY, tx_registry=TX_REGISTRY,
         )
     except OSError as exc:
         print(f"[중단] 세션 디렉터리 생성 실패: {exc}")
