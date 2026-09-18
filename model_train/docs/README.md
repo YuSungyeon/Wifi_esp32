@@ -23,6 +23,7 @@ model_train/
 │       ├── lstm-training.md
 │       ├── cnn1d-training.md
 │       ├── cnn1d-vs-lstm-report.md
+│       ├── cnn1d-pilot-cv-report.md     파일럿(9/16·17) 배치 단위 교차검증 5사이클
 │       ├── lstm-baseline-report.md
 │       ├── training-results-summary.md
 │       ├── public-dataset-review.md
@@ -37,7 +38,8 @@ model_train/
 ├── lstm/                               LSTM 실행 코드와 공통 학습·평가 runner
 │   └── LSTM.py
 └── cnn1d/                              1D-CNN 실행 코드
-    └── CNN1D.py
+    ├── CNN1D.py
+    └── cv_pilot.py                     파일럿 배치 단위 교차검증
 ```
 
 ## 읽는 순서
