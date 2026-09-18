@@ -160,6 +160,16 @@ def finalize_session(session_dir: Path) -> dict:
     return manifest
 
 
+def set_session_note(session_dir: Path, text: str) -> None:
+    """세션 고유 사정(시야 가림 등)을 스냅샷 끝 `session_note:` 한 줄로 남긴다. 다시 쓰면 교체."""
+    p = Path(session_dir) / "session_meta_snapshot.yaml"
+    lines = p.read_text(encoding="utf-8").splitlines() if p.is_file() else []
+    lines = [l for l in lines if not l.startswith("session_note:")]
+    if text.strip():
+        lines.append("session_note: " + json.dumps(text.strip(), ensure_ascii=False))  # JSON 문자열 = 유효한 YAML
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def summarize(manifest: dict) -> Iterable[str]:
     """CLI 출력용 한 줄 요약들."""
     dur_us = (manifest.get("ended_at_unix_us") or 0) - (manifest.get("started_at_unix_us") or 0)

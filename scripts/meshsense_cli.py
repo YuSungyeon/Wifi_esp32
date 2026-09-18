@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -32,6 +33,7 @@ DEVICE_REGISTRY = REPO_ROOT / "mac_collector" / "device_registry.csv"
 TX_REGISTRY = REPO_ROOT / "mac_collector" / "tx_registry.csv"
 SESSION_META = REPO_ROOT / "mac_collector" / "session_meta.yaml"
 VISUALIZE_SCRIPT = SCRIPT_DIR / "visualize_csi.py"
+MEASURE_SCRIPT = SCRIPT_DIR / "measure_csi_hz.py"
 OUTPUT_DIR = REPO_ROOT / "mac_collector_output"
 VENV_DIR = REPO_ROOT / ".venv"
 VENV_PYTHON = VENV_DIR / "bin" / "python"
@@ -48,7 +50,7 @@ BoardKind = Literal["tx", "rx"]
 
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from csi_session import create_session, finalize_session, next_session_id, summarize  # noqa: E402
+from csi_session import create_session, finalize_session, next_session_id, set_session_note, summarize  # noqa: E402
 from csi_store import LABELS  # noqa: E402
 from session_meta import read_label_target, read_session_id  # noqa: E402
 
@@ -786,6 +788,12 @@ def _collect_poc_interactive() -> bool:
         return False
 
     duration_sec = _ask_collect_duration_sec()
+    delay_sec = _ask_float("시작 지연(초, 자리 잡기·퇴장 — 세션에 안 들어감)", 10.0)
+    # 세션을 만들기 전에 기다려 지연 구간이 started_at 에 섞이지 않게 한다
+    for left in range(int(delay_sec), 0, -1):
+        print(f"\r  {left:3d}초 후 시작…", end="", flush=True)
+        _time.sleep(1)
+    session_id = next_session_id(OUTPUT_DIR)   # 대기 중에 다른 세션이 생겼을 수 있다
 
     try:
         session_dir = create_session(
@@ -885,6 +893,18 @@ def _collect_poc_interactive() -> bool:
         print("  ② mac_collector/device_registry.csv 에 보드 MAC 이 등록되어 있는지 확인")
         return False
 
+    # collection-protocol.md §7 품질 판정 — 불합격(종료 코드 5)이면 버리는 쪽이 기본값
+    venv_py = _ensure_postprocess_venv(interactive=True)
+    failed = venv_py is not None and _run_python(MEASURE_SCRIPT, [str(session_dir)], python=venv_py) == 5
+    if _ask_yes_no("이 세션을 버릴까요?" + (" (품질 불합격)" if failed else ""), default_no=not failed):
+        shutil.rmtree(session_dir)
+        print(f"[삭제] {session_dir.relative_to(REPO_ROOT)} — 같은 라벨로 다시 찍으세요")
+        return False
+
+    note = input("세션 메모 (예: 피험자가 RX102 시야를 가림, Enter=없음): ").strip()
+    if note:
+        set_session_note(session_dir, note)
+
     if _ask_yes_no("CSI 워터폴 PNG로 확인할까요?", default_no=False):
         _run_visualize_session(session_dir)
 
@@ -892,10 +912,23 @@ def _collect_poc_interactive() -> bool:
     return True
 
 
+def _draw_block_order(prev: Optional[List[str]]) -> List[str]:
+    """블록 안 클래스 순서를 무작위로. 직전 블록과 같은 순서는 다시 뽑는다."""
+    import random
+    order = list(LABELS)
+    while True:
+        random.shuffle(order)
+        if order != prev:
+            return order
+
+
 def _menu_usb_pipeline() -> None:
     """USB 수집 파이프라인 — esp-csi 베이스 PoC (USB 시리얼 100Hz, 모델 학습 데이터)."""
+    order: Optional[List[str]] = None
     while True:
         print("\n--- USB 수집 파이프라인 (모델 학습 데이터 · esp-csi PoC) ---")
+        if order:
+            print(f"  이번 블록 순서: {' → '.join(order)}")
         print(f"  TX 프로젝트: {SEND_POC_PROJECT.name}")
         print(f"  RX 프로젝트: {RECV_POC_PROJECT.name}")
         print(f"  reader:    {SERIAL_READER_SCRIPT.name}")
@@ -904,6 +937,7 @@ def _menu_usb_pipeline() -> None:
             [
                 "보드 플래시 (PoC, MAC 자동 매칭)",
                 "수집 (라벨·시간 입력)",
+                "블록 순서 뽑기 (클래스 순서 무작위)",
                 "세션 메타 편집 (브라우저 폼)",
                 "보드 관리 (registry 등록·검증)",
                 "파이프라인 선택으로 돌아가기",
@@ -916,8 +950,10 @@ def _menu_usb_pipeline() -> None:
             _collect_poc_interactive()
             _pause()
         elif idx == 2:
-            _open_session_form()
+            order = _draw_block_order(order)
         elif idx == 3:
+            _open_session_form()
+        elif idx == 4:
             _menu_board_management()
         else:
             break
@@ -959,10 +995,14 @@ def _menu_board_management() -> None:
 
 def _ask_collect_duration_sec() -> float:
     """수집 시간(초). 0 = 수동 종료(Ctrl+C)만."""
+    return _ask_float("수집 시간(초, 0=수동 종료)", 300.0)
+
+
+def _ask_float(prompt: str, default: float) -> float:
     while True:
-        raw = input("수집 시간(초, Enter=60, 0=수동 종료): ").strip()
+        raw = input(f"{prompt} (Enter={default:g}): ").strip()
         if not raw:
-            return 60.0
+            return default
         try:
             val = float(raw)
         except ValueError:

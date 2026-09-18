@@ -29,7 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from csi_session import next_session_id, read_manifest, repo_provenance  # noqa: E402
+from csi_session import next_session_id, read_manifest, repo_provenance, set_session_note  # noqa: E402
 from csi_store import LABELS  # noqa: E402
 from session_form import (  # noqa: E402
     DEVICE_REGISTRY, FIELDS, SESSION_META, known_devices, read_meta, write_meta,
@@ -183,8 +183,17 @@ def session_rows() -> list[dict]:
                          "tx_back": x.get("tx_back", 0)} for x in devs],
             "warn": bad,
             "png": (d / "csi_waterfall.png").is_file(),
+            "note": session_note(d),
         })
     return rows
+
+
+def session_note(d: Path) -> str:
+    p = d / "session_meta_snapshot.yaml"
+    for line in (p.read_text(encoding="utf-8").splitlines() if p.is_file() else []):
+        if line.startswith("session_note:"):
+            return json.loads(line.split(":", 1)[1])
+    return ""
 
 
 def label_counts(rows) -> dict:
@@ -280,6 +289,8 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 
 JS = r"""
 let S = null, tab = 'boards', shownPng = null;
+let order = null;  // 이번 블록의 무작위 클래스 순서
+try { order = JSON.parse(localStorage.getItem('blockOrder')); } catch (e) {}
 // 섹션별 데이터 지문. 바뀐 섹션만 다시 그린다 —
 // 1.2초 폴링마다 전부 다시 그리면 입력 중인 폼이 통째로 날아간다.
 const sig = {};
@@ -325,7 +336,9 @@ function render() {
   if (tab === 'boards' && changed('boards', [S.boards, busy])) {
     const rows = S.boards.map(b => `<tr>
       <td><code>${esc(b.port)}</code></td>
-      <td>${b.registered ? `<span class="tag ok">${esc(b.board_name || ('RX'+b.device_id))}</span>`
+      <td>${b.role === 'sink' ? `<span class="tag ok">SINK</span> ` + (b.via||[]).map(r => r.registered
+          ? `<span class="tag ok">${esc(r.board_name || ('RX'+r.device_id))}</span>` : `<span class="tag warn">미등록 ${esc(r.sta_mac)}</span>`).join(' ')
+        : b.registered ? `<span class="tag ok">${esc(b.board_name || ('RX'+b.device_id))}</span>`
         : b.sta_mac ? `<span class="tag warn">미등록</span>` : `<span class="tag">RX 아님 / 미플래시</span>`}</td>
       <td class="hint">${esc(b.sta_mac || '—')}</td>
       <td>
@@ -343,7 +356,7 @@ function render() {
       <p class="sub" style="margin-top:1rem">등록되지 않은 보드는 먼저 registry 에 추가해야 수집됩니다:
       <code>python scripts/device_registry.py add --port &lt;포트&gt; --board-name RXn</code></p></div>`;
   }
-  if (tab === 'collect' && changed('collect', [S.next_session_id, S.rx_count, busy, S.meta.label_target, S.readiness])) {
+  if (tab === 'collect' && changed('collect', [S.next_session_id, S.rx_count, busy, S.meta.label_target, S.readiness, order])) {
     const opts = S.labels.map(l => `<option value="${l}" ${l===S.meta.label_target?'selected':''}>${l} — ${esc(S.label_desc[l])}</option>`).join('');
     document.getElementById('collect').innerHTML = `<div class="card">
       <h2>수집</h2>
@@ -352,7 +365,12 @@ function render() {
         <span class="hint">RX ${S.rx_count}대 인식됨</span></div>
       ${S.readiness.map(r => `<div class="ready ${r.level}">${esc(r.text)}</div>`).join('')}
       <label for="lab">라벨</label><select id="lab">${opts}</select>
-      <label for="dur">수집 시간 (초)</label><input id="dur" type="number" value="60" min="5" step="5">
+      <label>블록 순서 <span class="hint">— 블록마다 새로 뽑습니다. 누르면 라벨이 선택됩니다</span></label>
+      <div class="bar">${(order||[]).map((l,i)=>`<button class="act" onclick="document.getElementById('lab').value='${l}'">${i+1}. ${l}</button>`).join('')}
+        <button class="act" onclick="drawOrder()">블록 순서 뽑기</button></div>
+      <div class="row"><div><label for="dur">수집 시간 (초)</label><input id="dur" type="number" value="300" min="5" step="5"></div>
+        <div><label for="delay">시작 지연 (초) <span class="hint">— 자리 잡기·퇴장, 세션에 안 들어감</span></label>
+        <input id="delay" type="number" value="10" min="0" step="1"></div></div>
       <div class="bar" style="margin-top:1rem">
         <button class="act primary" ${busy||!S.rx_count?'disabled':''} onclick="startCollect()">수집 시작</button>
         ${!S.rx_count?'<span class="hint">등록된 RX 보드가 없습니다</span>':''}</div></div>`;
@@ -365,6 +383,7 @@ function render() {
       <td>${s.devices.map(d=>`RX${d.id} ${d.hz}Hz`).join('<br>')||'—'}</td>
       <td>${s.warn?'<span class="tag warn">품질 확인</span>':'<span class="tag ok">정상</span>'}</td>
       <td>${s.png?`<button class="act" onclick="showPng('${esc(s.path)}')">파형</button>`:''}
+          <button class="act" onclick="noteSession('${esc(s.path)}')" title="${esc(s.note)}">메모${s.note?' ✓':''}</button>
           <button class="act danger" onclick="delSession('${esc(s.path)}')">삭제</button></td></tr>`).join('');
     const cnt = Object.entries(S.label_counts).map(([k,v])=>`${k} ${v}`).join(' · ');
     document.getElementById('sessions').innerHTML = `<div class="card">
@@ -416,7 +435,21 @@ async function saveMeta(){
 }
 function startCollect(){
   post('/api/collect',{label:document.getElementById('lab').value,
-                       duration:parseFloat(document.getElementById('dur').value)});
+                       duration:parseFloat(document.getElementById('dur').value),
+                       delay:parseFloat(document.getElementById('delay').value)});
+}
+function drawOrder(){
+  const prev = JSON.stringify(order); let o;
+  do { o = [...S.labels]; for (let i = o.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [o[i],o[j]] = [o[j],o[i]]; } }
+  while (JSON.stringify(o) === prev);          // 직전 블록과 같은 순서는 다시 뽑는다
+  order = o;
+  try { localStorage.setItem('blockOrder', JSON.stringify(o)); } catch (e) {}
+  render();
+}
+function noteSession(p){
+  const s = S.sessions.find(x => x.path === p);
+  const t = prompt(p + '\n\n세션 메모 (예: 피험자가 RX102 시야를 가림). 비우면 삭제', s ? s.note : '');
+  if (t !== null) post('/api/note', {path: p, text: t});
 }
 function delSession(p){ if(confirm(p+'\n\n이 세션을 삭제할까요?')) post('/api/delete',{path:p}); }
 function showPng(p){ shownPng = (shownPng === p+'/csi_waterfall.png') ? null : p+'/csi_waterfall.png'; render(); }
@@ -455,7 +488,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             meta = read_meta(SESSION_META)
             self._json({
                 "boards": Handler.boards_cache,
-                "rx_count": sum(1 for b in Handler.boards_cache if b.get("registered")),
+                # SINK 포트는 뒤에 붙은 RX 들(via)로 센다
+                "rx_count": sum(1 for b in Handler.boards_cache
+                                for r in (b.get("via") or [b]) if r.get("registered")),
                 "sessions": rows, "label_counts": label_counts(rows),
                 "next_session_id": next_session_id(OUTPUT_DIR),
                 "labels": list(LABELS), "label_desc": LABEL_DESC,
@@ -524,11 +559,12 @@ def dispatch(path: str, body: dict) -> dict:
         return {"error": err} if err else {"ok": True}
 
     if path == "/api/collect":
-        label, dur = body.get("label"), float(body.get("duration") or 60)
+        label, dur = body.get("label"), float(body.get("duration") or 300)
+        delay = max(0.0, float(body.get("delay") or 0))
         if label not in LABELS:
             return {"error": f"알 수 없는 라벨: {label}"}
         err = JOB.start(f"수집 · {label} · {dur:.0f}초",
-                        [PY, str(SCRIPT_DIR / "_collect_run.py"), label, str(dur)])
+                        [PY, str(SCRIPT_DIR / "_collect_run.py"), label, str(dur), str(delay)])
         return {"error": err} if err else {"ok": True}
 
     if path == "/api/diagnose":
@@ -545,6 +581,13 @@ def dispatch(path: str, body: dict) -> dict:
 
     if path == "/api/meta":
         write_meta(SESSION_META, body)
+        return {"ok": True}
+
+    if path == "/api/note":
+        target = (REPO_ROOT / body.get("path", "")).resolve()
+        if not str(target).startswith(str(RAW_ROOT)) or not (target / "session.json").is_file():
+            return {"error": "세션 디렉터리가 아닙니다"}
+        set_session_note(target, str(body.get("text", "")))
         return {"ok": True}
 
     if path == "/api/delete":

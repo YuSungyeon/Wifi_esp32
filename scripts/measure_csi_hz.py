@@ -206,6 +206,44 @@ def analyze_csi(path: Path, gap_ms: float = 200.0) -> dict:
     }
 
 
+def quality_gate(results: list[dict], common: int | None, manifest: dict) -> tuple[list[str], list[str]]:
+    """collection-protocol.md §7 판정. (불합격 사유, 주의 사항).
+
+    불합격은 학습에 못 쓰는 것만: 스트림 손상·재부팅, 그리고 RX 공통 프레임이 기대치의
+    85% 미만. hz·tx_cov·공통 비율의 USB 직결 목표치는 무선 업링크에서 늘 조금 모자라
+    주의로만 둔다.
+    """
+    crc = {d.get("device_id"): d.get("crc_fail", 0) for d in manifest.get("devices", [])}
+    fails: list[str] = []
+    warns: list[str] = []
+    for r in results:
+        name = r["path"].removesuffix(".csi")
+        tail = name.split("_")[-1]
+        hz = r["rx_hz"] or 0.0
+        if crc.get(int(tail) if tail.isdigit() else None):
+            fails.append(f"{name} crc_fail={crc[int(tail)]}")
+        if r["resets"]:
+            fails.append(f"{name} boot_changes={r['resets']} (RX 재부팅)")
+        if r["tx_back"]:
+            fails.append(f"{name} tx_back={r['tx_back']} (TX 재부팅 — 시간 격자 파손)")
+        if not 97 <= hz <= 103:
+            warns.append(f"{name} hz={hz:.1f} (목표 97~103)")
+        if not r["tx_back"] and r["tx_cov"] <= 0.99:
+            warns.append(f"{name} tx_cov={r['tx_cov']:.3f} (목표 >0.99)")
+        if r["seq_gap"] > 0.01 * r["records"]:
+            warns.append(f"{name} seq_gap={r['seq_gap']} (프레임의 1% 초과)")
+        if not -40 <= r["rssi_med"] <= -25:
+            warns.append(f"{name} rssi_med={r['rssi_med']:.0f} (목표 -25~-40)")
+    spans = [r["records"] / r["rx_hz"] for r in results if r["rx_hz"]]
+    if common is not None and spans:
+        expected = 100.0 * max(spans)                      # TX 100Hz × 수집 구간
+        # ponytail: 85% 는 9/16·17 파일럿 판정에 맞춘 경험치 (채택 ≥89%, 폐기 ≤80%).
+        # 정확히는 전처리 윈도 생존율로 판정해야 한다 — 세션이 늘면 거기로 옮긴다.
+        if common < 0.85 * expected:
+            fails.append(f"RX 공통 프레임 {common} < 기대치 85% ({0.85 * expected:.0f})")
+    return fails, warns
+
+
 def _cs():
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -272,12 +310,20 @@ def main() -> int:
                       f"rssi_med={r['rssi_med']:.0f} agc_levels={r['agc_levels']}"
                       + ("   [경고] TX 재부팅 — 시간 격자가 깨져 학습에 쓸 수 없다"
                          if r["tx_back"] else ""))
+            sets = [set(_cs().read_device_file(p)["hdr"]["tx_seq"].tolist()) for p in csi_files]
+            common, smallest = set.intersection(*sets), min(len(x) for x in sets)
             if len(csi_files) > 1:
-                import numpy as np
-                sets = [set(_cs().read_device_file(p)["hdr"]["tx_seq"].tolist()) for p in csi_files]
-                common, smallest = set.intersection(*sets), min(len(x) for x in sets)
                 print(f"  cross-RX 공통 tx_seq: {len(common)} / 최소 RX {smallest} "
                       f"= {100.0 * len(common) / smallest:.1f}%")
+            m = json.loads(manifest.read_text(encoding="utf-8")) if manifest.is_file() else {}
+            fails, warns = quality_gate(results, len(common), m)
+            print("\n[품질 판정] " + ("불합격 — 이 세션은 버리고 다시 찍는다" if fails else "통과"))
+            for line in fails:
+                print(f"  ✗ {line}")
+            for line in warns:
+                print(f"  △ {line}")
+            if fails:
+                return 5
         if any("N/A" in row for row in rows):
             print("warning: N/A means too few records or a non-increasing time range")
 

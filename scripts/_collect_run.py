@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """세션 생성 → 포트별 reader 병렬 실행 → 매니페스트 마감 → 워터폴 PNG (GUI 용).
 
-    python scripts/_collect_run.py <label> <duration_sec>
+    python scripts/_collect_run.py <label> <duration_sec> [start_delay_sec]
 
 CLI 의 대화형 수집과 같은 절차를 비대화형으로 수행한다. 포트를 프로브하지 않고 모든
 시리얼 포트에 reader 를 붙인 뒤, IDENT 가 오지 않는 포트(TX·미등록)는 스스로 빠지게 둔다.
@@ -10,6 +10,7 @@ import glob
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -19,19 +20,28 @@ from csi_session import create_session, finalize_session, next_session_id, summa
 
 READER = REPO_ROOT / "scripts" / "csi_serial_reader.py"
 VISUALIZE = REPO_ROOT / "scripts" / "visualize_csi.py"
+MEASURE = REPO_ROOT / "scripts" / "measure_csi_hz.py"
 SESSION_META = REPO_ROOT / "mac_collector" / "session_meta.yaml"
 DEVICE_REGISTRY = REPO_ROOT / "mac_collector" / "device_registry.csv"
 TX_REGISTRY = REPO_ROOT / "mac_collector" / "tx_registry.csv"
 OUTPUT_DIR = REPO_ROOT / "mac_collector_output"
+# 품질 판정·시각화는 numpy 가 필요하다 — 시스템 python3 로 GUI 를 띄워도 .venv 로 돌린다
+POST_PY = str(REPO_ROOT / ".venv" / "bin" / "python") if (REPO_ROOT / ".venv" / "bin" / "python").is_file() else sys.executable
 RC_NOTE = {0: "정상", 2: "RX 아님 — 제외", 3: "스트림 정지(보드 확인 필요)", 4: "파일 충돌"}
 
 
 def main() -> int:
     label, duration = sys.argv[1], float(sys.argv[2])
+    delay = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
     ports = sorted(glob.glob("/dev/cu.usbmodem*") + glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*"))
     if not ports:
         print("[중단] USB 시리얼 포트를 찾지 못했습니다.")
         return 1
+
+    # 운영자가 자리를 잡거나 방을 나갈 시간. 세션을 만들기 전에 기다려 지연 구간이 안 섞이게 한다
+    for left in range(int(delay), 0, -1):
+        print(f"[대기] {left}초 후 시작", flush=True)
+        time.sleep(1)
 
     session_id = next_session_id(OUTPUT_DIR)
     sd = create_session(OUTPUT_DIR, label=label, session_id=session_id, session_meta=SESSION_META,
@@ -67,9 +77,11 @@ def main() -> int:
         print("  ② device_registry.csv 에 보드 MAC 이 등록되어 있는지 확인하세요.")
         return 1
 
+    print("\n[품질] measure_csi_hz", flush=True)
+    gate = subprocess.run([POST_PY, str(MEASURE), str(sd)], cwd=str(REPO_ROOT)).returncode
     print("\n[시각화] 워터폴 PNG 생성…", flush=True)
-    subprocess.run([sys.executable, str(VISUALIZE), "--session-dir", str(sd)], cwd=str(REPO_ROOT))
-    return 0
+    subprocess.run([POST_PY, str(VISUALIZE), "--session-dir", str(sd)], cwd=str(REPO_ROOT))
+    return gate
 
 
 if __name__ == "__main__":
