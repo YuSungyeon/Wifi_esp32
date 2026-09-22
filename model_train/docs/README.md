@@ -20,6 +20,7 @@ model_train/
 │   │   └── legacy-preprocessing.md
 │   └── model-training/                  모델 학습 문서
 │       ├── model-comparison.md
+│       ├── amplitude-phase-classification-design.md  진폭·위상 비교 실험 설계 (PLANNED)
 │       ├── lstm-training.md
 │       ├── cnn1d-training.md
 │       ├── cnn1d-vs-lstm-report.md
@@ -58,6 +59,7 @@ model_train/
 | 10 | 모델 학습 | [Session 10 and 19 Signal Audit](model-training/session-signal-audit.md) | **SUPPORTING ANALYSIS** | 환경 snapshot을 제외한 원본 대조와 세션 신호·예측 비교 |
 | 11 | 모델 학습 | [3-RX 1D-CNN Training](model-training/cnn1d-training.md) | **CURRENT** | 시간축 CNN 구조·학습·평가 방법, 실제 MPS 실험 완료 |
 | 12 | 모델 학습 | [1D-CNN과 LSTM 비교 보고서](model-training/cnn1d-vs-lstm-report.md) | **SUPPORTING ANALYSIS** | 인식 성능·실패 세션·학습 비용 비교와 재현 산출물 |
+| 13 | 모델 학습 | [진폭·위상 기반 3클래스 분류 실험 설계](model-training/amplitude-phase-classification-design.md) | **PLANNED** | 9/19·20 원본의 위상 보정·품질 진단과 동일 조건 A/P/AP 비교 |
 
 ## Historical Reference
 
