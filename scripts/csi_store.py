@@ -304,9 +304,13 @@ def amplitude(frames: np.ndarray, *, valid_only: bool = True, compensate: bool =
 
 
 def complex_csi(frames: np.ndarray, *, valid_only: bool = True) -> np.ndarray:
-    """프레임 배열 → 복소 CSI (T, 52). 위상 기반 확장용."""
+    """프레임 배열 → 복소 CSI. ESP32-S3 raw 순서는 허수, 실수다.
+
+    2026-09-24 이전 구현은 두 성분을 반대로 읽었다. 진폭은 동일하지만
+    과거 위상 캐시를 새 결과와 혼용하면 안 된다.
+    """
     raw = frames["raw"].astype(np.int16)
-    z = raw[:, 0::2].astype(np.float64) + 1j * raw[:, 1::2].astype(np.float64)
+    z = raw[:, 1::2].astype(np.float64) + 1j * raw[:, 0::2].astype(np.float64)
     return z[:, LLTF_DATA_IDX] if valid_only else z
 
 

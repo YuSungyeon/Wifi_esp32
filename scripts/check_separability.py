@@ -310,7 +310,7 @@ def main() -> int:
     acc = np.trace(cm) / total
     print(f"\n[세션 단위 LOSO · 최근접 중심]  정확도 {acc:.3f}  (무작위 = {chance:.3f})")
     print(f"  사용한 특징: {used}")
-    print(f"  {'실제\\예측':<10}" + "".join(f"{l:>9}" for l in lab) + "     recall")
+    print("  {:<10}".format("실제\\예측") + "".join(f"{l:>9}" for l in lab) + "     recall")
     for i, l in enumerate(lab):
         rec = cm[i].sum() and cm[i, i] / cm[i].sum()
         print(f"  {l:<10}" + "".join(f"{c:>9d}" for c in cm[i]) + f"   {rec:>7.3f}")

@@ -1,0 +1,3 @@
+-r requirements-model.txt
+scipy==1.13.1
+scikit-learn==1.6.1

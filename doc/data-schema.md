@@ -8,8 +8,14 @@
 
 - Endianness: little-endian
 - Header: packed **44 bytes**
-- Payload: signed int8 raw CSI (I/Q 교차) 또는 IDENT payload
+- Payload: signed int8 raw CSI (**허수 Q, 실수 I** 순서의 쌍) 또는 IDENT payload
 - CRC: **CRC-32 (zlib 호환)** — 헤더의 `crc32` 를 0으로 둔 상태의 헤더+payload 전체
+
+CSI의 각 복소수는 `I + jQ`로 해석한다. `.csi`에는 ESP32-S3가 제공한 바이트가
+그대로 저장된다. 2026-09-24에 Python `complex_csi()`의 반대 해석을 수정했으며,
+진폭 `sqrt(I²+Q²)`는 동일하다. 수정 전 위상 캐시는 새 실험과 혼용하지 않는다.
+현재 v4 헤더에는 `first_word_invalid`가 없으므로, 위상 실험에서는 첫 4바이트의
+유효 여부를 알 수 없는 제약을 별도로 처리한다.
 
 ```text
 [44-byte header][payload[raw_len]]

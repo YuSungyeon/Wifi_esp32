@@ -6,6 +6,15 @@
 어떤 모델을 시도할지에 대한 후보 비교·선정 근거는
 [Model Comparison and Selection](model-training/model-comparison.md)을 먼저 본다.
 
+최신 후속 학습: [상대 진폭·긴 문맥 3클래스 결과](model-training/robust-three-class-report.md)
+— 30초 공유 인코더를 저장했고 기존 두 날짜의 조건 제외·중첩 검증 기준을 통과했다.
+새 날짜의 독립 검증 및 실시간 연동은 아직 완료되지 않았다.
+[쉬운 설계 설명](model-training/robust-three-class-design-easy.md)과
+[쉬운 결과 설명](model-training/robust-three-class-report-easy.md)부터 읽으면
+실험 목적과 점수의 의미를 기술 용어 없이 볼 수 있다.
+[전처리→모델 구조→학습 흐름 그림](model-training/robust-three-class-pipeline.md)은
+최종 30초 모델을 처음 읽는 사람을 위한 설명이다.
+
 코드와 문서를 분리한다. 실행 코드는 모델별 디렉터리에 두고, 전처리·모델 설계·
 학습 문서는 이 `docs/` 디렉터리에 모은다.
 
@@ -60,6 +69,11 @@ model_train/
 | 11 | 모델 학습 | [3-RX 1D-CNN Training](model-training/cnn1d-training.md) | **CURRENT** | 시간축 CNN 구조·학습·평가 방법, 실제 MPS 실험 완료 |
 | 12 | 모델 학습 | [1D-CNN과 LSTM 비교 보고서](model-training/cnn1d-vs-lstm-report.md) | **SUPPORTING ANALYSIS** | 인식 성능·실패 세션·학습 비용 비교와 재현 산출물 |
 | 13 | 모델 학습 | [진폭·위상 기반 3클래스 분류 실험 설계](model-training/amplitude-phase-classification-design.md) | **PLANNED** | 9/19·20 원본의 위상 보정·품질 진단과 동일 조건 A/P/AP 비교 |
+| 14 | 모델 학습 | [긴 문맥 3클래스 실험 설계](model-training/robust-three-class-design.md) | **EXPERIMENTAL** | 상대 변화·윈도 길이·그룹 분할·판정 기준 |
+| 15 | 모델 학습 | [긴 문맥 3클래스 결과](model-training/robust-three-class-report.md) | **SUPPORTING ANALYSIS** | 완료된 학습, 날짜·배치 및 중첩 검증, 최종 모델·추론 명령 |
+| 16 | 모델 학습 | [30초 3분류 모델 전체 흐름](model-training/robust-three-class-pipeline.md) | **SUPPORTING ANALYSIS** | 원본 전처리·윈도 입력·공유 CNN·학습·앙상블을 Mermaid로 설명 |
+| 17 | 모델 학습 | [쉽게 읽는 3분류 실험 설계](model-training/robust-three-class-design-easy.md) | **SUPPORTING ANALYSIS** | 무엇을 왜 비교하고 어떻게 평가하기로 했는지 설명 |
+| 18 | 모델 학습 | [쉽게 읽는 3분류 결과](model-training/robust-three-class-report-easy.md) | **SUPPORTING ANALYSIS** | 평가용 점수와 최종 파일의 차이, 완료·미확인 범위 설명 |
 
 ## Historical Reference
 

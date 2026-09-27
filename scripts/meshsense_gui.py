@@ -360,7 +360,7 @@ function render() {
     const opts = S.labels.map(l => `<option value="${l}" ${l===S.meta.label_target?'selected':''}>${l} — ${esc(S.label_desc[l])}</option>`).join('');
     document.getElementById('collect').innerHTML = `<div class="card">
       <h2>수집</h2>
-      <p class="sub">라벨은 지금 고른 값이 그대로 데이터에 기록됩니다. 순번은 자동입니다.</p>
+      <p class="sub">라벨은 지금 고른 값이 그대로 데이터에 기록됩니다. 순번은 <code>session.json</code>이 있는 세션만 세어 자동으로 정합니다. 매니페스트가 없는 예전 <code>session_N</code> 폴더는 제외됩니다.</p>
       <div class="bar"><span>다음 순번</span><span class="big">s${S.next_session_id}</span>
         <span class="hint">RX ${S.rx_count}대 인식됨</span></div>
       ${S.readiness.map(r => `<div class="ready ${r.level}">${esc(r.text)}</div>`).join('')}

@@ -23,16 +23,17 @@ from csi_store import FRAME_VERSION, LABELS
 MANIFEST_SCHEMA = 1
 
 
-#: 세션 디렉터리 이름에서 순번을 뽑는 패턴. 구 레이아웃(`session_<N>`)도 함께 인식한다.
+#: 매니페스트가 있는 세션 디렉터리 이름에서 순번을 뽑는 패턴.
 _SESSION_ID_RE = re.compile(r"(?:_s|^session_)(\d+)$")
 
 
 def next_session_id(output_dir: Path) -> int:
-    """이미 수집한 세션들의 순번 중 최댓값 + 1.
+    """`session.json`이 있는 세션들의 순번 중 최댓값 + 1.
 
     예전에는 `session_meta.yaml` 의 `session_id` 를 사람이 매번 손으로 올려야 했고,
     잊으면 같은 디렉터리에 데이터가 덧붙었다. 순번은 파일시스템이 가진 정보만으로
-    결정할 수 있으므로 사람이 관리할 이유가 없다.
+    결정할 수 있으므로 사람이 관리할 이유가 없다. 매니페스트가 없는 구형
+    `session_<N>` 폴더는 새 수집의 순번을 차지하지 않는다.
     """
     raw = Path(output_dir) / "raw"
     if not raw.is_dir():
@@ -40,7 +41,11 @@ def next_session_id(output_dir: Path) -> int:
     used = [
         int(m.group(1))
         for d in raw.glob("*/*")
-        if d.is_dir() and (m := _SESSION_ID_RE.search(d.name))
+        if (
+            d.is_dir()
+            and (d / "session.json").is_file()
+            and (m := _SESSION_ID_RE.search(d.name))
+        )
     ]
     return max(used, default=0) + 1
 
