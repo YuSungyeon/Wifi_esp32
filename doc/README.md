@@ -12,15 +12,16 @@
 | 4 | [펌웨어](firmware.md) | **CURRENT** — TX/RX 동작과 상수 |
 | 5 | [binary/JSONL 계약](data-schema.md) | **CURRENT CONTRACT** — frame v4·`.csi` 저장소·JSONL 내보내기 |
 | 6 | [실시간 경로](realtime-uplink.md) | **CURRENT** — ESP-NOW 업링크 + USB 싱크 (무선 배치) |
-| 7 | [`seq`와 `tx_seq` 패턴](sequence-patterns.md) | **CURRENT** — 두 순번의 차이·이상 패턴·실데이터 집계 |
-| 8 | [공식 전처리 설계](../model_train/docs/preprocessing/design.md) | **CURRENT CONTRACT** — 모든 모델이 공유하는 3-RX 전처리 기준 |
-| 9 | [후처리](postprocessing.md) | **CURRENT** — 수집률·시각화와 공식 3-RX 모델 pipeline 연결 |
-| 10 | [호스트 스크립트](../scripts/README.md) | **CURRENT** — CLI와 도구 책임 |
-| 11 | [트러블슈팅](troubleshooting/README.md) | **CURRENT + HISTORICAL** — 종류별·시간순 (환경·수집률·스트림·리셋·세션·신호·측정·도구·무선) |
-| 12 | [문서 주도 개발 규칙](documentation-policy.md) | **PROCESS CONTRACT** |
-| 13 | [ADR-0001](adr-poc-only.md) | **ACCEPTED** — PoC 단일 경로 결정 |
-| 14 | [수집 환경 정비 스프린트](sprint/2026-08-collection-hardening.md) | **HISTORICAL** — frame v4·세션/라벨 정비의 시도·막힌 지점·실측 |
-| 15 | [모델 학습 문서](../model_train/docs/README.md) | **CURRENT** — 전처리·모델 비교·설계·학습 문서 인덱스 |
+| 7 | [실시간 상태 판단](realtime-inference.md) | **PLANNED** — 2단계 모델(움직임 3초 + 정지 판별 수십초)과 판정 규칙 |
+| 8 | [`seq`와 `tx_seq` 패턴](sequence-patterns.md) | **CURRENT** — 두 순번의 차이·이상 패턴·실데이터 집계 |
+| 9 | [공식 전처리 설계](../model_train/docs/preprocessing/design.md) | **CURRENT CONTRACT** — 모든 모델이 공유하는 3-RX 전처리 기준 |
+| 10 | [후처리](postprocessing.md) | **CURRENT** — 수집률·시각화와 공식 3-RX 모델 pipeline 연결 |
+| 11 | [호스트 스크립트](../scripts/README.md) | **CURRENT** — CLI와 도구 책임 |
+| 12 | [트러블슈팅](troubleshooting/README.md) | **CURRENT + HISTORICAL** — 종류별·시간순 (환경·수집률·스트림·리셋·세션·신호·측정·도구·무선) |
+| 13 | [문서 주도 개발 규칙](documentation-policy.md) | **PROCESS CONTRACT** |
+| 14 | [ADR-0001](adr-poc-only.md) | **ACCEPTED** — PoC 단일 경로 결정 |
+| 15 | [수집 환경 정비 스프린트](sprint/2026-08-collection-hardening.md) | **HISTORICAL** — frame v4·세션/라벨 정비의 시도·막힌 지점·실측 |
+| 16 | [모델 학습 문서](../model_train/docs/README.md) | **CURRENT** — 전처리·모델 비교·설계·학습 문서 인덱스 |
 
 ## 문서 상태 규칙
 
