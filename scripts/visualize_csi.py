@@ -26,11 +26,32 @@ DEFAULT_OUT_NAME = "csi_waterfall.png"
 
 
 def load_device_buffers(session_dir: Path) -> Dict[int, List[Tuple[int, np.ndarray]]]:
-    """device_<id>.jsonl → {device_id: [(received_at_unix_us, amp), ...]}."""
+    """세션 → {device_id: [(timestamp_us, amp[52]), ...]}.
+
+    신규 `.csi` 스토어를 우선 읽고, 없으면 구 JSONL 로 폴백한다 (구 세션은 라벨이 없고
+    여러 런이 한 파일에 섞여 있을 수 있어 진단 용도로만 본다).
+    """
+    import csi_store as cs
+
     buffers: Dict[int, List[Tuple[int, np.ndarray]]] = defaultdict(list)
+
+    csi_paths = sorted(session_dir.glob("device_*.csi"))
+    if csi_paths:
+        for path in csi_paths:
+            frames = cs.read_device_file(path)
+            if len(frames) == 0:
+                continue
+            device_id = cs.device_id_from_path(path)
+            amps = cs.amplitude(frames)
+            ts = frames["hdr"]["timestamp_us"].astype(np.int64)
+            buffers[device_id] = list(zip(ts.tolist(), amps))
+        if buffers:
+            return dict(buffers)
+
     paths = sorted(session_dir.glob("device_*.jsonl"))
     if not paths:
-        raise FileNotFoundError(f"device_*.jsonl 없음: {session_dir}")
+        raise FileNotFoundError(f"device_*.csi / device_*.jsonl 없음: {session_dir}")
+    print(f"[viz] 구 JSONL 세션 — 진단 용도로만 사용하세요: {session_dir.name}", file=sys.stderr)
 
     pat = re.compile(r"device_(\d+)\.jsonl$")
     for jsonl_path in paths:
@@ -116,18 +137,20 @@ def render_combined_waterfall_png(
     n = len(device_ids)
     fig_h = max(3.5 * n, 4.0)
     fig = plt.figure(figsize=(13, fig_h), dpi=120)
-    # 좌: 워터폴, 우: colorbar 전용 열 (워터폴과 겹치지 않음)
+    # 여백은 비율이 아니라 **인치 기준**으로 잡는다. RX 1대일 때 그림이 4인치로 짧아지는데
+    # 비율 여백(top=0.94)이면 suptitle 과 축 제목이 겹치고 x축 라벨이 잘려 나갔다.
+    top_in, bottom_in = 0.75, 0.55
     gs = gridspec.GridSpec(
         n,
         2,
         figure=fig,
         width_ratios=[1, 0.045],
         wspace=0.12,
-        hspace=0.28,
+        hspace=0.42,
         left=0.07,
         right=0.96,
-        top=0.94,
-        bottom=0.06,
+        top=1 - top_in / fig_h,
+        bottom=bottom_in / fig_h,
     )
 
     vmin = min(float(p[0].min()) for p in panels.values() if p[0].size > 0)
@@ -156,15 +179,17 @@ def render_combined_waterfall_png(
             vmax=vmax,
         )
         duration_s = rel_t[-1] - rel_t[0] if len(rel_t) > 1 else 0.0
-        ax.set_ylabel("Subcarrier")
+        ax.set_ylabel("LLTF data subcarrier")
         ax.set_title(f"device_id = {device_id}  ({matrix.shape[0]} samples, ~{duration_s:.1f}s)")
 
     if plot_axes:
         plot_axes[-1].set_xlabel("Time (s, from first packet per RX)")
     if last_im is not None:
         cax = fig.add_subplot(gs[:, 1])
-        fig.colorbar(last_im, cax=cax, label="Amplitude (on-device norm)")
-    fig.suptitle("CSI amplitude waterfall")
+        # USB 파이프라인은 raw I/Q 를 그대로 저장하고 호스트가 sqrt(I²+Q²) 만 한다 —
+        # 온디바이스 정규화는 deprecated 된 AP 경로 얘기였다.
+        fig.colorbar(last_im, cax=cax, label="Amplitude  sqrt(I²+Q²)")
+    fig.suptitle(f"CSI amplitude waterfall — {session_dir.name}", y=1 - 0.22 / fig_h)
     out_path = session_dir / out_name
     fig.savefig(out_path)
     plt.close(fig)
@@ -199,7 +224,9 @@ def generate_session_waterfall(
 
 
 def find_latest_session_dir(output_base: Path, session_id: int) -> Optional[Path]:
-    candidates = list(output_base.glob(f"raw/*/session_{session_id}"))
+    """session_id 로 세션 찾기. 신규 레이아웃(`<HHMMSS>_<label>_s<id>`)을 먼저 본다."""
+    candidates = list(output_base.glob(f"raw/*/*_s{session_id}"))
+    candidates += list(output_base.glob(f"raw/*/session_{session_id}"))
     if not candidates:
         return None
     return max(candidates, key=lambda p: p.stat().st_mtime)
@@ -210,7 +237,7 @@ def main() -> int:
     parser.add_argument(
         "--session-dir",
         type=Path,
-        help="session_<id> 디렉터리 (device_*.jsonl 포함)",
+        help="세션 디렉터리 (device_*.csi 또는 구 device_*.jsonl 포함)",
     )
     parser.add_argument(
         "--output-dir",

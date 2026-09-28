@@ -1,5 +1,6 @@
-# ESP32-S3 CSI Recv (USB 파이프라인 RX)
+# MeshSense CSI USB RX Firmware
 
-문서: [doc/pipeline/usb-collection.md](../doc/pipeline/usb-collection.md)
+현재 공식 RX firmware입니다. 디렉터리의 `_poc` 이름은 역사적으로 유지합니다.
 
-플래시: `python scripts/meshsense_cli.py` → [1] USB 수집 → [1] 보드 플래시
+Binary data contract: [doc/data-schema.md](../doc/data-schema.md)
+동작과 build 절차: [doc/firmware.md](../doc/firmware.md)

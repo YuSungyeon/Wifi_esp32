@@ -18,7 +18,7 @@ RUAMEL_YAML_PIN = "ruamel.yaml==0.17.21"
 RUAMEL_CLIB_PIN_LEGACY = "ruamel.yaml.clib==0.2.7"
 # ruamel.yaml.clib 0.2.7 소스 빌드는 Python 3.14+ 에서 실패 (ast.Str 제거)
 RUAMEL_CLIB_PIN_MODERN = "ruamel.yaml.clib>=0.2.12"
-TROUBLESHOOTING_DOC = "doc/overview/esp-idf-troubleshooting.md"
+TROUBLESHOOTING_DOC = "doc/troubleshooting.md"
 
 from idf_env import augmented_subprocess_env, idf_diagnose, idf_py_works
 from idf_paths import (

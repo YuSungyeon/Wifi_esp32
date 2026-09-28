@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Tuple
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DEFAULT_TX_REGISTRY_PATH = REPO_ROOT / "mac_collector" / "tx_registry.csv"
-TX_PROJECT = REPO_ROOT / "esp32s3_tx_ap_node"
+TX_PROJECT = REPO_ROOT / "esp32s3_csi_send_poc"
 
 from registry_core import (  # noqa: E402,F401  (MAC_RE·normalize_mac은 기존 공개 API 재노출)
     MAC_RE,
@@ -216,8 +216,7 @@ def _cmd_add(
     )
     save_tx_registry(records, registry)
     print(f"[ok] added tx_node_id={tx_node_id} board_name={board_name} chip_mac={mac}")
-    print("     flash: python scripts/flash_tx.py -p <PORT>")
-    print("     RX/TX flash: scripts/meshsense_config.json (ap.ssid / ap.pass)")
+    print("     flash: python scripts/meshsense_cli.py")
     return 0
 
 

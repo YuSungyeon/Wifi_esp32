@@ -17,7 +17,7 @@ from idf_paths import (
     resolve_idf_path,
 )
 
-TROUBLESHOOTING_DOC = "doc/overview/esp-idf-troubleshooting.md"
+TROUBLESHOOTING_DOC = "doc/troubleshooting.md"
 
 
 def _path_export_clause(prefixes: List[str]) -> str:

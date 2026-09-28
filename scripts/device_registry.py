@@ -33,7 +33,7 @@ from registry import (  # noqa: E402
 )
 
 REPO_ROOT = SCRIPT_DIR.parent
-RX_PROJECT = REPO_ROOT / "esp32s3_csi_sender"
+RX_PROJECT = REPO_ROOT / "esp32s3_csi_recv_poc"
 
 
 def cmd_list(registry: Path) -> int:
@@ -130,7 +130,7 @@ def cmd_add(
     records.append(new_rec)
     save_registry(records, registry)
     print(f"[ok] added device_id={device_id} board_name={board_name} sta_mac={mac}")
-    print(f"     flash: python scripts/flash_rx.py -p <PORT>")
+    print("     flash: python scripts/meshsense_cli.py")
     return 0
 
 

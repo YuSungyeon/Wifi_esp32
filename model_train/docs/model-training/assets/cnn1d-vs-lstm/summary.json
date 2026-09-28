@@ -1,0 +1,1414 @@
+{
+  "protocol": {
+    "started_at": "2026-09-17T09:34:50.398137+00:00",
+    "dataset_dir": "/Users/jaehyeog/my/Wifi_esp32/model_train/preprocessing/output/20260616",
+    "device": "mps",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "class_weight_candidates": [
+      "none",
+      "balanced"
+    ],
+    "selection_metric": "mean validation window macro_f1; ties prefer none",
+    "test_role": "exploratory comparison on previously observed test sessions",
+    "source_commit": "0a563fe23596aa86590336b5e2e06a6e7bbdb6a7",
+    "source_sha256": {
+      "model_train/cnn1d/CNN1D.py": "45c19245b7696ed6dbcdfd12c2e9a1ef4f644a70e396c3df012d7306e6b4a2b5",
+      "model_train/lstm/LSTM.py": "43b502f856d6c60d603e5616038a29bdda535918f7631131b6f08d0c6191ce16",
+      "model_train/analysis/run_cnn1d_comparison.py": "2dfb7f42f37a533403bd16cbb1a263f877c2cc9773de66839c1c1a4cc932b5f6"
+    },
+    "dataset_sha256": {
+      "manifest.json": "3ac477cf4ec92e60f230e0f117721246174c262944b6669af2e4c432429fc0b4",
+      "normalization.npz": "5f11d2cc528e280a43faa69258ddb3bfd1572f4370ff7e915e3136bd187d7c51",
+      "train/X.npy": "cb80cdf78f59c0e0aff5454169d39724bc3832b6764f015ae6b95bb242e0c975",
+      "train/y.npy": "0bc963d5017791f825b33a591614bc412b13df2abe55dc8216211f8e362f82da",
+      "train/windows.jsonl": "15990c4d378f5905349fb67703cb890978401f9059624a4458f1eb215b303f56",
+      "validation/X.npy": "7f5cee7da5baeb9df93b745b8f0c07d360f2b15031b992e57a22c283626c4c75",
+      "validation/y.npy": "2f97eca9f2405963dc8980968fe8efe1ea27c812ddf39c2ee8a673313ff94a1a",
+      "validation/windows.jsonl": "4d03140c78bd08999e23792c302b537593a6efa6345ee05c0336a1126aac50c0",
+      "test/X.npy": "72fb63b2984c5fd0ffc775bf231c5cbd8795b13baf324601bdeade68774a66c1",
+      "test/y.npy": "299dff343d0ba7566e590520feb0161b9a4e36b721f1f204fdf950e6f0b68865",
+      "test/windows.jsonl": "960fb4081c49f5b02dfb1bafff24e99eb1a7b8cfd7cf480ac84f5500d57f9de2"
+    },
+    "commands": [
+      [
+        "/opt/homebrew/anaconda3/envs/wifi-csi-lstm/bin/python",
+        "-u",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/CNN1D.py",
+        "train",
+        "--dataset-dir",
+        "/Users/jaehyeog/my/Wifi_esp32/model_train/preprocessing/output/20260616",
+        "--device",
+        "mps",
+        "--run-dir",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed0-none",
+        "--seed",
+        "0",
+        "--class-weight",
+        "none",
+        "--batch-size",
+        "32",
+        "--epochs",
+        "50",
+        "--patience",
+        "5",
+        "--learning-rate",
+        "0.001",
+        "--dropout",
+        "0.2",
+        "--num-workers",
+        "0",
+        "--min-delta",
+        "0",
+        "--channels",
+        "32",
+        "64",
+        "64",
+        "--kernel-sizes",
+        "5",
+        "5",
+        "3"
+      ],
+      [
+        "/opt/homebrew/anaconda3/envs/wifi-csi-lstm/bin/python",
+        "-u",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/CNN1D.py",
+        "train",
+        "--dataset-dir",
+        "/Users/jaehyeog/my/Wifi_esp32/model_train/preprocessing/output/20260616",
+        "--device",
+        "mps",
+        "--run-dir",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed1-none",
+        "--seed",
+        "1",
+        "--class-weight",
+        "none",
+        "--batch-size",
+        "32",
+        "--epochs",
+        "50",
+        "--patience",
+        "5",
+        "--learning-rate",
+        "0.001",
+        "--dropout",
+        "0.2",
+        "--num-workers",
+        "0",
+        "--min-delta",
+        "0",
+        "--channels",
+        "32",
+        "64",
+        "64",
+        "--kernel-sizes",
+        "5",
+        "5",
+        "3"
+      ],
+      [
+        "/opt/homebrew/anaconda3/envs/wifi-csi-lstm/bin/python",
+        "-u",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/CNN1D.py",
+        "train",
+        "--dataset-dir",
+        "/Users/jaehyeog/my/Wifi_esp32/model_train/preprocessing/output/20260616",
+        "--device",
+        "mps",
+        "--run-dir",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed2-none",
+        "--seed",
+        "2",
+        "--class-weight",
+        "none",
+        "--batch-size",
+        "32",
+        "--epochs",
+        "50",
+        "--patience",
+        "5",
+        "--learning-rate",
+        "0.001",
+        "--dropout",
+        "0.2",
+        "--num-workers",
+        "0",
+        "--min-delta",
+        "0",
+        "--channels",
+        "32",
+        "64",
+        "64",
+        "--kernel-sizes",
+        "5",
+        "5",
+        "3"
+      ],
+      [
+        "/opt/homebrew/anaconda3/envs/wifi-csi-lstm/bin/python",
+        "-u",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/CNN1D.py",
+        "train",
+        "--dataset-dir",
+        "/Users/jaehyeog/my/Wifi_esp32/model_train/preprocessing/output/20260616",
+        "--device",
+        "mps",
+        "--run-dir",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed0-balanced",
+        "--seed",
+        "0",
+        "--class-weight",
+        "balanced",
+        "--batch-size",
+        "32",
+        "--epochs",
+        "50",
+        "--patience",
+        "5",
+        "--learning-rate",
+        "0.001",
+        "--dropout",
+        "0.2",
+        "--num-workers",
+        "0",
+        "--min-delta",
+        "0",
+        "--channels",
+        "32",
+        "64",
+        "64",
+        "--kernel-sizes",
+        "5",
+        "5",
+        "3"
+      ],
+      [
+        "/opt/homebrew/anaconda3/envs/wifi-csi-lstm/bin/python",
+        "-u",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/CNN1D.py",
+        "train",
+        "--dataset-dir",
+        "/Users/jaehyeog/my/Wifi_esp32/model_train/preprocessing/output/20260616",
+        "--device",
+        "mps",
+        "--run-dir",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed1-balanced",
+        "--seed",
+        "1",
+        "--class-weight",
+        "balanced",
+        "--batch-size",
+        "32",
+        "--epochs",
+        "50",
+        "--patience",
+        "5",
+        "--learning-rate",
+        "0.001",
+        "--dropout",
+        "0.2",
+        "--num-workers",
+        "0",
+        "--min-delta",
+        "0",
+        "--channels",
+        "32",
+        "64",
+        "64",
+        "--kernel-sizes",
+        "5",
+        "5",
+        "3"
+      ],
+      [
+        "/opt/homebrew/anaconda3/envs/wifi-csi-lstm/bin/python",
+        "-u",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/CNN1D.py",
+        "train",
+        "--dataset-dir",
+        "/Users/jaehyeog/my/Wifi_esp32/model_train/preprocessing/output/20260616",
+        "--device",
+        "mps",
+        "--run-dir",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed2-balanced",
+        "--seed",
+        "2",
+        "--class-weight",
+        "balanced",
+        "--batch-size",
+        "32",
+        "--epochs",
+        "50",
+        "--patience",
+        "5",
+        "--learning-rate",
+        "0.001",
+        "--dropout",
+        "0.2",
+        "--num-workers",
+        "0",
+        "--min-delta",
+        "0",
+        "--channels",
+        "32",
+        "64",
+        "64",
+        "--kernel-sizes",
+        "5",
+        "5",
+        "3"
+      ],
+      [
+        "/opt/homebrew/anaconda3/envs/wifi-csi-lstm/bin/python",
+        "-u",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/CNN1D.py",
+        "test",
+        "--dataset-dir",
+        "/Users/jaehyeog/my/Wifi_esp32/model_train/preprocessing/output/20260616",
+        "--device",
+        "mps",
+        "--run-dir",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed0-none"
+      ],
+      [
+        "/opt/homebrew/anaconda3/envs/wifi-csi-lstm/bin/python",
+        "-u",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/CNN1D.py",
+        "test",
+        "--dataset-dir",
+        "/Users/jaehyeog/my/Wifi_esp32/model_train/preprocessing/output/20260616",
+        "--device",
+        "mps",
+        "--run-dir",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed1-none"
+      ],
+      [
+        "/opt/homebrew/anaconda3/envs/wifi-csi-lstm/bin/python",
+        "-u",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/CNN1D.py",
+        "test",
+        "--dataset-dir",
+        "/Users/jaehyeog/my/Wifi_esp32/model_train/preprocessing/output/20260616",
+        "--device",
+        "mps",
+        "--run-dir",
+        "/Users/jaehyeog/.herdr/worktrees/Wifi_esp32/1d-cnn/model_train/cnn1d/runs/20260917-comparison/seed2-none"
+      ]
+    ]
+  },
+  "selection": {
+    "selected_at": "2026-09-17T09:38:13.927723+00:00",
+    "validation_scores": {
+      "none": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "balanced": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "validation_means": {
+      "none": 1.0,
+      "balanced": 1.0
+    },
+    "selected_class_weight": "none",
+    "test_started": false
+  },
+  "class_weight_validation": {
+    "LSTM": {
+      "none": {
+        "mean": 0.9386005671691038,
+        "std": 0.05118368202895532,
+        "values": [
+          0.8745524466540906,
+          0.9998313501618398,
+          0.9414179046913809
+        ]
+      },
+      "balanced": {
+        "mean": 0.9860408682439618,
+        "std": 0.010404382472833304,
+        "values": [
+          0.9844758822932501,
+          0.9741529280699711,
+          0.999493794368664
+        ]
+      }
+    },
+    "1D-CNN": {
+      "none": {
+        "mean": 1.0,
+        "std": 0.0,
+        "values": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "balanced": {
+        "mean": 1.0,
+        "std": 0.0,
+        "values": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  },
+  "models": {
+    "LSTM": {
+      "validation_macro_f1": {
+        "mean": 0.9860408682439618,
+        "std": 0.010404382472833304,
+        "values": [
+          0.9844758822932501,
+          0.9741529280699711,
+          0.999493794368664
+        ]
+      },
+      "validation_accuracy": {
+        "mean": 0.9860666329569078,
+        "std": 0.010381231502147375,
+        "values": [
+          0.9844935108713972,
+          0.9742120343839542,
+          0.9994943536153716
+        ]
+      },
+      "validation_session_accuracy": {
+        "mean": 1.0,
+        "std": 0.0,
+        "values": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "test_accuracy": {
+        "mean": 0.7069547602970966,
+        "std": 0.006928543398027778,
+        "values": [
+          0.700540175557056,
+          0.7037474679270763,
+          0.7165766374071574
+        ]
+      },
+      "test_macro_f1": {
+        "mean": 0.7050607467738769,
+        "std": 0.006564325331055767,
+        "values": [
+          0.6990440496799529,
+          0.7019465903075385,
+          0.714191600334139
+        ]
+      },
+      "test_session_accuracy": {
+        "mean": 0.6666666666666666,
+        "std": 0.0,
+        "values": [
+          0.6666666666666666,
+          0.6666666666666666,
+          0.6666666666666666
+        ]
+      },
+      "test_session_macro_f1": {
+        "mean": 0.6666666666666666,
+        "std": 0.0,
+        "values": [
+          0.6666666666666666,
+          0.6666666666666666,
+          0.6666666666666666
+        ]
+      },
+      "validation_test_gap": {
+        "mean": 0.28098012147008494,
+        "std": 0.006204227695788066,
+        "values": [
+          0.2854318326132972,
+          0.27220633776243264,
+          0.28530219403452506
+        ]
+      },
+      "seconds_per_epoch": {
+        "mean": 17.841690554748787,
+        "std": 0.5726589234113187,
+        "values": [
+          18.644508997670044,
+          17.53258124998926,
+          17.347981416587054
+        ]
+      },
+      "run_training_seconds": {
+        "mean": 304.3808023622648,
+        "std": 233.48692698157205,
+        "values": [
+          633.9133059207816,
+          157.79323124990333,
+          121.43586991610937
+        ]
+      },
+      "parameter_count": 297347,
+      "per_class": {
+        "empty": {
+          "precision": {
+            "mean": 0.5663576658326068,
+            "std": 0.01354902094778373,
+            "values": [
+              0.5533371363377068,
+              0.5606936416184971,
+              0.5850422195416164
+            ]
+          },
+          "recall": {
+            "mean": 0.49464558898521166,
+            "std": 5.551115123125783e-17,
+            "values": [
+              0.4946455889852116,
+              0.4946455889852116,
+              0.4946455889852116
+            ]
+          },
+          "f1": {
+            "mean": 0.528003458524582,
+            "std": 0.005849544429601253,
+            "values": [
+              0.522347872913301,
+              0.5256028176645896,
+              0.5360596849958552
+            ]
+          }
+        },
+        "static": {
+          "precision": {
+            "mean": 0.5550570896986948,
+            "std": 0.00810854115704917,
+            "values": [
+              0.5474885844748858,
+              0.5513807152557718,
+              0.5663019693654266
+            ]
+          },
+          "recall": {
+            "mean": 0.624117053481332,
+            "std": 0.020708724061511828,
+            "values": [
+              0.6049445005045408,
+              0.6145307769929365,
+              0.6528758829465187
+            ]
+          },
+          "f1": {
+            "mean": 0.5875149727535119,
+            "std": 0.013691628114063372,
+            "values": [
+              0.5747842761265579,
+              0.5812455261274159,
+              0.606515116006562
+            ]
+          }
+        },
+        "motion": {
+          "precision": {
+            "mean": 0.9993282955499581,
+            "std": 0.0009499335431557296,
+            "values": [
+              1.0,
+              0.9979848866498741,
+              1.0
+            ]
+          },
+          "recall": {
+            "mean": 1.0,
+            "std": 0.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "f1": {
+            "mean": 0.9996638090435367,
+            "std": 0.00047544581017754545,
+            "values": [
+              1.0,
+              0.9989914271306102,
+              1.0
+            ]
+          }
+        }
+      },
+      "confusion_matrix_mean": [
+        [
+          970.0,
+          991.0,
+          0.0
+        ],
+        [
+          743.6666666666666,
+          1237.0,
+          1.3333333333333333
+        ],
+        [
+          0.0,
+          0.0,
+          1981.0
+        ]
+      ],
+      "sessions": [
+        {
+          "session_id": 9,
+          "truth": "empty",
+          "window_count": 970,
+          "window_accuracy": {
+            "mean": 1.0,
+            "std": 0.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "predictions": [
+            "empty",
+            "empty",
+            "empty"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 0.9998007218043009,
+              "std": 0.0002180420643280807,
+              "values": [
+                1.0,
+                0.9999048709869385,
+                0.9994972944259644
+              ]
+            },
+            "static": {
+              "mean": 0.00012336955086874232,
+              "std": 0.00017117222949057464,
+              "values": [
+                1.4257312663801258e-08,
+                4.665652340918314e-06,
+                0.0003654287429526448
+              ]
+            },
+            "motion": {
+              "mean": 7.429425032068337e-05,
+              "std": 5.666799717372861e-05,
+              "values": [
+                1.018662576512952e-08,
+                8.539206464774907e-05,
+                0.00013748049968853593
+              ]
+            }
+          }
+        },
+        {
+          "session_id": 10,
+          "truth": "empty",
+          "window_count": 991,
+          "window_accuracy": {
+            "mean": 0.0,
+            "std": 0.0,
+            "values": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "predictions": [
+            "static",
+            "static",
+            "static"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 2.434002073018841e-05,
+              "std": 3.2163735574345964e-05,
+              "values": [
+                7.731332019034198e-09,
+                3.2238338008028222e-06,
+                6.978849705774337e-05
+              ]
+            },
+            "static": {
+              "mean": 0.9998772541681925,
+              "std": 0.0001603729129085094,
+              "values": [
+                1.0,
+                0.9999810457229614,
+                0.9996507167816162
+              ]
+            },
+            "motion": {
+              "mean": 0.00010180154493122373,
+              "std": 0.00012642364193633516,
+              "values": [
+                6.927741491580264e-09,
+                2.540864261391107e-05,
+                0.00027998906443826854
+              ]
+            }
+          }
+        },
+        {
+          "session_id": 19,
+          "truth": "static",
+          "window_count": 991,
+          "window_accuracy": {
+            "mean": 0.24957954927682477,
+            "std": 0.04083422964834645,
+            "values": [
+              0.20988900100908173,
+              0.2330978809283552,
+              0.3057517658930373
+            ]
+          },
+          "predictions": [
+            "empty",
+            "empty",
+            "empty"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 0.7310503919919332,
+              "std": 0.06656160625823271,
+              "values": [
+                0.7902483940124512,
+                0.7648341059684753,
+                0.638068675994873
+              ]
+            },
+            "static": {
+              "mean": 0.2642714281876882,
+              "std": 0.062218254904871796,
+              "values": [
+                0.20974747836589813,
+                0.23172520101070404,
+                0.3513416051864624
+              ]
+            },
+            "motion": {
+              "mean": 0.004676437343277939,
+              "std": 0.004409609185494335,
+              "values": [
+                4.126074145460734e-06,
+                0.0034357074182480574,
+                0.0105894785374403
+              ]
+            }
+          }
+        },
+        {
+          "session_id": 20,
+          "truth": "static",
+          "window_count": 991,
+          "window_accuracy": {
+            "mean": 0.9986545576858393,
+            "std": 0.0019027427680768218,
+            "values": [
+              1.0,
+              0.9959636730575177,
+              1.0
+            ]
+          },
+          "predictions": [
+            "static",
+            "static",
+            "static"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 0.0006499908099462104,
+              "std": 0.000883395468303644,
+              "values": [
+                7.676544733214996e-09,
+                0.0018989535747095942,
+                5.101117858430371e-05
+              ]
+            },
+            "static": {
+              "mean": 0.998588760693868,
+              "std": 0.0017810498054038554,
+              "values": [
+                1.0,
+                0.9960763454437256,
+                0.9996899366378784
+              ]
+            },
+            "motion": {
+              "mean": 0.0007634092147378683,
+              "std": 0.0008980100859754879,
+              "values": [
+                6.305587607613461e-09,
+                0.0020240561570972204,
+                0.0002661651815287769
+              ]
+            }
+          }
+        },
+        {
+          "session_id": 29,
+          "truth": "motion",
+          "window_count": 990,
+          "window_accuracy": {
+            "mean": 1.0,
+            "std": 0.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "predictions": [
+            "motion",
+            "motion",
+            "motion"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 2.6388818130662628e-05,
+              "std": 2.092564391837078e-05,
+              "values": [
+                1.3698021383845571e-08,
+                5.1199142035329714e-05,
+                2.7953614335274324e-05
+              ]
+            },
+            "static": {
+              "mean": 2.4855752918403102e-05,
+              "std": 2.2276587048343966e-05,
+              "values": [
+                1.1572458546993403e-08,
+                2.0501534891081974e-05,
+                5.405415140558034e-05
+              ]
+            },
+            "motion": {
+              "mean": 0.9999518394470215,
+              "std": 3.418380508365645e-05,
+              "values": [
+                1.0,
+                0.9999313950538635,
+                0.9999241232872009
+              ]
+            }
+          }
+        },
+        {
+          "session_id": 30,
+          "truth": "motion",
+          "window_count": 991,
+          "window_accuracy": {
+            "mean": 1.0,
+            "std": 0.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "predictions": [
+            "motion",
+            "motion",
+            "motion"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 2.4612122968115102e-05,
+              "std": 1.9066318499889633e-05,
+              "values": [
+                1.2110979774604402e-08,
+                4.64733166154474e-05,
+                2.73509413091233e-05
+              ]
+            },
+            "static": {
+              "mean": 2.4293405816777636e-05,
+              "std": 2.175324145487119e-05,
+              "values": [
+                1.075615863044277e-08,
+                2.0077164663234726e-05,
+                5.279229662846774e-05
+              ]
+            },
+            "motion": {
+              "mean": 0.9999540448188782,
+              "std": 3.2785841748133684e-05,
+              "values": [
+                1.0,
+                0.9999364018440247,
+                0.9999257326126099
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "1D-CNN": {
+      "validation_macro_f1": {
+        "mean": 1.0,
+        "std": 0.0,
+        "values": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "validation_accuracy": {
+        "mean": 1.0,
+        "std": 0.0,
+        "values": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "validation_session_accuracy": {
+        "mean": 1.0,
+        "std": 0.0,
+        "values": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "test_accuracy": {
+        "mean": 0.7031285167679496,
+        "std": 0.008799827638876117,
+        "values": [
+          0.7044226873733963,
+          0.713200540175557,
+          0.6917623227548954
+        ]
+      },
+      "test_macro_f1": {
+        "mean": 0.7014665653741884,
+        "std": 0.008367512659487635,
+        "values": [
+          0.7027337163371437,
+          0.7110221335509307,
+          0.6906438462344912
+        ]
+      },
+      "test_session_accuracy": {
+        "mean": 0.6666666666666666,
+        "std": 0.0,
+        "values": [
+          0.6666666666666666,
+          0.6666666666666666,
+          0.6666666666666666
+        ]
+      },
+      "test_session_macro_f1": {
+        "mean": 0.6666666666666666,
+        "std": 0.0,
+        "values": [
+          0.6666666666666666,
+          0.6666666666666666,
+          0.6666666666666666
+        ]
+      },
+      "validation_test_gap": {
+        "mean": 0.2985334346258115,
+        "std": 0.008367512659487635,
+        "values": [
+          0.29726628366285635,
+          0.2889778664490693,
+          0.30935615376550885
+        ]
+      },
+      "seconds_per_epoch": {
+        "mean": 4.867725513940159,
+        "std": 0.05294077138603943,
+        "values": [
+          4.941843041645673,
+          4.82149985434565,
+          4.839833645829155
+        ]
+      },
+      "run_training_seconds": {
+        "mean": 29.20635308364096,
+        "std": 0.3176446283162372,
+        "values": [
+          29.65105824987404,
+          28.928999126073904,
+          29.03900187497493
+        ]
+      },
+      "parameter_count": 53763,
+      "per_class": {
+        "empty": {
+          "precision": {
+            "mean": 0.5587196311395737,
+            "std": 0.016663251656254097,
+            "values": [
+              0.5606936416184971,
+              0.5780691299165673,
+              0.5373961218836565
+            ]
+          },
+          "recall": {
+            "mean": 0.49464558898521166,
+            "std": 5.551115123125783e-17,
+            "values": [
+              0.4946455889852116,
+              0.4946455889852116,
+              0.4946455889852116
+            ]
+          },
+          "f1": {
+            "mean": 0.5246172441936627,
+            "std": 0.007372528792660928,
+            "values": [
+              0.5256028176645896,
+              0.5331134927177795,
+              0.5151354221986192
+            ]
+          }
+        },
+        "static": {
+          "precision": {
+            "mean": 0.5503822318024681,
+            "std": 0.01068711467570949,
+            "values": [
+              0.5521915951197469,
+              0.5624724061810155,
+              0.5364826941066417
+            ]
+          },
+          "recall": {
+            "mean": 0.6126807938109654,
+            "std": 0.026301805717811412,
+            "values": [
+              0.6165489404641776,
+              0.6427850655903128,
+              0.5787083753784057
+            ]
+          },
+          "f1": {
+            "mean": 0.579782451928903,
+            "std": 0.017730840256623026,
+            "values": [
+              0.5825983313468416,
+              0.5999529079350129,
+              0.5567961165048545
+            ]
+          }
+        },
+        "motion": {
+          "precision": {
+            "mean": 1.0,
+            "std": 0.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "recall": {
+            "mean": 1.0,
+            "std": 0.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "f1": {
+            "mean": 1.0,
+            "std": 0.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      "confusion_matrix_mean": [
+        [
+          970.0,
+          991.0,
+          0.0
+        ],
+        [
+          767.6666666666666,
+          1214.3333333333333,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1981.0
+        ]
+      ],
+      "sessions": [
+        {
+          "session_id": 9,
+          "truth": "empty",
+          "window_count": 970,
+          "window_accuracy": {
+            "mean": 1.0,
+            "std": 0.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "predictions": [
+            "empty",
+            "empty",
+            "empty"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 0.9997141361236572,
+              "std": 0.000303748065192296,
+              "values": [
+                0.9992932677268982,
+                0.9998500943183899,
+                0.9999990463256836
+              ]
+            },
+            "static": {
+              "mean": 0.0001334552965393717,
+              "std": 0.0001378347110064595,
+              "values": [
+                0.00032444638782180846,
+                7.171495235525072e-05,
+                4.20454944105586e-06
+              ]
+            },
+            "motion": {
+              "mean": 0.00015445933559021796,
+              "std": 0.0001640737114655996,
+              "values": [
+                0.0003826285828836262,
+                7.690374332014471e-05,
+                3.8456805668829475e-06
+              ]
+            }
+          }
+        },
+        {
+          "session_id": 10,
+          "truth": "empty",
+          "window_count": 991,
+          "window_accuracy": {
+            "mean": 0.0,
+            "std": 0.0,
+            "values": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "predictions": [
+            "static",
+            "static",
+            "static"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 0.00019811047483623648,
+              "std": 9.032427033214076e-05,
+              "values": [
+                0.00030883803265169263,
+                8.758994954405352e-05,
+                0.0001979034423129633
+              ]
+            },
+            "static": {
+              "mean": 0.9996866782506307,
+              "std": 0.0001101889444350486,
+              "values": [
+                0.9995789527893066,
+                0.9998380541801453,
+                0.9996430277824402
+              ]
+            },
+            "motion": {
+              "mean": 0.00011529171752044931,
+              "std": 3.4308544863602855e-05,
+              "values": [
+                0.00011229237861698493,
+                7.485253445338458e-05,
+                0.00015873023949097842
+              ]
+            }
+          }
+        },
+        {
+          "session_id": 19,
+          "truth": "static",
+          "window_count": 991,
+          "window_accuracy": {
+            "mean": 0.2253615876219307,
+            "std": 0.05260361143562287,
+            "values": [
+              0.2330978809283552,
+              0.28557013118062563,
+              0.1574167507568113
+            ]
+          },
+          "predictions": [
+            "empty",
+            "empty",
+            "empty"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 0.7607454260190328,
+              "std": 0.06820005965314174,
+              "values": [
+                0.7672437429428101,
+                0.6741583943367004,
+                0.8408341407775879
+              ]
+            },
+            "static": {
+              "mean": 0.22971343994140625,
+              "std": 0.06416661298858291,
+              "values": [
+                0.21765132248401642,
+                0.31363487243652344,
+                0.1578541249036789
+              ]
+            },
+            "motion": {
+              "mean": 0.00954075464202712,
+              "std": 0.005938582293407723,
+              "values": [
+                0.015105181373655796,
+                0.012206293642520905,
+                0.0013107889099046588
+              ]
+            }
+          }
+        },
+        {
+          "session_id": 20,
+          "truth": "static",
+          "window_count": 991,
+          "window_accuracy": {
+            "mean": 1.0,
+            "std": 0.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "predictions": [
+            "static",
+            "static",
+            "static"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 0.00018882211346256858,
+              "std": 0.00016434631979401882,
+              "values": [
+                0.00011264795466559008,
+                3.674428444355726e-05,
+                0.0004170741012785584
+              ]
+            },
+            "static": {
+              "mean": 0.999712347984314,
+              "std": 0.0001981295032235108,
+              "values": [
+                0.9997962117195129,
+                0.9999019503593445,
+                0.9994388818740845
+              ]
+            },
+            "motion": {
+              "mean": 9.810276969801635e-05,
+              "std": 3.758139345058235e-05,
+              "values": [
+                8.823555981507525e-05,
+                5.780894571216777e-05,
+                0.00014826380356680602
+              ]
+            }
+          }
+        },
+        {
+          "session_id": 29,
+          "truth": "motion",
+          "window_count": 990,
+          "window_accuracy": {
+            "mean": 1.0,
+            "std": 0.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "predictions": [
+            "motion",
+            "motion",
+            "motion"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 0.00016184607011382468,
+              "std": 0.00012904871457565127,
+              "values": [
+                2.3637065169168636e-05,
+                0.00012773206981364638,
+                0.00033416907535865903
+              ]
+            },
+            "static": {
+              "mean": 0.0001018048433252261,
+              "std": 6.219672608895274e-05,
+              "values": [
+                1.439520110579906e-05,
+                0.00013700584531761706,
+                0.0001540134835522622
+              ]
+            },
+            "motion": {
+              "mean": 0.9997368852297465,
+              "std": 0.00018544871545658726,
+              "values": [
+                0.9999647736549377,
+                0.9997353553771973,
+                0.9995105266571045
+              ]
+            }
+          }
+        },
+        {
+          "session_id": 30,
+          "truth": "motion",
+          "window_count": 991,
+          "window_accuracy": {
+            "mean": 1.0,
+            "std": 0.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "predictions": [
+            "motion",
+            "motion",
+            "motion"
+          ],
+          "mean_probabilities": {
+            "empty": {
+              "mean": 7.188967992988182e-05,
+              "std": 4.863435087151215e-05,
+              "values": [
+                1.0035627383331303e-05,
+                7.676853419980034e-05,
+                0.00012886487820651382
+              ]
+            },
+            "static": {
+              "mean": 8.491271789049885e-05,
+              "std": 5.3981135799906934e-05,
+              "values": [
+                9.447352567804046e-06,
+                0.00011266148794675246,
+                0.00013262931315694004
+              ]
+            },
+            "motion": {
+              "mean": 0.9998442530632019,
+              "std": 0.00010275873027789201,
+              "values": [
+                0.9999838471412659,
+                0.9998094439506531,
+                0.9997394680976868
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "cnn_runs": [
+    {
+      "seed": 0,
+      "class_weight": "none",
+      "best_epoch": 1,
+      "best_validation_macro_f1": 1.0,
+      "epochs_completed": 6,
+      "stopped_early": true,
+      "test_completed": true,
+      "test_window_macro_f1": 0.7027337163371437,
+      "test_session_macro_f1": 0.6666666666666666,
+      "training_seconds": 29.65105824987404
+    },
+    {
+      "seed": 1,
+      "class_weight": "none",
+      "best_epoch": 1,
+      "best_validation_macro_f1": 1.0,
+      "epochs_completed": 6,
+      "stopped_early": true,
+      "test_completed": true,
+      "test_window_macro_f1": 0.7110221335509307,
+      "test_session_macro_f1": 0.6666666666666666,
+      "training_seconds": 28.928999126073904
+    },
+    {
+      "seed": 2,
+      "class_weight": "none",
+      "best_epoch": 1,
+      "best_validation_macro_f1": 1.0,
+      "epochs_completed": 6,
+      "stopped_early": true,
+      "test_completed": true,
+      "test_window_macro_f1": 0.6906438462344912,
+      "test_session_macro_f1": 0.6666666666666666,
+      "training_seconds": 29.03900187497493
+    },
+    {
+      "seed": 0,
+      "class_weight": "balanced",
+      "best_epoch": 1,
+      "best_validation_macro_f1": 1.0,
+      "epochs_completed": 6,
+      "stopped_early": true,
+      "test_completed": false,
+      "training_seconds": 28.22443970828317
+    },
+    {
+      "seed": 1,
+      "class_weight": "balanced",
+      "best_epoch": 1,
+      "best_validation_macro_f1": 1.0,
+      "epochs_completed": 6,
+      "stopped_early": true,
+      "test_completed": false,
+      "training_seconds": 24.64272025215905
+    },
+    {
+      "seed": 2,
+      "class_weight": "balanced",
+      "best_epoch": 1,
+      "best_validation_macro_f1": 1.0,
+      "epochs_completed": 6,
+      "stopped_early": true,
+      "test_completed": false,
+      "training_seconds": 27.909926291089505
+    }
+  ]
+}

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 _SESSION_ID_RE = re.compile(r"^session_id:\s*(\d+)\s*$")
+_LABEL_TARGET_RE = re.compile(r"^label_target:\s*\"?([A-Za-z_]+)\"?\s*(?:#.*)?$")
 
 
 def read_session_id(path: Path, *, default: Optional[int] = None) -> int:
@@ -35,3 +36,24 @@ def read_session_id(path: Path, *, default: Optional[int] = None) -> int:
     if default is not None:
         return default
     raise ValueError(f"session_id not found in {path}")
+
+
+def read_label_target(path: Path, *, default: Optional[str] = None) -> Optional[str]:
+    """session_meta.yaml experiment.label_target 을 읽는다 (수집 라벨의 기본값).
+
+    들여쓰기 깊이를 따지지 않고 키 이름만 본다 — 이 파일에 label_target 은 하나뿐이다.
+    """
+    if not path.is_file():
+        return default
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return default
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        m = _LABEL_TARGET_RE.match(stripped)
+        if m:
+            return m.group(1)
+    return default
