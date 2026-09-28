@@ -33,7 +33,7 @@ model_train/
 │       ├── lstm-training.md
 │       ├── cnn1d-training.md
 │       ├── cnn1d-vs-lstm-report.md
-│       ├── cnn1d-pilot-cv-report.md     파일럿(9/16·17) 배치 단위 교차검증 5사이클
+│       ├── cnn1d-pilot-cv-report.md     파일럿(9/16·17) 배치 단위 교차검증 13사이클
 │       ├── lstm-baseline-report.md
 │       ├── training-results-summary.md
 │       ├── public-dataset-review.md

@@ -42,7 +42,7 @@ class SharedTemporalCNN(nn.Module):
     특정 서브캐리어 조합(=배치별 다중경로 지문)을 외울 수 없게 하는 구조다.
     """
 
-    def __init__(self, dropout: float = 0.2, groups: tuple = (156,)) -> None:
+    def __init__(self, dropout: float = 0.2, groups: tuple = (156,), n_classes: int = 3) -> None:
         # groups: 모달리티(진폭·위상)별 시계열 수. 모달리티마다 인코더와 풀링을 따로 둔다.
         super().__init__()
 
@@ -56,7 +56,7 @@ class SharedTemporalCNN(nn.Module):
                           *block(16, 32, 5), nn.MaxPool1d(2), *block(32, 32, 3))
             for _ in self.groups)
         self.head = nn.Sequential(nn.Linear(128 * len(self.groups), 64), nn.ReLU(),
-                                  nn.Dropout(dropout), nn.Linear(64, 3))
+                                  nn.Dropout(dropout), nn.Linear(64, n_classes))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # (B, T, F)
         pooled = []
@@ -71,6 +71,12 @@ JSONL_ROOT = ROOT / "mac_collector_output" / "jsonl" / "raw"
 RUNS = Path(__file__).resolve().parent / "runs" / "pilot_cv"
 CACHE = RUNS / "cache"
 CLASS_NAMES = ["empty", "static", "motion"]
+# 계층형 분류용 과제: (클래스 이름, 원래 라벨 → 새 라벨). 매핑에 없는 라벨의 세션은 뺀다.
+TASKS = {
+    "3class": (["empty", "static", "motion"], {0: 0, 1: 1, 2: 2}),
+    "motion": (["rest", "motion"], {0: 0, 1: 0, 2: 1}),   # 1단계: 움직임 여부
+    "es": (["empty", "static"], {0: 0, 1: 1}),            # 2단계: 움직임 없을 때 빈 방/정지
+}
 
 # 배치(조건) → (날짜, 세션). 같은 배치 안에서는 보드 위치가 같다.
 BLOCKS = {
@@ -206,7 +212,11 @@ def run_fold(sessions, test_block, args, seed, device):
             if "phase" in args.features:
                 wp = windows(sessions[s]["phase"], starts, args.window, args.downsample,
                              args.pool)
-                parts.append((wp - wp.mean(axis=1, keepdims=True)).astype(np.float32))
+                if args.diff:
+                    # 시간 차분: 배치마다 다른 느린 위상 드리프트를 지우고 변화만 남긴다
+                    parts.append(np.diff(wp, axis=1, prepend=wp[:, :1]).astype(np.float32))
+                else:
+                    parts.append((wp - wp.mean(axis=1, keepdims=True)).astype(np.float32))
             return np.concatenate(parts, axis=2)
         w = windows(sessions[s]["x"], starts, args.window, args.downsample)
         base = sessions[s].get("baseline")
@@ -228,7 +238,8 @@ def run_fold(sessions, test_block, args, seed, device):
             raise ValueError("shared 모델은 norm window 만 지원 (위상은 윈도 평균 차감)")
         n_groups = len(args.features.split("+")) * (2 if args.pool == "mean+std" else 1)
         groups = tuple(156 for _ in range(n_groups))
-        model = SharedTemporalCNN(dropout=args.dropout, groups=groups).to(device)
+        model = SharedTemporalCNN(dropout=args.dropout, groups=groups,
+                                  n_classes=len(CLASS_NAMES)).to(device)
     else:
         model = CNN1DClassifier(input_size=384 if args.norm == "both" else 192,
                                 dropout=args.dropout).to(device)
@@ -243,6 +254,13 @@ def run_fold(sessions, test_block, args, seed, device):
             rows = index[order[b:b + args.batch_size]]
             xb = np.concatenate([featurize(s, np.array([st])) for s, st in rows])
             yb = np.array([y_all[s] for s, _ in rows])
+            if args.augment > 0:
+                # empty/static/motion 은 시간 방향과 무관 → 뒤집기는 라벨 보존.
+                # 서브캐리어별 게인 흔들기로 특정 톤의 크기(배치 지문)에 기대지 못하게 한다.
+                flip = rng.random(len(xb)) < 0.5
+                xb[flip] = xb[flip, ::-1]
+                xb = (xb * (1 + args.augment * rng.standard_normal(
+                    (len(xb), 1, xb.shape[2])))).astype(np.float32)
             opt.zero_grad()
             loss = loss_fn(model(torch.from_numpy(xb).to(device)),
                            torch.from_numpy(yb).to(device))
@@ -250,7 +268,7 @@ def run_fold(sessions, test_block, args, seed, device):
             opt.step()
 
     model.eval()
-    cm = np.zeros((3, 3), dtype=np.int64)
+    cm = np.zeros((len(CLASS_NAMES),) * 2, dtype=np.int64)
     per_session = {}
     with torch.no_grad():
         for s in test_ids:
@@ -266,12 +284,17 @@ def run_fold(sessions, test_block, args, seed, device):
             np.add.at(cm, (np.full(len(pred), label), pred), 1)
             per_session[s] = {"label": CLASS_NAMES[label],
                               "pred": CLASS_NAMES[int(probs.mean(0).argmax())],
-                              "window_acc": float((pred == label).mean())}
+                              "window_acc": float((pred == label).mean()),
+                              "mean_prob": probs.mean(0).tolist()}
     return cm, per_session
 
 
 def cmd_cv(args):
-    sessions = load_sessions()
+    global CLASS_NAMES
+    CLASS_NAMES, remap = TASKS[args.task]
+    sessions = {s: v for s, v in load_sessions().items() if v["label"] in remap}
+    for v in sessions.values():
+        v["label"] = remap[v["label"]]
     for v in sessions.values():
         x = np.hstack([v["x"], v["phase"]]) if "phase" in args.features else v["x"]
         v["starts"] = valid_starts(x, args.window, args.stride)
@@ -317,8 +340,19 @@ def summarize(results):
     print(f"pooled recall: " + " ".join(
         f"{c}={pooled['per_class'][c]['recall']:.3f}" for c in CLASS_NAMES))
     print(f"session accuracy = {np.mean(sess):.3f} ({sum(sess)}/{len(sess)})")
-    print("confusion (행=정답 empty/static/motion, seed 합산):")
+    print(f"confusion (행=정답 {'/'.join(CLASS_NAMES)}, seed 합산):")
     print(cm)
+    # seed 앙상블: 세션별 평균 확률을 seed 끼리 다시 평균 (mean_prob 이 있는 실행만)
+    probs = {}
+    for r in results:
+        for s, v in r["sessions"].items():
+            if "mean_prob" in v:
+                probs.setdefault(s, (v["label"], []))[1].append(v["mean_prob"])
+    if probs:
+        ok = [CLASS_NAMES[int(np.mean(p, 0).argmax())] == lab for lab, p in probs.values()]
+        miss = [f"s{s}" for (s, (lab, p)), o in zip(probs.items(), ok) if not o]
+        print(f"seed 앙상블 session accuracy = {np.mean(ok):.3f} ({sum(ok)}/{len(ok)}) "
+              f"틀림: {' '.join(miss) or '없음'}")
 
 
 def main():
@@ -345,6 +379,11 @@ def main():
     cv.add_argument("--stride", type=int, default=30)
     cv.add_argument("--downsample", type=int, default=1, help="윈도 안 평균 다운샘플 배수")
     cv.add_argument("--device", default="auto")
+    cv.add_argument("--augment", type=float, default=0.0,
+                    help=">0 이면 시간 뒤집기 + 서브캐리어별 게인 흔들기(표준편차)")
+    cv.add_argument("--diff", action="store_true", help="위상 대신 위상의 시간 차분")
+    cv.add_argument("--task", choices=tuple(TASKS), default="3class",
+                    help="motion: 움직임 여부 / es: motion 세션 빼고 empty·static")
     args = p.parse_args()
     {"cache": cmd_cache, "cache-phase": cmd_cache_phase, "cv": cmd_cv}[args.cmd](args)
 
