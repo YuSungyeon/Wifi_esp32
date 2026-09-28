@@ -90,6 +90,8 @@ CNN은 51개 신호를 같은 규칙으로 하나씩 검사한다. 그리고 세
 - 사람이 들어오거나 나가는 **상태 전환 중** 오경보와 반응 지연
 - GUI·실시간 스트림에서의 실제 동작
 
-현재 파일은 `model_train/analysis/output/20260924-robust-three-class/neural/model.pt`에
-있다. 위 정확도는 **평가용 모델의 성적**이고, 최종 파일은 전체 60세션으로
+학습 직후 저장한 파일은
+`model_train/analysis/output/20260924-robust-three-class/neural/model.pt`이며,
+Git에 올린 동일한 복사본은 `model_train/robust/model.pt`다. 기본 예측 명령은
+Git의 복사본을 사용한다. 위 정확도는 **평가용 모델의 성적**이고, 최종 파일은 전체 60세션으로
 다시 학습했으므로 둘을 같은 모델의 점수로 혼동하지 않아야 한다.

@@ -99,7 +99,8 @@ def main():
     inp = p.add_mutually_exclusive_group(required=True)
     inp.add_argument("--features", type=Path, help="(T,459) phase51 or (T,153) amplitude .npy")
     inp.add_argument("--session-dir", type=Path, help="complete raw collection session with manifest and 3 .csi files")
-    p.add_argument("--model", type=Path, default=DEFAULT_OUTPUT/"neural"/"model.pt")
+    p.add_argument("--model", type=Path, default=Path(__file__).with_name("model.pt"),
+                   help="model checkpoint (default: bundled robust/model.pt)")
     p.add_argument("--output", type=Path)
     p.add_argument("--details", action="store_true")
     args = p.parse_args()
