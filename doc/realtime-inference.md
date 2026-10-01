@@ -4,7 +4,7 @@
 > (2026-09-21 설계 · 2026-09-30 구현)
 >
 > 코드: `realtime/` · 모델: `model_train/robust/model.pt` (3-class 단일 모델)
-> 근거 실험: [1D-CNN 파일럿 교차검증 보고서](../model_train/docs/model-training/cnn1d-pilot-cv-report.md) ·
+> 근거 실험: [1D-CNN 파일럿 교차검증 보고서](../model_train/docs/model-training/archive/cnn1d-pilot-cv-report.md) ·
 > [3클래스 모델 보고서](../model_train/docs/model-training/robust-three-class-report.md) /
 > 전송 경로: [실시간 경로](realtime-uplink.md)
 
@@ -279,4 +279,4 @@ python scripts/meshsense_gui.py
 
 - [실시간 경로](realtime-uplink.md) — 전송 경로. "실시간 추론 훅 없음" 항목이 이 문서로 대체된다
 - [수집 프로토콜](collection-protocol.md) — 세션 절차·품질 판정·평가 분할
-- [1D-CNN 파일럿 교차검증 보고서](../model_train/docs/model-training/cnn1d-pilot-cv-report.md) — 근거 실험
+- [1D-CNN 파일럿 교차검증 보고서](../model_train/docs/model-training/archive/cnn1d-pilot-cv-report.md) — 근거 실험

@@ -1,8 +1,9 @@
-# 진폭·위상 기반 3클래스 분류 실험 결과
+# 진폭·위상 3초 모델 비교 결과
 
-> 상태: **SUPPORTING ANALYSIS — 9회 학습·최종 test 완료**
+> 상태: **HISTORICAL — 9회 학습·최종 test 완료**
+> 보관 기록: 당시 조건과 결과를 보존한다. 현재 모델은 [모델 학습 문서 안내](../../README.md)를 참고한다.
 > 실행일: 2026-09-24 · 수집일: 2026-09-19·20
-> 설계: [진폭·위상 분류 실험 설계](amplitude-phase-classification-design.md)
+> 설계: [진폭·위상 분류 실험 설계](../amplitude-phase-classification-design.md)
 > 로컬 산출물: `model_train/analysis/output/20260924-phase-ablation/`
 
 ## 1. 결론
@@ -48,10 +49,10 @@ AP−A의 session macro F1 차이는 seed별 `−0.0596, +0.1258, +0.0875`다.
 확인했다. 실제 입력 정보 수는 다르므로, 전체 파라미터 수가 같다고 활성 입력 연결
 수까지 같다는 뜻은 아니다.
 
-기존 192차원 공식 학습 CLI 대신 [별도 실험 runner](../../analysis/run_phase_experiment.py)를
+기존 192차원 공식 학습 CLI 대신 [별도 실험 runner](../../../analysis/run_phase_experiment.py)를
 사용하고, 기존 모델·학습·평가 함수를 재사용했다. 데이터는 세션별 배열과 윈도우
 시작 위치로 저장해 중첩 부분의 디스크 복제를 줄였다.
-[입력 계약 결정](../../../doc/adr-csi-phase-experiment.md)
+[입력 계약 결정](../../../../doc/adr-csi-phase-experiment.md)
 
 기존 `cv_pilot.py`의 9/16·17 위상 파일럿과는 데이터, 모델, 윈도우와 위상 처리가
 다르다. 그 파일럿의 결과나 캐시는 이번 비교에 섞지 않았다.

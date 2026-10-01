@@ -1,12 +1,13 @@
-# Public Wi-Fi CSI Dataset Review
+# 공개 와이파이 CSI 데이터셋 검토
 
-> 상태: **SUPPORTING ANALYSIS — 2026-09-06 공개 자료 조사 기준**
+> 상태: **HISTORICAL — 2026-09-06 공개 자료 조사 기준**
+> 보관 기록: 당시 조건과 결과를 보존한다. 현재 모델은 [모델 학습 문서 안내](../../README.md)를 참고한다.
 >
 > 목적: 현재 ESP32-S3 3-RX LSTM 프로젝트에 활용할 외부 데이터셋과 적용 조건을 선정한다.
 > 저자 논문·저장소·데이터 카드·일부 배포 메타데이터를 확인했다.
 > 전체 CSI 데이터 다운로드, 파싱 검증, 추가 학습·test는 수행하지 않았다.
 
-## 1. Executive Summary
+## 1. 핵심 요약
 
 **첫 검증 후보는 OpenCSI이고, Hugging Face에서는 HomeOccupancy를 우선 추천한다.**
 아래 순위는 공개 설명과 현재 코드의 요구사항을 비교한 판단이며, 성능 향상을
@@ -27,7 +28,7 @@
 사전학습에 활용하는 보조 자료이며, 실제 배치 환경에서 수집한 독립 평가 데이터를
 대체하지 않는다.
 
-## 2. Project Requirements
+## 2. 프로젝트에 필요한 조건
 
 | 항목 | 현재 프로젝트 기준 |
 |---|---|
@@ -38,8 +39,8 @@
 | 정렬·품질 | 공통 `tx_seq` 정렬, 세션 공통 길이 최소 27,000 frame |
 | 평가 | 세션 단위 train/validation/test 분리, train 통계로 정규화 |
 
-근거: [Firmware](../../../doc/firmware.md),
-[Preprocessing Design](../preprocessing/design.md), [LSTM 구현](../../lstm/LSTM.py).
+근거: [펌웨어](../../../../doc/firmware.md),
+[CSI 전처리 설계](../../preprocessing/design.md), [LSTM 구현](../../../lstm/LSTM.py).
 
 기존 학습은 29개 세션을 train 17 / validation 6 / test 6으로 나누었다.
 선택된 설정의 seed 3개에서 validation macro-F1은 `0.9860 ± 0.0104`,
@@ -47,9 +48,9 @@ test window-level macro-F1은 `0.7051 ± 0.0066`이었다. 모두 같은 두 tes
 세션에서 `empty`와 `static`을 혼동했다. 따라서 이번 조사는 움직임 종류를
 더 늘리는 것보다 **빈 공간·정지한 사람·수집 환경 변화**를 포함하는 자료에
 우선순위를 두었다. 이 결과만으로 데이터셋이 유일한 원인이라고 단정할 수는 없다.
-근거: [Baseline Report](lstm-baseline-report.md).
+근거: [LSTM 기준 모델 평가 결과](lstm-baseline-report.md).
 
-## 3. Candidate Comparison
+## 3. 데이터셋 후보 비교
 
 용량은 배포 페이지 또는 파일 메타데이터 기준이며, 압축 해제·전처리 산출물의
 추가 공간은 포함하지 않는다. `우선`도 즉시 학습 가능하다는 뜻은 아니다.
@@ -64,9 +65,9 @@ test window-level macro-F1은 `0.7051 ± 0.0066`이었다. 모두 같은 두 tes
 | [CSI-Bench](https://github.com/guozhen-jenn-zhu/CSI-Bench-Real-WiFi-Sensing-Benchmark) | 여러 sensing task, H5/MAT 및 환경·사용자·장비별 split | 본격적인 환경·장비 일반화 벤치마크 | 장기 후보 |
 | [UT-HAR / NTU-Fi HAR — SenseFi](https://github.com/xyanchen/WiFi-CSI-Sensing-Benchmark) | 전처리 데이터와 PyTorch 모델·가중치 제공 | LSTM·CNN 등 모델 구현 비교, 사전학습 방법 검토 | 보조 후보 |
 
-## 4. Recommended Datasets
+## 4. 당시 검토한 우선 후보
 
-### 4.1 OpenCSI: First Compatibility Audit
+### 4.1 OpenCSI: 입력 호환성 확인 대상
 
 대상은 2026년 공개된 **OpenCSI LCN 2026 Dataset**이다. 초기 검증에는
 `envA_S3`와 `envB_S3prime` 수집분을 우선 사용한다. 전체는 3개 방·4개 배치의
@@ -101,7 +102,7 @@ S3·C3는 HT20의 52개 유효 subcarrier, C6는 HE20의 246개를 사용한다.
 초기 보정이 필요한 방법은 보정 구간을 평가 구간과 분리하고, 대상 환경 데이터를
 사용했다는 조건을 명시해야 한다. [논문 평가 프로토콜](https://arxiv.org/html/2607.26665v1)
 
-### 4.2 HomeOccupancy and HomeHAR: Hugging Face Candidates
+### 4.2 HomeOccupancy·HomeHAR: 허깅페이스 공개 후보
 
 두 데이터셋 모두 ESP32-C6 2대가 **1 TX + 1 RX**로 동작한다. 2대라는 설명은
 2-RX라는 뜻이 아니다. CSV의 128개 정수에서 64개 복소수 값을 읽으며, 저자
@@ -140,7 +141,7 @@ test 수집분이다. 현재 문제와 관련된 장기간 수집 조건 변화 
 `empty/watch/work/eat`를 포함하지만 파일 내부 80/20 시간 분할을 사용한다.
 별도 세션 일반화의 근거보다는 추가 1-RX 특징 비교 자료로 취급한다.
 
-### 4.3 WiMANS: Explicit Empty and Stationary Labels
+### 4.3 WiMANS: 빈 공간·정지 상태가 구분된 자료
 
 가장 유용한 구분은 **사람 수 0명**과 **사람이 있으나 `Nothing`을 수행하는 상태**다.
 논문은 `Nothing`을 지정 위치에 가만히 서 있는 행동으로 설명한다.
@@ -168,7 +169,7 @@ TX/RX 안테나 조합이며, 한 시점당 270개 복소수 값이다. 안테�
 [저장소](https://github.com/huangshk/WiMANS),
 [데이터 다운로드 페이지](https://www.kaggle.com/datasets/shuokanghuang/wimans)
 
-### 4.4 Exposing the CSI: Multi-Receiver Reference
+### 4.4 Exposing the CSI: 여러 수신기를 쓰는 참고 자료
 
 서로 다른 위치의 RX 3개가 같은 frame을 받는다는 점에서 프로젝트와 구조적으로
 가깝다. `Empty room`은 `empty`, `Sitting/Standing`은 `static`,
@@ -183,9 +184,9 @@ TX/RX 안테나 조합이며, 한 시점당 270개 복소수 값이다. 안테�
 [시나리오 목록](https://github.com/ansresearch/exposing-the-csi),
 [S1 배포 메타데이터](https://zenodo.org/api/records/7732595)
 
-## 5. Secondary and Deferred Candidates
+## 5. 후순위·보류 후보
 
-### 5.1 CSI-Bench and SenseFi
+### 5.1 CSI-Bench·SenseFi
 
 **CSI-Bench**는 환경·사용자·장비 변화별 평가 구조를 참고하기 좋다. 저자 저장소는
 데이터 문제 수정 후 **Kaggle Version 12**로 실험을 다시 수행했다고 명시한다.
@@ -201,7 +202,7 @@ TX/RX 안테나 조합이며, 한 시점당 270개 복소수 값이다. 안테�
 배포된 사전학습 가중치도 현재 2-layer LSTM과 동일한 구조의 가중치가 아니다.
 [SenseFi 데이터·모델 설명 및 다운로드 링크](https://github.com/xyanchen/WiFi-CSI-Sensing-Benchmark)
 
-### 5.2 Datasets Not Selected for Immediate Use
+### 5.2 바로 사용하지 않기로 한 자료
 
 | 후보 | 보류·제외 이유 |
 |---|---|
@@ -214,7 +215,7 @@ Haron98 카드에는 첫 줄 손상 등 알려진 파싱 문제도 기록되어 
 문제가 해결되더라도 `.data` 전용 parser와 RX 사이 시각·패킷 정렬 확인이 필요하다.
 [데이터 품질·포맷 설명](https://huggingface.co/datasets/Haron98/WIFI-CSI-Dataset)
 
-## 6. Access, Versions, and Licenses
+## 6. 접근 방법·버전·이용 조건
 
 다음은 배포자가 명시한 조건을 정리한 것이며, 코드 라이선스를 데이터 전체의
 라이선스로 대신 해석하지 않았다. 재배포·상용 적용 시 사용할 버전의 원문 조건을
@@ -239,11 +240,11 @@ Haron98 카드에는 첫 줄 손상 등 알려진 파싱 문제도 기록되어 
 [WiMANS Appendix E.5/E.6](https://arxiv.org/html/2402.09430v1),
 [Exposing S1 메타데이터](https://zenodo.org/api/records/7732595).
 
-## 7. Integration Requirements
+## 7. 프로젝트에 연결하기 위한 조건
 
-### 7.1 Preserve the Existing Baseline Contract
+### 7.1 기존 기준 모델의 입력 규격 유지
 
-현재 [LSTM.py](../../lstm/LSTM.py)는 shape뿐 아니라 label map, RX 순서,
+현재 [LSTM.py](../../../lstm/LSTM.py)는 shape뿐 아니라 label map, RX 순서,
 정규화 정보, 세션 중복을 검사한다. `test` 명령은 학습 때 저장한 dataset manifest와
 normalization의 SHA-256까지 비교한다. 따라서 외부 파일의 shape만 맞춰도 기존
 `best-model.pt`를 그대로 공식 test 명령으로 평가할 수 있는 구조가 아니다.
@@ -253,7 +254,7 @@ normalization의 SHA-256까지 비교한다. 따라서 외부 파일의 shape만
 보존한다. 공개 가중치 불러오기나 사전학습 후 fine-tuning도 현재 공식 CLI에
 구현된 작업 흐름이 아니므로 추가 구현 대상이다.
 
-### 7.2 Convert Meaning, Not Only Shape
+### 7.2 배열 크기뿐 아니라 라벨 의미도 맞추기
 
 - **원본 해석:** 데이터셋마다 I/Q 순서, subcarrier index, LTF 종류, 진폭 scaling을
   확인한다. 현재의 64개 전체 사용과 외부의 52개 선택을 동일 특징이라고 가정하지 않는다.
@@ -266,7 +267,7 @@ normalization의 SHA-256까지 비교한다. 따라서 외부 파일의 shape만
 - **출처 추적:** dataset ID·revision·license·원본 파일 hash·trial·사용자·환경·RX·
   원본 라벨·변환 라벨·sampling rate를 외부 데이터 manifest에 남긴다.
 
-### 7.3 Prevent Evaluation Leakage
+### 7.3 학습·평가 자료가 섞이지 않도록 분리
 
 먼저 원본 기록·사용자·환경 단위로 split을 정하고 **그다음 window를 생성한다.**
 같은 시간대의 중첩 window, 같은 패킷을 받은 여러 RX, 재정리된 복사본이 서로 다른
@@ -283,7 +284,7 @@ session-level 평가에 그대로 넣지 않는다. 구간별 라벨에 맞는 �
 결과이므로 후속 최종 성능은 수집 담당자가 제공하는 **새로운 미사용 holdout**으로
 평가한다. [기존 평가의 후속 원칙](training-results-summary.md)
 
-## 8. Proposed Next Experiment
+## 8. 당시 제안한 후속 실험
 
 1. **OpenCSI 파일 검증:** S3 원본에서 라벨·타임스탬프·링크·I/Q 스키마를 확인한다.
    3-RX 동기화 부분집합을 만들 수 있는지 판정하고, 불가능하면 링크별 baseline으로 시작한다.

@@ -1,15 +1,15 @@
-# Legacy LSTM Preprocessing Implementation
+# 이전 LSTM 전처리 구현 기록
 
 > 상태: **HISTORICAL — 공식 학습 경로에서 사용하지 않음**
-> 구형 구현: [`Preprocessing.py`](../../lstm/Preprocessing.py)
-> 입력 계약: [JSONL record schema](../../../doc/data-schema.md)
-> 순번 판정 기준: [`seq`와 `tx_seq` 패턴](../../../doc/sequence-patterns.md)
-> 현재 공식 기준: [3-RX CSI Preprocessing Design](design.md)
+> 구형 구현: [`Preprocessing.py`](../../../lstm/Preprocessing.py)
+> 입력 계약: [JSONL 데이터 규격](../../../../doc/data-schema.md)
+> 순번 판정 기준: [`seq`와 `tx_seq` 패턴](../../../../doc/sequence-patterns.md)
+> 현재 공식 기준: [수신기 3대의 CSI 전처리 설계](../design.md)
 
 이 문서의 1~5절은 사용하지 않는 구형 `Preprocessing.py`가 만드는 변수와 배열
 형태를 보존한 참고 자료다. 6절도 공식 설계를 이해하기 위해 남긴 기존 설명이며
-설계 기준이 아니다. 현재 공식 전처리는 [`preprocess_3rx.py`](../../preprocessing/preprocess_3rx.py),
-공식 학습은 [`LSTM.py`](../../lstm/LSTM.py)를 사용한다. 구형 `Preprocessing.py`는
+설계 기준이 아니다. 현재 공식 전처리는 [`preprocess_3rx.py`](../../../preprocessing/preprocess_3rx.py),
+공식 학습은 [`LSTM.py`](../../../lstm/LSTM.py)를 사용한다. 구형 `Preprocessing.py`는
 파일을 import하는 순간 전처리를 실행하므로 공식 학습 코드에서 import하지 않는다.
 
 ## 1. 구형 코드의 설정
@@ -367,7 +367,7 @@ from Preprocessing import LABEL, LABEL_NAME, SPLIT, X, y
 - tensor와 metadata를 파일로 저장하지 않는다.
 - 여러 session을 train/validation/test로 나누지 않는다.
 
-당시에는 다음 변경을 목표로 했으며, 현재는 [Preprocessing Design](design.md)에
+당시에는 다음 변경을 목표로 했으며, 현재는 [CSI 전처리 설계](../design.md)에
 따라 공식 `preprocess_3rx.py`에 구현되어 있다.
 
 1. CLI/config로 session과 RX 목록 입력
@@ -377,12 +377,12 @@ from Preprocessing import LABEL, LABEL_NAME, SPLIT, X, y
 5. 여러 session을 session 단위로 train/validation/test 분리
 6. tensor, label, device order, mapping version 저장
 
-현재 모델의 Tensor 변환과 학습은 [3-RX LSTM Design and Training](../model-training/lstm-training.md)을 참조한다.
+현재 모델의 Tensor 변환과 학습은 [수신기 3대의 LSTM 학습 방법](../../model-training/lstm-training.md)을 참조한다.
 
 ## 6. 참고: 공식 설계를 이해하기 위한 기존 설명
 
 > 이 절은 교육용 shape·예시를 보존한 참고 자료다. 전처리의 공식 판정 규칙과
-> 임계값은 [Preprocessing Design](design.md)이 우선한다.
+> 임계값은 [CSI 전처리 설계](../design.md)이 우선한다.
 
 대상 경로:
 
@@ -681,7 +681,7 @@ RX 102의 마지막 값을 반복하거나 직선으로 늘리면 실제로 측�
 끝 값을 반복할 수 있으므로 반드시 교집합 내부에서만 호출한다.
 
 RX별 전체 범위와 내부 누락을 눈으로 확인하는 진단 도구는
-[RX별 `tx_seq` 범위 시각화](../../../doc/postprocessing.md#4-current-rx별-tx_seq-범위-시각화)를
+[RX별 `tx_seq` 범위 시각화](../../../../doc/postprocessing.md#4-current-rx별-tx_seq-범위-시각화)를
 사용한다. 시각화 도구는 공통 범위를 계산하거나 전처리 결과를 보간하거나
 session을 자동 제외하지 않는다. 세 RX 교집합은 전처리 구현에서 별도로 계산한다.
 
@@ -769,7 +769,7 @@ y: int64,   shape (N,)
 `seq`와 `timestamp_us`는 최종 feature에 넣지 않는다. `tx_seq`도 모델 feature가
 아니며 window의 출처와 정렬 metadata로만 저장한다.
 
-#### 6.4.9 Normalization
+#### 6.4.9 정규화
 
 Feature별 평균과 표준편차는 train window에서만 계산한다. Validation과 test에는
 train 통계를 그대로 적용한다.
@@ -887,7 +887,7 @@ window 2: tx_grid index  60 ~ 359
 ### 6.7 당시 계획한 전처리 산출물 (미채택)
 
 다음 구조는 공식 구현 전에 검토했던 계획이며 채택되지 않았다. 현재 산출물은
-[Manifest Reference](manifest-reference.md)에 설명된 `manifest.json`,
+[전처리 기록 파일 읽는 법](../manifest-reference.md)에 설명된 `manifest.json`,
 `normalization.npz`, split별 `X.npy`·`y.npy`·`windows.jsonl`을 사용한다.
 
 ```text

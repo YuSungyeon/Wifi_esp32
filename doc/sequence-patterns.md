@@ -322,8 +322,8 @@ record는 제외했으며 공통 길이는 session당 `29,963~30,012`였다.
 
 ## 9. 관련 문서와 코드
 
-- binary/JSONL field 계약: [data-schema.md](data-schema.md)
+- binary/JSONL field 계약: [CSI 저장 데이터 규격](data-schema.md)
 - RX·TX 생성 코드 설명: [firmware.md](firmware.md)
 - 3-RX 전처리 설계: [공식 전처리 설계](../model_train/docs/preprocessing/design.md)
-- 구형 전처리 shape와 예시: [Legacy LSTM Preprocessing Implementation](../model_train/docs/preprocessing/legacy-preprocessing.md)
+- 구형 전처리 shape와 예시: [이전 LSTM 전처리 구현 기록](../model_train/docs/preprocessing/archive/legacy-preprocessing.md)
 - 수집률·범위 시각화: [postprocessing.md](postprocessing.md)

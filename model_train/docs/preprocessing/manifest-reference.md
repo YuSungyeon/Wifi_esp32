@@ -1,10 +1,10 @@
-# `manifest.json` Field Reference
+# 전처리 기록 파일(manifest.json) 읽는 법
 
 > 상태: **CURRENT — `preprocess_3rx.py`와 20260616 실제 산출물 기준**
 >
 > 생성 코드: [`preprocess_3rx.py`](../../preprocessing/preprocess_3rx.py)
 >
-> 전처리 기준: [3-RX CSI Preprocessing Design](design.md)
+> 전처리 기준: [수신기 3대의 CSI 전처리 설계](design.md)
 
 ## 1. 파일 이름과 역할
 
@@ -112,7 +112,7 @@ Manifest의 전체 구조를 줄이면 다음과 같다.
 `model_train/docs/[전처리]-설계.md`를 보존한다. 이 파일은 완료된 LSTM run의
 `dataset_manifest_sha256` 대상이므로 경로 문자열만 고쳐 다시 저장하지 않는다.
 기존 값이 가리키는 현재 문서는
-[3-RX CSI Preprocessing Design](design.md)이다. 새로 생성한 manifest부터 위의
+[수신기 3대의 CSI 전처리 설계](design.md)이다. 새로 생성한 manifest부터 위의
 영문 경로를 기록한다.
 
 `dry_run=true`이면 세션 품질 검사와 window 수 계산은 수행하지만 split별 배열과
@@ -141,7 +141,7 @@ normalization 파일은 만들지 않는다. 이때 최상위 `normalization`은
 전체 실행 설정의 일부이고, 최상위 `rx_order`는 소비 코드가 feature 순서를 쉽게
 검사하도록 한 번 더 제공한 값이다.
 
-## 6. Class와 RX 순서
+## 6. 클래스와 수신기 순서
 
 ### 6.1 `label_map`
 
@@ -176,7 +176,7 @@ feature 128~191 → RX103
 순서를 바꾸면 같은 feature index의 물리적 의미가 달라지므로 학습과 추론에서
 manifest의 순서를 그대로 사용해야 한다.
 
-## 7. Split 배정 필드
+## 7. 학습·검증·평가 배정 필드
 
 ### 7.1 `splits`
 
@@ -210,7 +210,7 @@ Split 미배정 session이 품질 gate를 통과하면 코드는 데이터를 �
 오류로 중단한다. 따라서 정상적으로 생성된 manifest의 미배정 session은 품질
 gate에서 제외된 session이어야 한다.
 
-## 8. `split_summary`: split별 최종 결과
+## 8. `split_summary`: 자료 분할별 최종 결과
 
 `split_summary`는 `train`, `validation`, `test`에 같은 하위 구조를 반복한다.
 
@@ -243,7 +243,7 @@ split_summary.test.<field>
 | validation | 6 | 5,933 | 1,971 | 1,980 | 1,982 |
 | test | 6 | 5,924 | 1,961 | 1,982 | 1,981 |
 
-## 9. `normalization`: train 통계
+## 9. `normalization`: 학습 자료의 정규화 통계
 
 `normalization`은 `dry_run=false`일 때 train window에서 계산한 feature별 통계를
 설명한다.
@@ -496,7 +496,7 @@ common_length = common_end - common_start + 1
 안정 segment 조합을 만들 수 없으면 `chosen_segments`, `common_start`,
 `common_end`, `common_length`, `observed_ratio`가 `null`이 될 수 있다.
 
-### 10.4 Grid, 보간과 window 결과
+### 10.4 시간 격자·보간·구간 생성 결과
 
 | 필드 | 타입 | 의미 |
 |---|---|---|

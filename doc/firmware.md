@@ -337,7 +337,7 @@ TX는 monitor로 상태를 확인할 수 있다. RX는 binary stream과 reader�
   48프레임 0.38초.
 - **`ESP_LOG` 는 USB 로 나오지 않는다.** console primary 가 GPIO43 UART 이고
   (`CONFIG_ESP_CONSOLE_UART_CUSTOM`) USB-Serial-JTAG 드라이버를 app 이 직접 설치한다.
-  진단 카운터는 IDENT 프레임으로 host 에 전달된다 ([data-schema.md](data-schema.md)).
+  진단 카운터는 IDENT 프레임으로 host 에 전달된다 ([CSI 저장 데이터 규격](data-schema.md)).
 - **TX 는 전원만 있으면 된다.** TX 펌웨어는 host 입출력 코드가 없다. USB 포트가 모자라면
   충전기에 꽂아두고 RX 만 노트북에 연결한다. 단 수집 중 TX 가 재부팅하면 `tx_seq` 가 0부터
   다시 시작해 정렬 키가 깨지므로, reader·`measure_csi_hz` 가 `tx_back` 으로 감지하고

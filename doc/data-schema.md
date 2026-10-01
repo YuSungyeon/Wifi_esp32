@@ -1,4 +1,4 @@
-# CSI USB binary와 JSONL 계약
+# CSI USB 바이너리·JSONL 데이터 규격
 
 > 상태: **CURRENT CONTRACT**
 > producer: `esp32s3_csi_recv_poc/main/app_main.c`

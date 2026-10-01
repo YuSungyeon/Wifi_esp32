@@ -1,8 +1,9 @@
-# 진폭·위상 기반 3클래스 분류 실험 설계
+# 진폭·위상 3초 모델 비교 설계 (이전 실험)
 
-> 상태: **PLANNED** — 설계만 작성했으며 위상 진단·전처리·학습은 아직 실행하지 않았다.
+> 상태: **HISTORICAL** — 진폭·위상 비교 실험 전의 설계를 보존한 기록이다.
 > 작성일: 2026-09-23
-> 실행 착수: 2026-09-24 — 아래 기준을 고정하고 별도 실험 runner로 구현·검증 중
+> 실행 결과: 2026-09-24에 비교 학습·평가 완료. [이전 실험 결과](archive/amplitude-phase-classification-report.md)를 참고한다.
+> 읽는 법: 아래 CURRENT/PLANNED는 작성 당시 상태다. 현재 모델은 [30초 모델 설계](robust-three-class-design.md)를 따른다.
 > 대상: 2026-09-19·20에 수집한 60세션, RX101·102·103, `empty / static / motion`
 > 기준: [현재 전처리 계약](../preprocessing/design.md) · [수집 프로토콜](../../../doc/collection-protocol.md)
 
