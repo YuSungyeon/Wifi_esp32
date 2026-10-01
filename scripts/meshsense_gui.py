@@ -17,6 +17,7 @@ import http.server
 import json
 import shutil
 import subprocess
+import time
 import sys
 import threading
 import urllib.parse
@@ -196,6 +197,44 @@ def session_note(d: Path) -> str:
     return ""
 
 
+def realtime_view(raw_root: Path = RAW_ROOT) -> Optional[dict]:
+    """가장 최근 세션의 realtime_status.json. 실시간 판단이 안 돌면 None."""
+    # 폴더 이름이 아니라 **마지막으로 갱신된** 상태 파일을 고른다 — 지금 돌고 있는 것이 그것이다
+    files = sorted(Path(raw_root).glob("*/*/realtime_status.json"),
+                   key=lambda f: f.stat().st_mtime, reverse=True)
+    if not files:
+        return None
+    p = files[0]
+    try:
+        view = json.loads(p.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:          # rename 직전의 부분 파일 — 다음 폴링에 다시 읽는다
+        return None
+    view["spans"] = timeline_spans(view.get("events", []), view.get("t", 0.0))
+    view["stale_s"] = round(time.time() - p.stat().st_mtime, 1)
+    return view
+
+
+def timeline_spans(events: list, now: float, minutes: int = 60) -> list:
+    """최근 `minutes` 분을 상태 구간으로 자른다. 짧은 구간도 최소 폭으로 남긴다.
+
+    판단을 시작한 지 `minutes` 분이 안 됐으면 **지나온 시간만** 그린다 — 시작 전 구간까지
+    '판단 중'으로 칠하면 한 시간 내내 못 정한 것처럼 보인다.
+    """
+    span_s = min(minutes * 60.0, max(now, 1.0))
+    start = now - span_s
+    marks = [(max(e["t"], start), e["to"]) for e in events if e["t"] >= start]
+    first = next((e["from"] for e in events if e["t"] >= start), "deciding")
+    marks.insert(0, (start, first))
+    out = []
+    for (t0, state), (t1, _) in zip(marks, marks[1:] + [(now, None)]):
+        out.append({"state": state, "pct": max(0.5, 100.0 * (t1 - t0) / span_s)})
+    total = sum(s["pct"] for s in out) or 1.0
+    for s in out:
+        s["pct"] = round(100.0 * s["pct"] / total, 3)
+    out[0]["covers_s"] = round(span_s, 1)
+    return out
+
+
 def label_counts(rows) -> dict:
     c = {l: 0 for l in LABELS}
     for r in rows:
@@ -255,6 +294,46 @@ img.wf{width:100%;border:1px solid var(--line);border-radius:10px;margin-top:.6r
 .chips button{font:inherit;font-size:.85rem;padding:.25rem .6rem;cursor:pointer;background:var(--bg);
  color:var(--fg);border:1px solid var(--line);border-radius:999px}
 .big{font-size:1.7rem;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+/* 실시간 탭 — 상태색은 글자와 왼쪽 띠에만. 카드 전체를 칠하면 오래 켜두기 어렵다 */
+:root{--st-empty:#64748b;--st-static:#2a6df4;--st-motion:#ea580c;--st-deciding:#b45309;
+ --st-suspended:#b42318;--stbg:#eef1f5}
+@media(prefers-color-scheme:dark){:root{--st-empty:#94a3b8;--st-static:#7aa7ff;--st-motion:#fb923c;
+ --st-deciding:#f0b45e;--st-suspended:#ff8b80;--stbg:#232830}}
+.hero{position:relative;padding:1.8rem 1.6rem 1.6rem 2.1rem;overflow:hidden;--c:var(--st-deciding)}
+.hero::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--c)}
+.hero.s-empty{--c:var(--st-empty)} .hero.s-static{--c:var(--st-static)}
+.hero.s-motion{--c:var(--st-motion)} .hero.s-deciding{--c:var(--st-deciding)}
+.hero.s-suspended{--c:var(--st-suspended)}
+.state{font-size:3.4rem;line-height:1.1;font-weight:800;letter-spacing:-.03em;margin:0;color:var(--c)}
+.sub-state{display:flex;align-items:baseline;gap:.6rem;margin:.3rem 0 1.3rem;color:var(--muted);
+ font-size:1.02rem;font-variant-numeric:tabular-nums}
+.sub-state b{color:var(--fg);font-weight:600}
+.meter{display:flex;align-items:center;gap:.7rem;max-width:30rem}
+.meter .lab{color:var(--muted);font-size:.8rem;min-width:2.2rem}
+.meter .track{position:relative;flex:1;height:10px;border-radius:999px;background:var(--stbg)}
+.meter .fill{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--c)}
+.meter .mark{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--fg);opacity:.35}
+.meter .num{font-variant-numeric:tabular-nums;font-weight:700;min-width:3rem;text-align:right}
+.note{margin:1rem 0 0;font-size:.88rem;color:var(--warn);background:var(--warnbg);
+ border:1px solid var(--warn);border-radius:8px;padding:.45rem .7rem;display:inline-block}
+.tl{display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--bg)}
+.tl i{display:block;min-width:2px}
+.tl .empty{background:var(--st-empty)} .tl .static{background:var(--st-static)}
+.tl .motion{background:var(--st-motion)}
+.tl .deciding,.tl .suspended{background:repeating-linear-gradient(45deg,var(--stbg),var(--stbg) 3px,
+ var(--st-deciding) 3px,var(--st-deciding) 6px);opacity:.6}
+.axis{display:flex;justify-content:space-between;color:var(--muted);font-size:.75rem;margin-top:.3rem}
+.key{display:flex;gap:.9rem;flex-wrap:wrap;margin-top:.6rem;color:var(--muted);font-size:.8rem}
+.key span{display:flex;align-items:center;gap:.35rem}
+.key i{width:9px;height:9px;border-radius:2px;display:block}
+.chg td{padding:.45rem .3rem;font-size:.92rem}
+.chg .t{width:7rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.chg .c{width:4rem;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:.35rem}
+.arrow{color:var(--muted);margin:0 .4rem}
+.statusbar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.statusbar .meta{margin-left:auto;display:flex;gap:1rem;flex-wrap:wrap;color:var(--muted);
+ font-size:.8rem;font-variant-numeric:tabular-nums}
 .ready{border-radius:8px;padding:.55rem .75rem;margin-bottom:.6rem;font-size:.88rem;
  background:var(--warnbg);color:var(--warn);border:1px solid var(--warn)}
 """
@@ -265,7 +344,8 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <header>
   <h1>MeshSense 제어판</h1>
   <nav id="nav">
-    <button data-t="boards" class="on">보드</button>
+    <button data-t="realtime" class="on">실시간</button>
+    <button data-t="boards">보드</button>
     <button data-t="collect">수집</button>
     <button data-t="sessions">세션</button>
     <button data-t="analyze">진단·데이터셋</button>
@@ -274,7 +354,8 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
   <span id="jobbadge" class="hint" style="margin-left:auto"></span>
 </header>
 <main>
-  <section id="boards" class="on"></section>
+  <section id="realtime" class="on"></section>
+  <section id="boards"></section>
   <section id="collect"></section>
   <section id="sessions"></section>
   <section id="analyze"></section>
@@ -288,7 +369,7 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <script>__JS__</script></body></html>"""
 
 JS = r"""
-let S = null, tab = 'boards', shownPng = null;
+let S = null, tab = 'realtime', shownPng = null;
 let order = null;  // 이번 블록의 무작위 클래스 순서
 try { order = JSON.parse(localStorage.getItem('blockOrder')); } catch (e) {}
 // 섹션별 데이터 지문. 바뀐 섹션만 다시 그린다 —
@@ -333,6 +414,9 @@ function renderJob() {
 function render() {
   if (!S) return;
   const busy = S.job.running;
+  if (tab === 'realtime' && changed('realtime', [S.realtime])) {
+    document.getElementById('realtime').innerHTML = renderRealtime(S.realtime);
+  }
   if (tab === 'boards' && changed('boards', [S.boards, busy])) {
     const rows = S.boards.map(b => `<tr>
       <td><code>${esc(b.port)}</code></td>
@@ -425,6 +509,62 @@ function render() {
         <span id="metamsg" class="hint"></span></div></div>`;
   }
 }
+const RT_LABEL = {empty:'빈 방', static:'정지', motion:'움직임',
+                  deciding:'판단 중', suspended:'판단 정지'};
+function held(s){ s = Math.max(0, Math.round(s));
+  return s >= 60 ? `${Math.floor(s/60)}분 ${String(s%60).padStart(2,'0')}초` : `${s}초`; }
+function ago(t, now){ return held(now - t) + ' 전'; }
+function spanLabel(spans){
+  const s = (spans && spans[0] && spans[0].covers_s) || 0;
+  return s >= 3600 ? '60분' : held(s);
+}
+function renderRealtime(r){
+  if (!r) return `<div class="card"><h2>실시간 판단이 실행 중이 아닙니다</h2>
+    <p class="sub">터미널에서 시작합니다 — 수집 중인 세션을 지정하세요:</p>
+    <pre class="log">python realtime/ui.py --session mac_collector_output/raw/&lt;날짜&gt;/&lt;세션&gt; --follow</pre></div>`;
+  const deciding = r.state === 'deciding';
+  const pct = deciding
+    ? Math.round(100 * (1 - Math.min(1, r.remaining_s / 60)))
+    : Math.round(r.confidence * 100);
+  const sub = deciding
+    ? (r.candidate ? `${esc(RT_LABEL[r.candidate] || r.candidate)} 확인 중`
+                   : `확신이 기준(${Math.round(r.threshold*100)}%)에 못 미칩니다`)
+    : `확신 ${Math.round(r.confidence*100)}%`;
+  return `<div class="card hero s-${esc(r.state)}">
+      <p class="state">${esc(RT_LABEL[r.state] || r.state)}</p>
+      <p class="sub-state"><b>${deciding ? sub : held(r.held_s) + '째'}</b>
+        <span>${deciding ? '' : '· ' + esc(r.session)}</span></p>
+      <div class="meter"><span class="lab">${deciding ? '남음' : '확신'}</span>
+        <span class="track"><span class="fill" style="width:${pct}%"></span>
+          ${deciding ? '' : `<span class="mark" style="left:${Math.round(r.threshold*100)}%"></span>`}</span>
+        <span class="num">${deciding ? Math.round(r.remaining_s) + '초' : pct + '%'}</span></div>
+      ${r.note ? `<p class="note">${esc(r.note)}</p>` : ''}
+    </div>
+    <div class="card"><h2>최근 기록</h2>
+      <div class="tl">${(r.spans||[]).map(s =>
+        `<i class="${esc(s.state)}" style="width:${s.pct}%"></i>`).join('')}</div>
+      <div class="axis"><span>${spanLabel(r.spans)} 전</span><span>지금</span></div>
+      <div class="key">
+        <span><i style="background:var(--st-empty)"></i>빈 방</span>
+        <span><i style="background:var(--st-static)"></i>정지</span>
+        <span><i style="background:var(--st-motion)"></i>움직임</span>
+        <span><i style="background:var(--st-deciding)"></i>판단 중</span></div></div>
+    <div class="card"><h2>상태 변화 (${(r.events||[]).length})</h2>
+      ${(r.events||[]).length ? `<table class="chg">${r.events.slice().reverse().map(e =>
+        `<tr><td class="t">${esc(ago(e.t, r.t))}</td>
+         <td><span class="dot" style="background:var(--st-${esc(e.from)})"></span>${esc(RT_LABEL[e.from]||e.from)}
+         <span class="arrow">→</span><b><span class="dot" style="background:var(--st-${esc(e.to)})"></span>${esc(RT_LABEL[e.to]||e.to)}</b></td>
+         <td class="c">${Math.round(e.confidence*100)}%</td></tr>`).join('')}</table>`
+        : `<p class="sub">아직 상태 변화가 없습니다.</p>`}</div>
+    <div class="card"><div class="statusbar">
+      <button class="act" onclick="post('/api/mark')">전환 표시</button>
+      <span class="meta">
+        <span class="tag ${r.n_rx >= 3 ? 'ok' : 'warn'}">RX ${r.n_rx}대</span>
+        <span>${r.hz}Hz</span><span>창 ${r.window_s}초</span>
+        <span>${esc(r.session)}</span>
+        <span>${r.stale_s > 5 ? '갱신 ' + Math.round(r.stale_s) + '초 전' : '갱신 중'}</span>
+      </span></div></div>`;
+}
 function tog(id){const f=document.getElementById('devices.expected_device_ids');
   const s=f.value.split(/[,\s]+/).filter(Boolean);const i=s.indexOf(String(id));
   if(i<0)s.push(String(id));else s.splice(i,1);f.value=s.sort((a,b)=>a-b).join(', ');}
@@ -499,6 +639,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "diag_png_mtime": int((REPO_ROOT / DIAG_PNG_REL).stat().st_mtime)
                 if (REPO_ROOT / DIAG_PNG_REL).is_file() else 0,
                 "readiness": readiness(),
+                "realtime": realtime_view(),
                 "job": JOB.state(),
             })
         elif u.path == "/api/img":
@@ -588,6 +729,19 @@ def dispatch(path: str, body: dict) -> dict:
         if not str(target).startswith(str(RAW_ROOT)) or not (target / "session.json").is_file():
             return {"error": "세션 디렉터리가 아닙니다"}
         set_session_note(target, str(body.get("text", "")))
+        return {"ok": True}
+
+    if path == "/api/mark":
+        view = realtime_view()
+        if not view:
+            return {"error": "실시간 판단이 실행 중이 아닙니다"}
+        target = next((d for d in sorted(RAW_ROOT.glob("*/*"), reverse=True)
+                       if d.name == view.get("session")), None)
+        if target is None:
+            return {"error": "세션을 찾지 못했습니다"}
+        with (target / "realtime_marks.jsonl").open("a", encoding="utf-8") as fp:
+            fp.write(json.dumps({"wall": time.time(), "note": str(body.get("note", "")),
+                                 "via": "gui"}, ensure_ascii=False) + "\n")
         return {"ok": True}
 
     if path == "/api/delete":
