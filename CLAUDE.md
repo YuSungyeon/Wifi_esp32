@@ -46,6 +46,7 @@ SoftAP/UDP production firmware, UDP collector, `flash_rx.py`, `flash_tx.py`, `me
 | `scripts/csi_session.py` | 세션 디렉터리·manifest(라벨 SSOT)·`session_id` 자동 순번 |
 | `scripts/csi_serial_reader.py` | binary v4 검증(CRC32), IDENT 식별, `.csi` 저장 |
 | `scripts/export_jsonl.py` | `.csi` → JSONL record schema v1 (전처리 입력) |
+| `realtime/` | **실시간 상태 판단** — `.csi` tail, 배포 모델 추론, 상태 기계, CLI 화면 |
 | `scripts/check_separability.py` | 3-class 분리 가능성 진단 (세션 단위 LOSO) |
 | `mac_collector/device_registry.csv` | RX USB MAC ↔ device ID |
 | `mac_collector/tx_registry.csv` | TX USB MAC ↔ TX node ID |
