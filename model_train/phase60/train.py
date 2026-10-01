@@ -61,33 +61,42 @@ def load_dates(dates: tuple, window: int, stride: int) -> dict:
 
 
 # ── 학습 ──────────────────────────────────────────────────────────────────────
-def train_one(train: dict, seed: int, window: int, downsample: int, epochs: int,
-              lr: float, batch: int, device: torch.device) -> nn.Module:
+def train_one(train: dict, seed: int, args, device: torch.device) -> nn.Module:
     torch.manual_seed(seed)
     np.random.seed(seed)
-    model = SharedTemporalCNN(dropout=0.2, groups=(F.N_COLS,), n_classes=3).to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=lr)
-    loss_fn = nn.CrossEntropyLoss()
+    groups = (F.N_COLS, F.N_COLS) if args.diff else (F.N_COLS,)
+    model = SharedTemporalCNN(dropout=args.dropout, groups=groups, n_classes=3).to(device)
+    opt = torch.optim.Adam(model.parameters(), lr=args.lr)
+    weight = (torch.tensor(args.class_weight, dtype=torch.float32, device=device)
+              if args.class_weight else None)
+    loss_fn = nn.CrossEntropyLoss(weight=weight, label_smoothing=args.label_smoothing)
     index = [(k, int(s)) for k, v in train.items() for s in v["starts"]]
     rng = np.random.default_rng(seed)
-    for epoch in range(epochs):
+    for epoch in range(args.epochs):
         model.train()
         order = rng.permutation(len(index))
-        for b in range(0, len(order), batch):
-            rows = [index[i] for i in order[b:b + batch]]
-            xb = np.concatenate([F.windows(train[k]["phase"], np.array([s]), window, downsample)
-                                 for k, s in rows])
+        for b in range(0, len(order), args.batch):
+            rows = [index[i] for i in order[b:b + args.batch]]
+            xb = np.concatenate([F.windows(train[k]["phase"], np.array([s]), args.window,
+                                           args.downsample, args.diff) for k, s in rows])
             yb = np.array([train[k]["label"] for k, _ in rows])
+            if args.augment > 0:
+                # 세 클래스 모두 시간 방향과 무관하다 → 뒤집어도 라벨이 보존된다.
+                # 서브캐리어별 게인 흔들기는 특정 톤 크기에 기대지 못하게 한다.
+                flip = rng.random(len(xb)) < 0.5
+                xb[flip] = xb[flip, ::-1]
+                xb = (xb * (1 + args.augment * rng.standard_normal(
+                    (len(xb), 1, xb.shape[2])))).astype(np.float32)
             opt.zero_grad()
             loss_fn(model(torch.from_numpy(xb).to(device)),
                     torch.from_numpy(yb).to(device)).backward()
             opt.step()
-        print(f"    seed {seed} epoch {epoch + 1}/{epochs}", flush=True)
+        print(f"    seed {seed} epoch {epoch + 1}/{args.epochs}", flush=True)
     return model.eval()
 
 
 def evaluate(models: list, sessions: dict, window: int, downsample: int,
-             device: torch.device) -> dict:
+             device: torch.device, diff: bool = False) -> dict:
     """세션별 softmax 평균(seed 앙상블)으로 판정. 창 단위 정확도도 함께 낸다."""
     rows, cm = [], np.zeros((3, 3), int)
     with torch.no_grad():
@@ -95,7 +104,7 @@ def evaluate(models: list, sessions: dict, window: int, downsample: int,
             probs = []
             for b in range(0, len(v["starts"]), 32):
                 xb = np.ascontiguousarray(
-                    F.windows(v["phase"], v["starts"][b:b + 32], window, downsample))
+                    F.windows(v["phase"], v["starts"][b:b + 32], window, downsample, diff))
                 x = torch.from_numpy(xb).to(device)
                 probs.append(torch.stack([m(x).softmax(1) for m in models]).mean(0).cpu().numpy())
             probs = np.concatenate(probs)
@@ -130,6 +139,13 @@ def main() -> int:
     ap.add_argument("--epochs", type=int, default=10)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--batch", type=int, default=32)
+    ap.add_argument("--dropout", type=float, default=0.2)
+    ap.add_argument("--diff", action="store_true", help="위상에 시간 차분 묶음을 더한다")
+    ap.add_argument("--augment", type=float, default=0.0,
+                    help=">0 이면 시간 뒤집기 + 서브캐리어별 게인 흔들기(표준편차)")
+    ap.add_argument("--label-smoothing", type=float, default=0.0)
+    ap.add_argument("--class-weight", type=float, nargs=3, default=None,
+                    help="empty static motion 손실 가중치")
     args = ap.parse_args()
 
     overlap = set(args.train) & set(args.eval)
@@ -147,12 +163,11 @@ def main() -> int:
     models, t0 = [], time.time()
     for seed in args.seeds:
         s0 = time.time()
-        models.append(train_one(train, seed, args.window, args.downsample,
-                                args.epochs, args.lr, args.batch, device))
+        models.append(train_one(train, seed, args, device))
         print(f"  seed {seed} 완료 ({time.time() - s0:.0f}s)", flush=True)
 
     print("[평가] 학습에 쓰지 않은 날짜로 판정", flush=True)
-    metrics = evaluate(models, test, args.window, args.downsample, device)
+    metrics = evaluate(models, test, args.window, args.downsample, device, args.diff)
     print(f"  세션 {metrics['sessions']} · 사람 있음/없음 {metrics['presence']} · "
           f"빈방vs정지 {metrics['empty_vs_static']} · 창 정답률 {metrics['window_accuracy']}",
           flush=True)
@@ -162,6 +177,7 @@ def main() -> int:
         "format_version": FORMAT_VERSION,
         "feature_version": F.FEATURE_VERSION,
         "mode": "P",
+        "diff_channel": args.diff,
         "window_frames": args.window,
         "stride_frames": args.eval_stride,
         "downsample": args.downsample,
@@ -175,7 +191,9 @@ def main() -> int:
         "evaluation_dates": list(args.eval),
         "metrics": metrics,
         "config": {"epochs": args.epochs, "lr": args.lr, "batch": args.batch,
-                   "seeds": args.seeds, "train_stride": args.train_stride, "dropout": 0.2},
+                   "seeds": args.seeds, "train_stride": args.train_stride,
+                   "dropout": args.dropout, "diff": args.diff, "augment": args.augment,
+                   "label_smoothing": args.label_smoothing, "class_weight": args.class_weight},
         "status": (f"학습 {len(train)}세션({'+'.join(args.train)}) · "
                    f"평가 {len(test)}세션({'+'.join(args.eval)}) 세션 {metrics['sessions']} · "
                    "전환 구간·장시간 운영 미검증"),

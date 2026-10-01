@@ -78,13 +78,21 @@ def valid_starts(phase: np.ndarray, window: int, stride: int) -> np.ndarray:
     return starts[bad[starts + window] == bad[starts]]
 
 
-def windows(phase: np.ndarray, starts: np.ndarray, window: int, downsample: int) -> np.ndarray:
+def windows(phase: np.ndarray, starts: np.ndarray, window: int, downsample: int,
+            diff: bool = False) -> np.ndarray:
     """(n, window/downsample, 156) — 다운샘플 평균 후 창 평균을 뺀다.
 
     창 평균 차감이 정규화의 전부다. 위상 잔차는 이미 상대값이라 스케일 조정이 필요 없다.
+
+    `diff=True` 면 시간 차분을 두 번째 묶음으로 덧붙여 (n, T, 312) 가 된다. 차분은 변화의
+    **속도**라, 지속적으로 흔드는 보행과 간헐적으로 흔드는 서 있는 자세를 가를 수 있다.
     """
     view = np.lib.stride_tricks.sliding_window_view(phase, window, axis=0)
     w = view[starts].transpose(0, 2, 1)                 # (n, window, 156)
     n, t, f = w.shape
     w = w[:, : t - t % downsample].reshape(n, t // downsample, downsample, f).mean(axis=2)
-    return (w - w.mean(axis=1, keepdims=True)).astype(np.float32)
+    centred = (w - w.mean(axis=1, keepdims=True)).astype(np.float32)
+    if not diff:
+        return centred
+    d = np.diff(centred, axis=1, prepend=centred[:, :1])
+    return np.concatenate([centred, d], axis=2)

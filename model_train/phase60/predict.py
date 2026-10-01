@@ -25,7 +25,7 @@ from model_train.cnn1d.shared_cnn import SharedTemporalCNN  # noqa: E402
 from model_train.phase60 import features as F  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-DEFAULT_MODEL = HERE / "model_60sessions.pt"
+DEFAULT_MODEL = HERE / "model_15sessions_v2.pt"
 
 
 def load_bundle(path: Path, device: str = "cpu"):
