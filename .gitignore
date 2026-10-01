@@ -72,3 +72,6 @@ presentations/
 
 # clangd 인덱스 캐시
 **/.cache/
+
+# --- phase60 위상 캐시 (재생성 가능) ---
+model_train/phase60/cache/

@@ -29,43 +29,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from csi_store import LLTF_DATA_IDX  # noqa: E402
 from model_train.cnn1d.CNN1D import CNN1DClassifier  # noqa: E402
+from model_train.cnn1d.shared_cnn import SharedTemporalCNN  # noqa: E402
 from model_train.lstm import LSTM as training  # noqa: E402
 from model_train.preprocessing import preprocess_3rx as pre  # noqa: E402
 
 # 3-RX × 64 중 상시 0인 DC·가드 톤을 뺀 156개 feature 위치
 VALID_FEATURES = np.concatenate([r * 64 + LLTF_DATA_IDX for r in range(3)])
 
-
-class SharedTemporalCNN(nn.Module):
-    """모든 서브캐리어 시계열에 같은 가중치의 시간축 Conv를 적용하고 통계로 풀링한다.
-
-    특정 서브캐리어 조합(=배치별 다중경로 지문)을 외울 수 없게 하는 구조다.
-    """
-
-    def __init__(self, dropout: float = 0.2, groups: tuple = (156,), n_classes: int = 3) -> None:
-        # groups: 모달리티(진폭·위상)별 시계열 수. 모달리티마다 인코더와 풀링을 따로 둔다.
-        super().__init__()
-
-        def block(cin, cout, k):
-            return [nn.Conv1d(cin, cout, k, padding=k // 2, bias=False),
-                    nn.BatchNorm1d(cout), nn.ReLU()]
-
-        self.groups = list(groups)
-        self.encoders = nn.ModuleList(
-            nn.Sequential(*block(1, 16, 5), nn.MaxPool1d(2),
-                          *block(16, 32, 5), nn.MaxPool1d(2), *block(32, 32, 3))
-            for _ in self.groups)
-        self.head = nn.Sequential(nn.Linear(128 * len(self.groups), 64), nn.ReLU(),
-                                  nn.Dropout(dropout), nn.Linear(64, n_classes))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # (B, T, F)
-        pooled = []
-        for enc, part in zip(self.encoders, torch.split(x, self.groups, dim=2)):
-            b, t, f = part.shape
-            h = enc(part.permute(0, 2, 1).reshape(b * f, 1, t))
-            per_series = torch.cat([h.mean(2), h.std(2)], 1).view(b, f, -1)
-            pooled += [per_series.mean(1), per_series.std(1)]
-        return self.head(torch.cat(pooled, 1))
 
 JSONL_ROOT = ROOT / "mac_collector_output" / "jsonl" / "raw"
 RUNS = Path(__file__).resolve().parent / "runs" / "pilot_cv"
