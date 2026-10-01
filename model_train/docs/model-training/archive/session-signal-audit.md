@@ -1,6 +1,7 @@
-# Session 10 and 19 Signal Audit
+# 6월 16일 세션 10·19의 신호·오분류 분석
 
-> 상태: **SUPPORTING ANALYSIS — 2026-09-10 원본 대조·신호 비교 완료**
+> 상태: **HISTORICAL — 2026-09-10 원본 대조·신호 비교 완료**
+> 보관 기록: 당시 조건과 결과를 보존한다. 현재 모델은 [모델 학습 문서 안내](../../README.md)를 참고한다.
 >
 > 목적: 기존 test session 10·19의 오분류를 원본 수집 기록과 신호로 진단한다.
 > 추가 학습·모델 선택은 수행하지 않았다. 실제 환경과 사람 상태는 미확인이다.
@@ -224,7 +225,7 @@ empty(S4·5·6)였다. 성공 사례 S9·20은 배정 라벨과 같은 class의 
 이 비교는 **평균 신호 형태만 사용하는 진단**이다. LSTM은 3초 시계열 전체를 보므로
 이 거리만으로 모델이 실제로 사용한 feature나 오분류의 원인을 확정할 수 없다.
 
-![동일 class의 train 범위와 성공·실패 세션의 평균 CSI 비교](assets/session10-19-audit/feature-profiles.png)
+![동일 class의 train 범위와 성공·실패 세션의 평균 CSI 비교](../assets/session10-19-audit/feature-profiles.png)
 
 회색 영역은 해당 class의 train 세션 평균들 사이의 최솟값–최댓값이며, 신뢰구간이 아니다.
 초록 선은 성공 세션, 주황 선은 실패 세션이다. 그래프 사이의 y축 범위는 다를 수 있다.
@@ -273,7 +274,7 @@ empty(S4·5·6)였다. 성공 사례 S9·20은 배정 라벨과 같은 class의 
 -38.00 dBm으로 바뀌었다. 이 변화의 시간 경과는 RX102와 다르므로 하나의 동시
 사건으로 묶지 않는다. RSSI는 진단에만 사용했으며 기존 LSTM의 입력 feature는 아니다.
 
-![S10·19의 신호와 저장된 세 seed 예측의 시간 패턴](assets/session10-19-audit/signal-and-predictions.png)
+![S10·19의 신호와 저장된 세 seed 예측의 시간 패턴](../assets/session10-19-audit/signal-and-predictions.png)
 
 위쪽 세 행의 초록 선은 정렬·보간 후 CSI의 1초 평균, 주황 선은 원본 RSSI의
 1초 평균이다. 좌우 y축은 서로 다른 단위다. 마지막 행은 저장된 window별 static
@@ -304,8 +305,8 @@ empty(S4·5·6)였다. 성공 사례 S9·20은 배정 라벨과 같은 class의 
 
 ## 8. 재현과 산출물
 
-- 실행 코드: [session_signal_audit.py](../../analysis/session_signal_audit.py)
-- 공유용 수치·원본/코드 hash·30초별 예측 집계: [summary.json](assets/session10-19-audit/summary.json)
+- 실행 코드: [session_signal_audit.py](../../../analysis/session_signal_audit.py)
+- 공유용 수치·원본/코드 hash·30초별 예측 집계: [summary.json](../assets/session10-19-audit/summary.json)
 - 전체 feature 통계·1초 신호·window 확률: 로컬
   `model_train/analysis/output/20260910-session10-19/audit.json` (Git 제외, 재실행으로 생성)
 - 원본: `mac_collector_output/raw/20260616/session_<id>/device_<rx>.jsonl`

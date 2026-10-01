@@ -1,10 +1,11 @@
-# 1D-CNN과 LSTM 실데이터 비교 보고서
+# 6월 16일 데이터의 1차원 CNN·LSTM 비교 결과
 
-> 상태: **SUPPORTING ANALYSIS — 2026-09-17 1D-CNN 6회 학습·3회 test 및 LSTM 비교 완료**
+> 상태: **HISTORICAL — 2026-09-17 1D-CNN 6회 학습·3회 test 및 LSTM 비교 완료**
+> 보관 기록: 당시 조건과 결과를 보존한다. 현재 모델은 [모델 학습 문서 안내](../../README.md)를 참고한다.
 >
-> 데이터: `20260616` / 코드: [`CNN1D.py`](../../cnn1d/CNN1D.py) / 기준선: [LSTM baseline 보고서](lstm-baseline-report.md)
+> 데이터: `20260616` / 코드: [`CNN1D.py`](../../../cnn1d/CNN1D.py) / 기준선: [LSTM 기준 모델 평가 결과](lstm-baseline-report.md)
 >
-> 원시 지표·계산 결과: [summary.json](assets/cnn1d-vs-lstm/summary.json)
+> 원시 지표·계산 결과: [summary.json](../assets/cnn1d-vs-lstm/summary.json)
 
 ## 1. 결과 요약
 
@@ -21,7 +22,7 @@
 높아졌다는 근거는 없다. 관측된 작은 점수 차이만으로 모델의 통계적 우열이나 동등성을
 판정하지 않는다. 이미 확인한 test split의 결과이므로 이번 비교는 탐색적 결과다.
 
-![전체 성능과 class별 recall](assets/cnn1d-vs-lstm/scores.png)
+![전체 성능과 class별 recall](../assets/cnn1d-vs-lstm/scores.png)
 
 ## 2. 실험 조건과 비교의 공정성
 
@@ -45,7 +46,7 @@ metadata, session 중복과 전체 NaN/inf 검사를 통과했다. 원본·전�
 수정하지 않았다.
 
 기존 LSTM 6개 run과 현재 데이터의 manifest 및 normalization SHA-256이 일치했다.
-이번에는 X/y/metadata 파일의 현재 SHA-256도 [protocol](assets/cnn1d-vs-lstm/protocol.json)에
+이번에는 X/y/metadata 파일의 현재 SHA-256도 [protocol](../assets/cnn1d-vs-lstm/protocol.json)에
 기록했다. 과거 LSTM에는 X.npy 자체 hash가 없어 과거 배열과의 바이트 단위 동일성까지
 소급 검증한 것은 아니다.
 
@@ -73,7 +74,7 @@ LSTM은 기존 지표와 예측 파일을 재사용했고 이번에 다시 학�
 
 ## 3. CNN 학습과 설정 선택
 
-실험 전에 [비교 실행 코드](../../analysis/run_cnn1d_comparison.py)와 선택 규칙을
+실험 전에 [비교 실행 코드](../../../analysis/run_cnn1d_comparison.py)와 선택 규칙을
 고정했다. Validation 평균 macro-F1이 같은 경우 `none`을 선택하기로 했다.
 6개 run을 모두 학습한 후 선택을 파일로 저장하고, 선택된 3개 checkpoint에만
 각각 한 번 test를 실행했다.
@@ -97,12 +98,12 @@ CNN에서는 6개 run 모두 첫 epoch에 validation accuracy와 macro-F1이 1.0
 | balanced | 1 | 1 | 6 | 1.0000 | 미평가 (선택 제외) | 24.64초 |
 | balanced | 2 | 1 | 6 | 1.0000 | 미평가 (선택 제외) | 27.91초 |
 
-선택 기록은 [selection.json](assets/cnn1d-vs-lstm/selection.json)에 있다.
+선택 기록은 [selection.json](../assets/cnn1d-vs-lstm/selection.json)에 있다.
 `test_started: false`는 선택 당시 test가 시작되지 않았음을 보존한 값이다.
-최종 6회 학습·3회 test 완료 상태는 [completed.json](assets/cnn1d-vs-lstm/completed.json)을 따른다.
+최종 6회 학습·3회 test 완료 상태는 [completed.json](../assets/cnn1d-vs-lstm/completed.json)을 따른다.
 전체 실행은 한국 시간 18:34:50~18:38:30, 약 3분 40초였다.
 
-![선택된 설정의 학습 곡선](assets/cnn1d-vs-lstm/learning-curves.png)
+![선택된 설정의 학습 곡선](../assets/cnn1d-vs-lstm/learning-curves.png)
 
 CNN의 validation 곡선이 좋아도 다른 세션의 신호 분포에서 잘 동작한다는 뜻은 아니다.
 이 실험에서는 validation loss가 매우 낮은 첫 checkpoint조차 test에서 같은 두 세션을
@@ -154,7 +155,7 @@ Validation-test 격차도 0.2810에서 0.2985로 커졌다.
 - **Static:** recall은 62.41%에서 61.27%로 약 1.14%p 하락했다. 주요 과제인 정지 상태 구분의 개선이 없었다.
 - **Motion:** 두 모델 모두 recall 100%다. CNN은 precision도 100%가 됐지만 이미 LSTM에서도 거의 완벽했던 class다.
 
-![Test confusion matrix 비교](assets/cnn1d-vs-lstm/confusion-matrices.png)
+![Test confusion matrix 비교](../assets/cnn1d-vs-lstm/confusion-matrices.png)
 
 그림의 건수는 seed별 confusion matrix의 평균이며 각 모델에서 합계는 5,924개다.
 Seed 3개의 예측을 새로운 독립 데이터 17,772개로 취급하지 않는다. Macro-F1은 각
@@ -174,7 +175,7 @@ seed에서 계산한 값을 평균했으며, 평균 confusion matrix에서 다�
 | 29 | motion | 990 | motion / motion | 100.00% | 100.00% |
 | 30 | motion | 991 | motion / motion | 100.00% | 100.00% |
 
-![세션별 window 정확도](assets/cnn1d-vs-lstm/session-accuracy.png)
+![세션별 window 정확도](../assets/cnn1d-vs-lstm/session-accuracy.png)
 
 **Session 10:** 두 모델 모두 991개 window를 전부 `static`으로 분류했다. CNN의
 세션 평균 `static` 확률은 seed 평균 약 99.97%다. 정답 `empty`에 가까워졌다고 볼
@@ -238,11 +239,11 @@ LSTM보다 인식 성능이 좋은 모델이나 실사용 모델로 채택할 �
 
 ## 9. 재현과 검증 산출물
 
-- [CNN 실험 디렉터리](../../cnn1d/runs/20260917-comparison): 6개 run의 checkpoint/config/normalization/history/validation, 선택된 3개 run의 test 예측·지표.
-- [실행 protocol과 파일 hash](assets/cnn1d-vs-lstm/protocol.json), [test 이전 선택](assets/cnn1d-vs-lstm/selection.json), [완료 기록](assets/cnn1d-vs-lstm/completed.json).
-- [CNN 6개 run 지표 snapshot](assets/cnn1d-vs-lstm/cnn-runs-snapshot.json), [기존 LSTM 6개 run 지표 snapshot](assets/cnn1d-vs-lstm/lstm-baseline-snapshot.json).
-- [전체 집계 JSON](assets/cnn1d-vs-lstm/summary.json), [자동 생성 수치 표](assets/cnn1d-vs-lstm/tables.md).
-- [검증 기록](assets/cnn1d-vs-lstm/verification.json): 두 모델의 test 예측 총 **35,544행**에서 window ID·session·시작 tx_seq·정답을 대조하고, 확률/argmax, confusion matrix, macro-F1, 세션 집계를 다시 계산해 저장 지표와 일치함을 확인했다.
+- 당시 CNN 실험 디렉터리: `model_train/cnn1d/runs/20260917-comparison` (git 제외, 현재 로컬에는 없음). 6개 run의 checkpoint/config/normalization/history/validation, 선택된 3개 run의 test 예측·지표를 기록한 경로다. 아래 수치 snapshot은 보존돼 있다.
+- [실행 protocol과 파일 hash](../assets/cnn1d-vs-lstm/protocol.json), [test 이전 선택](../assets/cnn1d-vs-lstm/selection.json), [완료 기록](../assets/cnn1d-vs-lstm/completed.json).
+- [CNN 6개 run 지표 snapshot](../assets/cnn1d-vs-lstm/cnn-runs-snapshot.json), [기존 LSTM 6개 run 지표 snapshot](../assets/cnn1d-vs-lstm/lstm-baseline-snapshot.json).
+- [전체 집계 JSON](../assets/cnn1d-vs-lstm/summary.json), [자동 생성 수치 표](../assets/cnn1d-vs-lstm/tables.md).
+- [검증 기록](../assets/cnn1d-vs-lstm/verification.json): 두 모델의 test 예측 총 **35,544행**에서 window ID·session·시작 tx_seq·정답을 대조하고, 확률/argmax, confusion matrix, macro-F1, 세션 집계를 다시 계산해 저장 지표와 일치함을 확인했다.
 
 CNN 학습 코드 `CNN1D.py`와 공통 runner `LSTM.py`는 커밋 `0a563fe`의 파일과
 SHA-256이 일치한다. 실험 시작 시 두 파일과 실행 스크립트를 실험 디렉터리의

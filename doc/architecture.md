@@ -24,7 +24,7 @@ ESP32-S3 RX × N
 Mac — 수집 (실시간)
   meshsense_gui.py (비개발자 권장) 또는 meshsense_cli.py
     └─ csi_serial_reader.py × N
-         binary v4 검증(CRC-32, [data-schema.md](data-schema.md))
+         binary v4 검증(CRC-32, [CSI 저장 데이터 규격](data-schema.md))
          raw I/Q를 변환 없이 그대로 저장
              │
              ▼
@@ -154,7 +154,7 @@ RX USB binary stream
   → session.json (라벨·품질 통계) + session_meta_snapshot.yaml
 ```
 
-전처리 입력이 필요할 때만 다음을 실행해 JSONL을 별도로 만든다(§9, [data-schema.md](data-schema.md) §3-4).
+전처리 입력이 필요할 때만 다음을 실행해 JSONL을 별도로 만든다(§9, [CSI 저장 데이터 규격](data-schema.md) §3-4).
 
 ```text
 export_jsonl.py

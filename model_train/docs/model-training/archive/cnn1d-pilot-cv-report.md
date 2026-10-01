@@ -1,9 +1,10 @@
-# 파일럿 데이터 배치 단위 교차검증 — 10사이클 (1D-CNN → 위상 기반 모델)
+# 9월 16·17일 파일럿 데이터의 배치별 교차검증 결과
 
-> 상태: **SUPPORTING ANALYSIS — 2026-09-17~18, 탐색적 결과**
+> 상태: **HISTORICAL — 2026-09-17~18, 탐색적 결과**
+> 보관 기록: 당시 조건과 결과를 보존한다. 현재 모델은 [모델 학습 문서 안내](../../README.md)를 참고한다.
 >
-> 데이터: 파일럿 `20260916`·`20260917` 15세션 / 코드: [`cv_pilot.py`](../../cnn1d/cv_pilot.py)
-> (기준 모델은 [`CNN1D.py`](../../cnn1d/CNN1D.py)의 `CNN1DClassifier`, 세션 정렬은 공식
+> 데이터: 파일럿 `20260916`·`20260917` 15세션 / 코드: [`cv_pilot.py`](../../../cnn1d/cv_pilot.py)
+> (기준 모델은 [`CNN1D.py`](../../../cnn1d/CNN1D.py)의 `CNN1DClassifier`, 세션 정렬은 공식
 > `preprocess_3rx.process_session`) / 산출물: `model_train/cnn1d/runs/pilot_cv/` (git 제외)
 
 ## 1. 결과 요약
@@ -117,7 +118,7 @@ empty recall 0.94, 배치 C·D fold는 0.97·0.93. 대신 motion recall이 0.94 
    세션 하나가 점수를 크게 흔든다. 윈도가 97% 겹쳐 window 수는 독립 표본이 아니다.
 3. **파이프라인 영향**: 공식 전처리(`preprocess_3rx.py`)와 JSONL(`csi_amp`)은 진폭만 다룬다.
    위상 경로를 채택하려면 전처리가 `.csi`의 raw I/Q를 직접 읽거나 JSONL에 위상을 추가해야 한다
-   ([data-schema.md](../../../doc/data-schema.md) 변경 필요).
+   ([CSI 저장 데이터 규격](../../../../doc/data-schema.md) 변경 필요).
 
 ## 6. 다음 실험 제안
 

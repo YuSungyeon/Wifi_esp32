@@ -1,9 +1,9 @@
-# Sequence Analysis for `seq` and `tx_seq`
+# 수신 순번(seq)과 송신 순번(tx_seq) 분석
 
-> 상태: **SUPPORTING ANALYSIS** — 공식 구현 기준은 [Preprocessing Design](design.md)
+> 상태: **SUPPORTING ANALYSIS** — 공식 구현 기준은 [CSI 전처리 설계](design.md)
 > 작성일: 2026-08-10
 > 근거 데이터: `mac_collector_output/raw/20260616/session_1~30` (record 2,583,125개)
-> 근거 문서: [sequence-patterns.md](../../../doc/sequence-patterns.md) · [Preprocessing Design](design.md) · [Legacy LSTM Preprocessing Implementation](legacy-preprocessing.md) · [data-schema.md](../../../doc/data-schema.md)
+> 근거 문서: [수신·송신 순번 패턴](../../../doc/sequence-patterns.md) · [CSI 전처리 설계](design.md) · [이전 LSTM 전처리 구현 기록](archive/legacy-preprocessing.md) · [CSI 저장 데이터 규격](../../../doc/data-schema.md)
 
 ## 1. 결론 요약
 
@@ -104,7 +104,7 @@ grid 위치의 약 9%에서 최소 한 RX가 빠진다 — `present_mask` 없이
 
 ## 5. 공식 전처리 절차 요약 (9단계)
 
-[sequence-patterns.md 7절](../../../doc/sequence-patterns.md)의 판정 순서와 [Preprocessing Design](design.md)을 합친 전체 흐름이다.
+[sequence-patterns.md 7절](../../../doc/sequence-patterns.md)의 판정 순서와 [CSI 전처리 설계](design.md)을 합친 전체 흐름이다.
 
 ```text
 1. RX별 JSONL을 파일 순서대로 읽는다 (tx_seq로 미리 정렬 금지)
@@ -273,7 +273,7 @@ present_mask: (3, T)      # 실제 수신 여부 (보간해도 False 유지)
 4. `csi_amp[:52]` 절단 — 공식 baseline은 64개 전체 사용
 5. 결과 미저장·manifest 없음, label/split 하드코딩
 
-전체 구현 명세와 완료 조건 체크리스트는 [Preprocessing Design](design.md) 7~8절에 있다.
+전체 구현 명세와 완료 조건 체크리스트는 [CSI 전처리 설계](design.md) 7~8절에 있다.
 
 ## 9. 이 레포트가 결정하지 않는 것
 

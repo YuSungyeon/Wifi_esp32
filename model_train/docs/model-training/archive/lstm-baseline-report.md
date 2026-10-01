@@ -1,12 +1,13 @@
-# 3-RX LSTM Baseline Training and Final Evaluation
+# 6월 16일 데이터의 LSTM 기준 모델 평가 결과
 
-> 상태: **SUPPORTING ANALYSIS — 2026-09-02 학습·validation·최종 test 완료**
+> 상태: **HISTORICAL — 2026-09-02 학습·validation·최종 test 완료**
+> 보관 기록: 당시 조건과 결과를 보존한다. 현재 모델은 [모델 학습 문서 안내](../../README.md)를 참고한다.
 >
 > 대상 데이터: `model_train/preprocessing/output/20260616`
 >
-> 모델·평가 기준: [3-RX LSTM Design and Training](lstm-training.md)
+> 모델·평가 기준: [수신기 3대의 LSTM 학습 방법](../lstm-training.md)
 >
-> 전처리 기준: [3-RX CSI Preprocessing Design](../preprocessing/design.md)
+> 전처리 기준: [수신기 3대의 CSI 전처리 설계](../../preprocessing/design.md)
 
 이 문서는 공식 3-RX 전처리 산출물로 LSTM 기준모델을 학습하고 평가한 결과를
 기록한다. Class weight 사용 여부를 test가 아닌 validation으로 선택한 뒤, 선택된
@@ -162,7 +163,7 @@ train window accuracy = 1.0
 
 이는 과적합을 의심할 근거다. 다만 epoch별 window 확률을 저장하지 않았으므로
 어느 현상이 loss 증가에 얼마나 기여했는지는 확정하지 못했다. 확인된 수치와
-추가 분석에 필요한 기록은 [Troubleshooting Log](troubleshooting-log.md)의
+추가 분석에 필요한 기록은 [이전 학습의 문제 해결 기록](troubleshooting-log.md)의
 학습·validation loss 항목에 정리했다.
 
 ### 5.2 Class weight 비교
@@ -252,7 +253,7 @@ Session domain shift(세션 간 환경·신호 분포 변화)는 원인 후보�
 ## 9. 후속 작업
 
 2026-09-10에 session 10·19의 원본 record·reader 로그 대조와 신호 1차 비교를
-실행했다. [Session Signal Audit](session-signal-audit.md)에 결과와 그림을 기록했다.
+실행했다. [세션 신호·오분류 분석](session-signal-audit.md)에 결과와 그림을 기록했다.
 실제 라벨·환경의 독립 확인과 추가 수집·학습은 완료하지 않았다. 현재 모델과 실험
 산출물은 후속 실험의 비교 기준으로 보존한다.
 
@@ -317,7 +318,7 @@ train/validation에 세 class가 포함되도록 구성한다. 새로운 날짜�
 
 다음 학습 전에는 실행 코드를 커밋하고 설정·데이터·정규화 hash를 보존한다.
 Epoch별 validation window ID·정답·예측 확률·loss도 기록해 loss 증가 원인을
-분석할 수 있게 한다. 기록 한계는 [Troubleshooting Log](troubleshooting-log.md)의
+분석할 수 있게 한다. 기록 한계는 [이전 학습의 문제 해결 기록](troubleshooting-log.md)의
 4.3절과 6절을 참고한다.
 
 ### 9.6 새로운 미사용 세션으로 최종 검증
@@ -336,19 +337,19 @@ Window/session 지표와 class별 성능을 함께 보고하고 새 세션에서
 
 | Seed | Run summary | 학습 로그 | Validation 결과 |
 |---:|---|---|---|
-| 0 | [summary](../../lstm/runs/20260901-232143-019347-seed0-none/run-summary.json) | [history](../../lstm/runs/20260901-232143-019347-seed0-none/history.jsonl) | [metrics](../../lstm/runs/20260901-232143-019347-seed0-none/validation-metrics.json) |
-| 1 | [summary](../../lstm/runs/20260901-235744-975624-seed1-none/run-summary.json) | [history](../../lstm/runs/20260901-235744-975624-seed1-none/history.jsonl) | [metrics](../../lstm/runs/20260901-235744-975624-seed1-none/validation-metrics.json) |
-| 2 | [summary](../../lstm/runs/20260902-000408-455264-seed2-none/run-summary.json) | [history](../../lstm/runs/20260902-000408-455264-seed2-none/history.jsonl) | [metrics](../../lstm/runs/20260902-000408-455264-seed2-none/validation-metrics.json) |
+| 0 | [summary](../../../lstm/runs/20260901-232143-019347-seed0-none/run-summary.json) | [history](../../../lstm/runs/20260901-232143-019347-seed0-none/history.jsonl) | [metrics](../../../lstm/runs/20260901-232143-019347-seed0-none/validation-metrics.json) |
+| 1 | [summary](../../../lstm/runs/20260901-235744-975624-seed1-none/run-summary.json) | [history](../../../lstm/runs/20260901-235744-975624-seed1-none/history.jsonl) | [metrics](../../../lstm/runs/20260901-235744-975624-seed1-none/validation-metrics.json) |
+| 2 | [summary](../../../lstm/runs/20260902-000408-455264-seed2-none/run-summary.json) | [history](../../../lstm/runs/20260902-000408-455264-seed2-none/history.jsonl) | [metrics](../../../lstm/runs/20260902-000408-455264-seed2-none/validation-metrics.json) |
 
 ### 10.2 Class weight 적용 및 최종 test
 
 | Seed | Run summary | 학습 로그 | Validation | Test | Confusion matrix |
 |---:|---|---|---|---|---|
-| 0 | [summary](../../lstm/runs/20260902-205721-200700-seed0-balanced/run-summary.json) | [history](../../lstm/runs/20260902-205721-200700-seed0-balanced/history.jsonl) | [validation](../../lstm/runs/20260902-205721-200700-seed0-balanced/validation-metrics.json) | [test](../../lstm/runs/20260902-205721-200700-seed0-balanced/test-metrics.json) | [PNG](../../lstm/runs/20260902-205721-200700-seed0-balanced/confusion-matrix.png) |
-| 1 | [summary](../../lstm/runs/20260902-210816-041966-seed1-balanced/run-summary.json) | [history](../../lstm/runs/20260902-210816-041966-seed1-balanced/history.jsonl) | [validation](../../lstm/runs/20260902-210816-041966-seed1-balanced/validation-metrics.json) | [test](../../lstm/runs/20260902-210816-041966-seed1-balanced/test-metrics.json) | [PNG](../../lstm/runs/20260902-210816-041966-seed1-balanced/confusion-matrix.png) |
-| 2 | [summary](../../lstm/runs/20260902-211113-658687-seed2-balanced/run-summary.json) | [history](../../lstm/runs/20260902-211113-658687-seed2-balanced/history.jsonl) | [validation](../../lstm/runs/20260902-211113-658687-seed2-balanced/validation-metrics.json) | [test](../../lstm/runs/20260902-211113-658687-seed2-balanced/test-metrics.json) | [PNG](../../lstm/runs/20260902-211113-658687-seed2-balanced/confusion-matrix.png) |
+| 0 | [summary](../../../lstm/runs/20260902-205721-200700-seed0-balanced/run-summary.json) | [history](../../../lstm/runs/20260902-205721-200700-seed0-balanced/history.jsonl) | [validation](../../../lstm/runs/20260902-205721-200700-seed0-balanced/validation-metrics.json) | [test](../../../lstm/runs/20260902-205721-200700-seed0-balanced/test-metrics.json) | [PNG](../../../lstm/runs/20260902-205721-200700-seed0-balanced/confusion-matrix.png) |
+| 1 | [summary](../../../lstm/runs/20260902-210816-041966-seed1-balanced/run-summary.json) | [history](../../../lstm/runs/20260902-210816-041966-seed1-balanced/history.jsonl) | [validation](../../../lstm/runs/20260902-210816-041966-seed1-balanced/validation-metrics.json) | [test](../../../lstm/runs/20260902-210816-041966-seed1-balanced/test-metrics.json) | [PNG](../../../lstm/runs/20260902-210816-041966-seed1-balanced/confusion-matrix.png) |
+| 2 | [summary](../../../lstm/runs/20260902-211113-658687-seed2-balanced/run-summary.json) | [history](../../../lstm/runs/20260902-211113-658687-seed2-balanced/history.jsonl) | [validation](../../../lstm/runs/20260902-211113-658687-seed2-balanced/validation-metrics.json) | [test](../../../lstm/runs/20260902-211113-658687-seed2-balanced/test-metrics.json) | [PNG](../../../lstm/runs/20260902-211113-658687-seed2-balanced/confusion-matrix.png) |
 
 원본 데이터 계약과 품질 통계는
-[`manifest.json`](../../preprocessing/output/20260616/manifest.json), 실행별 모델·환경·
+[`manifest.json`](../../../preprocessing/output/20260616/manifest.json), 실행별 모델·환경·
 hash는 각 run의 `config.json`, window별 test 예측은 각 run의
 `test-predictions.jsonl`을 기준으로 한다.

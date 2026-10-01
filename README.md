@@ -1,4 +1,4 @@
-# MeshSense
+# MeshSense — 와이파이 CSI 실내 상태 인식
 
 ESP32-S3와 Wi-Fi CSI(Channel State Information)를 이용한 실내 행동 인식 프로젝트입니다.
 
@@ -28,7 +28,7 @@ python3 scripts/meshsense_cli.py
 | [아키텍처](doc/architecture.md) | 현재 코드 기준 전체 구조와 모듈 |
 | [빠른 시작](doc/quickstart.md) | 환경 준비부터 수집까지 |
 | [펌웨어](doc/firmware.md) | TX/RX 무선·CSI·USB 동작 |
-| [binary/JSONL 계약](doc/data-schema.md) | 수집 데이터 형식 |
+| [바이너리·JSONL 데이터 규격](doc/data-schema.md) | 수집 데이터 형식 |
 | [후처리·학습](doc/postprocessing.md) | 구현된 기능과 모델 문서 연결 |
 | [모델 학습 문서](model_train/docs/README.md) | 전처리·모델 비교·설계·학습 |
 | [문제 해결](doc/troubleshooting/README.md) | ESP-IDF·빌드·포트 문제 |

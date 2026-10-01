@@ -1,11 +1,12 @@
-# Model Comparison and Selection
+# 초기 모델 후보 비교와 선택 근거
 
-> 상태: **SUPPORTING ANALYSIS** — LSTM 기준모델 및 1D-CNN 비교 완료, 나머지 후보는 **PLANNED**.
-> 2026-09-17 [1D-CNN과 LSTM 비교 보고서](cnn1d-vs-lstm-report.md)에 실제 실험 결과를 기록했다.
+> 상태: **HISTORICAL** — LSTM 기준모델 및 1D-CNN 비교 완료, 나머지 후보는 **PLANNED**.
+> 보관 기록: 당시 조건과 결과를 보존한다. 현재 모델은 [모델 학습 문서 안내](../../README.md)를 참고한다.
+> 2026-09-17 [1차원 CNN·LSTM 비교 결과](cnn1d-vs-lstm-report.md)에 실제 실험 결과를 기록했다.
 > 2절의 성능 수치는 **외부 공개 벤치마크(SenseFi)** 결과이며, 이 프로젝트 데이터로 측정한 값이 아니다.
 > 자체 데이터의 완료된 LSTM 결과와 남은 비교 계획은 5~6절에 기록한다.
 > 작성일: 2026-08-10
-> 관련 문서: [Preprocessing Design](../preprocessing/design.md) · [Sequence Analysis](../preprocessing/sequence-analysis.md) · [3-RX LSTM Design and Training](lstm-training.md) · [LSTM Baseline Report](lstm-baseline-report.md)
+> 관련 문서: [CSI 전처리 설계](../../preprocessing/design.md) · [수신·송신 순번 분석](../../preprocessing/sequence-analysis.md) · [수신기 3대의 LSTM 학습 방법](../lstm-training.md) · [LSTM 기준 모델 평가 결과](lstm-baseline-report.md)
 
 ## 1. 무엇이 모델 선택을 좌우하는가 (이 프로젝트의 조건)
 
@@ -130,7 +131,7 @@ validation이 모두 1.0000으로 동률이어서 사전 규칙에 따라 none�
 자세한 근거는 [CNN 비교 보고서](cnn1d-vs-lstm-report.md)를 따른다.
 
 LSTM의 상세 결과와 재현 산출물은
-[3-RX LSTM Baseline Training and Final Evaluation](lstm-baseline-report.md)을 따른다.
+[LSTM 기준 모델 학습·평가 결과](lstm-baseline-report.md)을 따른다.
 
 ## 7. 이 문서가 결정하지 않는 것
 

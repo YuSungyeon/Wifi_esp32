@@ -1,8 +1,9 @@
-# Training Results Summary
+# 이전 LSTM·CNN 학습 결과 요약
 
-> 상태: **SUPPORTING ANALYSIS — 2026-09-17 LSTM 기준모델 및 1D-CNN 비교 반영**
+> 상태: **HISTORICAL — 2026-09-17 LSTM 기준모델 및 1D-CNN 비교 반영**
+> 보관 기록: 당시 조건과 결과를 보존한다. 현재 모델은 [모델 학습 문서 안내](../../README.md)를 참고한다.
 >
-> 상세 보고서: [3-RX LSTM Baseline Training and Final Evaluation](lstm-baseline-report.md)
+> 상세 보고서: [LSTM 기준 모델 학습·평가 결과](lstm-baseline-report.md)
 
 ## 1D-CNN 추가 비교 (2026-09-17)
 

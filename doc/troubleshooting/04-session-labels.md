@@ -1,6 +1,6 @@
 # 세션·라벨·데이터 무결성
 
-> 세션 레이아웃과 `session.json` 은 [data-schema.md](../data-schema.md), 수집 설계는 [collection-protocol.md](../collection-protocol.md).
+> 세션 레이아웃과 `session.json` 은 [CSI 저장 데이터 규격](../data-schema.md), 수집 설계는 [collection-protocol.md](../collection-protocol.md).
 
 ## 2026-08-25 — 같은 `session_id` 재수집이 JSONL 에 append 되어 여러 run 이 섞임
 

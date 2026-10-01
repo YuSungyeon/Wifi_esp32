@@ -238,13 +238,13 @@ RX   START   END     SPAN   OBSERVED  MISSING  RATIO   MAX_GAP
 
 - [공식 전처리 설계](../model_train/docs/preprocessing/design.md)
 - [LSTM 모델 설계와 학습](../model_train/docs/model-training/lstm-training.md)
-- [1D-CNN 모델 설계와 학습](../model_train/docs/model-training/cnn1d-training.md)
-- [LSTM baseline 학습·평가 보고서](../model_train/docs/model-training/lstm-baseline-report.md)
-- [구형 LSTM 전처리 구현](../model_train/docs/preprocessing/legacy-preprocessing.md)
+- [1차원 CNN 모델 설계와 학습](../model_train/docs/model-training/cnn1d-training.md)
+- [이전 LSTM 기준 모델 학습·평가 결과](../model_train/docs/model-training/archive/lstm-baseline-report.md)
+- [구형 LSTM 전처리 구현](../model_train/docs/preprocessing/archive/legacy-preprocessing.md)
 
 현재 공식 전처리는 3-RX 정렬, session 단위 split, train 통계 정규화를 구현한다.
 LSTM baseline은 고정된 3개 seed의 학습과 최종 평가를 완료했다.
-1D-CNN도 실제 데이터 학습·평가를 완료했으며 [LSTM 비교 보고서](../model_train/docs/model-training/cnn1d-vs-lstm-report.md)에 결과를 기록했다. 단일
+1D-CNN도 실제 데이터 학습·평가를 완료했으며 [LSTM 비교 보고서](../model_train/docs/model-training/archive/cnn1d-vs-lstm-report.md)에 결과를 기록했다. 단일
 session·단일 RX·hardcoded path를 사용한 구현은 역사적 참고 문서로만 남긴다.
 
 다른 모델을 추가할 때도 코드와 문서를 분리한다. 전체 목록은

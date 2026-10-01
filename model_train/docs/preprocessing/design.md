@@ -1,10 +1,10 @@
-# 3-RX CSI Preprocessing Design
+# 수신기 3대의 CSI 전처리 설계
 
 > 상태: **CURRENT CONTRACT — 공식 구현과 20260616 실데이터 검증 완료**
 > 대상 데이터: `mac_collector_output/raw/20260616/session_1` ~ `session_30`
 > 공식 구현: [`preprocess_3rx.py`](../../preprocessing/preprocess_3rx.py) · 테스트: [`test_preprocess_3rx.py`](../../../tests/test_preprocess_3rx.py)
 > 구형 실험 코드: [`Preprocessing.py`](../../lstm/Preprocessing.py) (HISTORICAL, 이 설계 미반영)
-> 구형 LSTM 전처리 기록: [Legacy LSTM Preprocessing Implementation](legacy-preprocessing.md)
+> 구형 LSTM 전처리 기록: [이전 LSTM 전처리 구현 기록](archive/legacy-preprocessing.md)
 > 순번 판정 기준: [`seq`와 `tx_seq` 패턴](../../../doc/sequence-patterns.md)
 
 ## 1. 목적

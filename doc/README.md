@@ -1,6 +1,10 @@
-# MeshSense 문서 인덱스
+# MeshSense 프로젝트 문서 안내
 
-이 저장소는 문서 주도 개발을 사용합니다. 현재 동작과 data contract는 문서를 먼저 변경한 뒤 코드에 반영합니다.
+이 저장소는 문서 주도 개발을 사용합니다. 현재 동작과 데이터 규격은 문서를 먼저 변경한 뒤 코드에 반영합니다.
+
+현재 학습한 모델을 확인하려면 [모델 학습 문서 안내](../model_train/docs/README.md)에서
+[쉬운 결과 설명](../model_train/docs/model-training/robust-three-class-report-easy.md)부터 읽습니다.
+최근 자료 구성과 결과는 [9월 16·17일 데이터 확인·최종 모델 평가](../model_train/docs/model-training/20260916-17-model-evaluation.md)에 있습니다.
 
 ## 읽는 순서
 
@@ -10,17 +14,20 @@
 | 2 | [빠른 시작](quickstart.md) | **CURRENT** — 재현 가능한 플래시·수집 절차 |
 | 3 | [수집 프로토콜](collection-protocol.md) | **OFFICIAL DESIGN** — 무엇을 얼마나 어떤 순서로 찍을지 |
 | 4 | [펌웨어](firmware.md) | **CURRENT** — TX/RX 동작과 상수 |
-| 5 | [binary/JSONL 계약](data-schema.md) | **CURRENT CONTRACT** — frame v4·`.csi` 저장소·JSONL 내보내기 |
+| 5 | [바이너리·JSONL 데이터 규격](data-schema.md) | **CURRENT CONTRACT** — frame v4·`.csi` 저장소·JSONL 내보내기 |
 | 6 | [실시간 경로](realtime-uplink.md) | **CURRENT** — ESP-NOW 업링크 + USB 싱크 (무선 배치) |
 | 7 | [`seq`와 `tx_seq` 패턴](sequence-patterns.md) | **CURRENT** — 두 순번의 차이·이상 패턴·실데이터 집계 |
-| 8 | [공식 전처리 설계](../model_train/docs/preprocessing/design.md) | **CURRENT CONTRACT** — 모든 모델이 공유하는 3-RX 전처리 기준 |
+| 8 | [공식 전처리 설계](../model_train/docs/preprocessing/design.md) | **CURRENT CONTRACT** — 기존 3초·192차원 기준 모델의 전처리 규칙 |
 | 9 | [후처리](postprocessing.md) | **CURRENT** — 수집률·시각화와 공식 3-RX 모델 pipeline 연결 |
 | 10 | [호스트 스크립트](../scripts/README.md) | **CURRENT** — CLI와 도구 책임 |
 | 11 | [트러블슈팅](troubleshooting/README.md) | **CURRENT + HISTORICAL** — 종류별·시간순 (환경·수집률·스트림·리셋·세션·신호·측정·도구·무선) |
 | 12 | [문서 주도 개발 규칙](documentation-policy.md) | **PROCESS CONTRACT** |
 | 13 | [ADR-0001](adr-poc-only.md) | **ACCEPTED** — PoC 단일 경로 결정 |
 | 14 | [수집 환경 정비 스프린트](sprint/2026-08-collection-hardening.md) | **HISTORICAL** — frame v4·세션/라벨 정비의 시도·막힌 지점·실측 |
-| 15 | [모델 학습 문서](../model_train/docs/README.md) | **CURRENT** — 전처리·모델 비교·설계·학습 문서 인덱스 |
+| 15 | [모델 학습 문서 안내](../model_train/docs/README.md) | **CURRENT** — 현재 30초 모델 설명과 이전 기록 구분 |
+| 16 | [진폭·위상 입력 규격 결정](adr-csi-phase-experiment.md) | **ACCEPTED** — 이전 3초 비교 실험의 별도 입력 경로 |
+| 17 | [30초 3분류 입력 규격 결정](adr-robust-three-class-experiment.md) | **ACCEPTED** — 상대 진폭·긴 구간을 쓰는 후속 실험 |
+| 18 | [모델 실험·학습 작업 기록](sprint/2026-09-phase-classification.md) | **HISTORICAL** — 실험·검증·설명 문서의 작업 이력 |
 
 ## 문서 상태 규칙
 

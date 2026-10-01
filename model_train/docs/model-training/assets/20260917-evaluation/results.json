@@ -1,0 +1,2072 @@
+{
+  "completed_at_utc": "2026-10-01T12:58:37.369246+00:00",
+  "model_sha256": "a33570a40bc3f54964bc108ba538d5e862189c4e7a29e9070c700b5e23e2ac5c",
+  "class_names": [
+    "empty",
+    "static",
+    "motion"
+  ],
+  "metrics": {
+    "window": {
+      "macro_f1": 0.8718181818181819,
+      "accuracy": 0.8791946308724832,
+      "recall": [
+        0.7192982456140351,
+        0.9459459459459459,
+        1.0
+      ],
+      "confusion": [
+        [
+          41,
+          16,
+          0
+        ],
+        [
+          2,
+          35,
+          0
+        ],
+        [
+          0,
+          0,
+          55
+        ]
+      ],
+      "n": 149
+    },
+    "session": {
+      "macro_f1": 0.8666666666666667,
+      "accuracy": 0.875,
+      "recall": [
+        0.6666666666666666,
+        1.0,
+        1.0
+      ],
+      "confusion": [
+        [
+          2,
+          1,
+          0
+        ],
+        [
+          0,
+          2,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ]
+      ],
+      "n": 8
+    },
+    "first_valid_window": {
+      "macro_f1": 0.8666666666666667,
+      "accuracy": 0.875,
+      "recall": [
+        0.6666666666666666,
+        1.0,
+        1.0
+      ],
+      "confusion": [
+        [
+          2,
+          1,
+          0
+        ],
+        [
+          0,
+          2,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ]
+      ],
+      "n": 8
+    }
+  },
+  "per_model_metrics": [
+    {
+      "window": {
+        "macro_f1": 0.8578987150415722,
+        "accuracy": 0.8657718120805369,
+        "recall": [
+          0.6842105263157895,
+          0.9459459459459459,
+          1.0
+        ],
+        "confusion": [
+          [
+            39,
+            18,
+            0
+          ],
+          [
+            2,
+            35,
+            0
+          ],
+          [
+            0,
+            0,
+            55
+          ]
+        ],
+        "n": 149
+      },
+      "session": {
+        "macro_f1": 1.0,
+        "accuracy": 1.0,
+        "recall": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "confusion": [
+          [
+            3,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "n": 8
+      },
+      "first_valid_window": {
+        "macro_f1": 0.7222222222222222,
+        "accuracy": 0.75,
+        "recall": [
+          0.3333333333333333,
+          1.0,
+          1.0
+        ],
+        "confusion": [
+          [
+            1,
+            2,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "n": 8
+      }
+    },
+    {
+      "window": {
+        "macro_f1": 0.8787602898220856,
+        "accuracy": 0.8859060402684564,
+        "recall": [
+          0.7368421052631579,
+          0.9459459459459459,
+          1.0
+        ],
+        "confusion": [
+          [
+            42,
+            15,
+            0
+          ],
+          [
+            2,
+            35,
+            0
+          ],
+          [
+            0,
+            0,
+            55
+          ]
+        ],
+        "n": 149
+      },
+      "session": {
+        "macro_f1": 0.8666666666666667,
+        "accuracy": 0.875,
+        "recall": [
+          0.6666666666666666,
+          1.0,
+          1.0
+        ],
+        "confusion": [
+          [
+            2,
+            1,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "n": 8
+      },
+      "first_valid_window": {
+        "macro_f1": 0.8666666666666667,
+        "accuracy": 0.875,
+        "recall": [
+          0.6666666666666666,
+          1.0,
+          1.0
+        ],
+        "confusion": [
+          [
+            2,
+            1,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "n": 8
+      }
+    },
+    {
+      "window": {
+        "macro_f1": 0.899984800121599,
+        "accuracy": 0.9060402684563759,
+        "recall": [
+          0.7719298245614035,
+          0.972972972972973,
+          1.0
+        ],
+        "confusion": [
+          [
+            44,
+            13,
+            0
+          ],
+          [
+            1,
+            36,
+            0
+          ],
+          [
+            0,
+            0,
+            55
+          ]
+        ],
+        "n": 149
+      },
+      "session": {
+        "macro_f1": 1.0,
+        "accuracy": 1.0,
+        "recall": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "confusion": [
+          [
+            3,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "n": 8
+      },
+      "first_valid_window": {
+        "macro_f1": 0.8666666666666667,
+        "accuracy": 0.875,
+        "recall": [
+          0.6666666666666666,
+          1.0,
+          1.0
+        ],
+        "confusion": [
+          [
+            2,
+            1,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "n": 8
+      }
+    }
+  ],
+  "candidate_windows": 151,
+  "valid_windows": 149,
+  "checks": {
+    "input_hashes_unchanged": true,
+    "model_state_unchanged": true,
+    "window_starts_match_audit": true,
+    "ensemble_matches_individual_mean": true
+  },
+  "limitations": [
+    "Same date/session IDs appear in prior pilot selection records; not a pristine blind test.",
+    "Overlapping windows are not independent samples; only eight collection sessions.",
+    "Whole-session aggregation does not measure transition latency or live operation."
+  ],
+  "sessions": [
+    {
+      "key": "20260917-s38",
+      "session_id": 38,
+      "label": "motion",
+      "path": "mac_collector_output/raw/20260917/210452_motion_s38",
+      "quality": {
+        "common_start_tx_seq": 59533,
+        "frames": 30002,
+        "crc_checked_frames": 87783,
+        "input": "raw .csi, manifest receiver identities only"
+      },
+      "ensemble": {
+        "status": "VALIDATED_ON_EXISTING_DATA; new-date deployment validation pending",
+        "prediction": "motion",
+        "mean_scores": {
+          "empty": 0.025668490678071976,
+          "static": 0.03882594406604767,
+          "motion": 0.9355055093765259
+        },
+        "window_seconds": 30.0,
+        "stride_seconds": 15.0,
+        "valid_windows": 19,
+        "candidate_windows": 19,
+        "scores_are_calibrated": false,
+        "windows": [
+          {
+            "start_frame": 0,
+            "end_frame_exclusive": 3000,
+            "prediction": "motion",
+            "scores": [
+              0.028497418388724327,
+              0.06345121562480927,
+              0.9080513119697571
+            ]
+          },
+          {
+            "start_frame": 1500,
+            "end_frame_exclusive": 4500,
+            "prediction": "motion",
+            "scores": [
+              0.027016637846827507,
+              0.07649514824151993,
+              0.8964881896972656
+            ]
+          },
+          {
+            "start_frame": 3000,
+            "end_frame_exclusive": 6000,
+            "prediction": "motion",
+            "scores": [
+              0.03163361921906471,
+              0.06325658410787582,
+              0.9051098227500916
+            ]
+          },
+          {
+            "start_frame": 4500,
+            "end_frame_exclusive": 7500,
+            "prediction": "motion",
+            "scores": [
+              0.02340192347764969,
+              0.01762314885854721,
+              0.9589750170707703
+            ]
+          },
+          {
+            "start_frame": 6000,
+            "end_frame_exclusive": 9000,
+            "prediction": "motion",
+            "scores": [
+              0.019023021683096886,
+              0.014827723614871502,
+              0.9661492705345154
+            ]
+          },
+          {
+            "start_frame": 7500,
+            "end_frame_exclusive": 10500,
+            "prediction": "motion",
+            "scores": [
+              0.024626364931464195,
+              0.029979735612869263,
+              0.9453938603401184
+            ]
+          },
+          {
+            "start_frame": 9000,
+            "end_frame_exclusive": 12000,
+            "prediction": "motion",
+            "scores": [
+              0.015354152768850327,
+              0.0177380982786417,
+              0.9669077396392822
+            ]
+          },
+          {
+            "start_frame": 10500,
+            "end_frame_exclusive": 13500,
+            "prediction": "motion",
+            "scores": [
+              0.034729402512311935,
+              0.09457772225141525,
+              0.8706929087638855
+            ]
+          },
+          {
+            "start_frame": 12000,
+            "end_frame_exclusive": 15000,
+            "prediction": "motion",
+            "scores": [
+              0.04423608258366585,
+              0.15358982980251312,
+              0.8021741509437561
+            ]
+          },
+          {
+            "start_frame": 13500,
+            "end_frame_exclusive": 16500,
+            "prediction": "motion",
+            "scores": [
+              0.025809654965996742,
+              0.018634894862771034,
+              0.9555554389953613
+            ]
+          },
+          {
+            "start_frame": 15000,
+            "end_frame_exclusive": 18000,
+            "prediction": "motion",
+            "scores": [
+              0.020185790956020355,
+              0.017049334943294525,
+              0.9627649188041687
+            ]
+          },
+          {
+            "start_frame": 16500,
+            "end_frame_exclusive": 19500,
+            "prediction": "motion",
+            "scores": [
+              0.019449418410658836,
+              0.00877311173826456,
+              0.9717774391174316
+            ]
+          },
+          {
+            "start_frame": 18000,
+            "end_frame_exclusive": 21000,
+            "prediction": "motion",
+            "scores": [
+              0.023121381178498268,
+              0.01871369779109955,
+              0.9581648707389832
+            ]
+          },
+          {
+            "start_frame": 19500,
+            "end_frame_exclusive": 22500,
+            "prediction": "motion",
+            "scores": [
+              0.0368751622736454,
+              0.034662503749132156,
+              0.9284623265266418
+            ]
+          },
+          {
+            "start_frame": 21000,
+            "end_frame_exclusive": 24000,
+            "prediction": "motion",
+            "scores": [
+              0.026138296350836754,
+              0.021847957745194435,
+              0.9520137310028076
+            ]
+          },
+          {
+            "start_frame": 22500,
+            "end_frame_exclusive": 25500,
+            "prediction": "motion",
+            "scores": [
+              0.019240429624915123,
+              0.018635723739862442,
+              0.9621238708496094
+            ]
+          },
+          {
+            "start_frame": 24000,
+            "end_frame_exclusive": 27000,
+            "prediction": "motion",
+            "scores": [
+              0.0180460587143898,
+              0.017677487805485725,
+              0.9642764925956726
+            ]
+          },
+          {
+            "start_frame": 25500,
+            "end_frame_exclusive": 28500,
+            "prediction": "motion",
+            "scores": [
+              0.02857845462858677,
+              0.028343355283141136,
+              0.9430782198905945
+            ]
+          },
+          {
+            "start_frame": 27000,
+            "end_frame_exclusive": 30000,
+            "prediction": "motion",
+            "scores": [
+              0.021738043054938316,
+              0.021815605461597443,
+              0.9564464092254639
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "20260917-s39",
+      "session_id": 39,
+      "label": "static",
+      "path": "mac_collector_output/raw/20260917/211235_static_s39",
+      "quality": {
+        "common_start_tx_seq": 105831,
+        "frames": 30000,
+        "crc_checked_frames": 88260,
+        "input": "raw .csi, manifest receiver identities only"
+      },
+      "ensemble": {
+        "status": "VALIDATED_ON_EXISTING_DATA; new-date deployment validation pending",
+        "prediction": "static",
+        "mean_scores": {
+          "empty": 0.06327542662620544,
+          "static": 0.9050266742706299,
+          "motion": 0.03169778734445572
+        },
+        "window_seconds": 30.0,
+        "stride_seconds": 15.0,
+        "valid_windows": 19,
+        "candidate_windows": 19,
+        "scores_are_calibrated": false,
+        "windows": [
+          {
+            "start_frame": 0,
+            "end_frame_exclusive": 3000,
+            "prediction": "static",
+            "scores": [
+              0.0733346939086914,
+              0.8438425660133362,
+              0.0828227624297142
+            ]
+          },
+          {
+            "start_frame": 1500,
+            "end_frame_exclusive": 4500,
+            "prediction": "static",
+            "scores": [
+              0.03829946741461754,
+              0.9252075552940369,
+              0.03649301454424858
+            ]
+          },
+          {
+            "start_frame": 3000,
+            "end_frame_exclusive": 6000,
+            "prediction": "static",
+            "scores": [
+              0.040983617305755615,
+              0.940660297870636,
+              0.01835607923567295
+            ]
+          },
+          {
+            "start_frame": 4500,
+            "end_frame_exclusive": 7500,
+            "prediction": "static",
+            "scores": [
+              0.1598747968673706,
+              0.803872287273407,
+              0.03625285625457764
+            ]
+          },
+          {
+            "start_frame": 6000,
+            "end_frame_exclusive": 9000,
+            "prediction": "static",
+            "scores": [
+              0.09715903550386429,
+              0.8716575503349304,
+              0.031183404847979546
+            ]
+          },
+          {
+            "start_frame": 7500,
+            "end_frame_exclusive": 10500,
+            "prediction": "static",
+            "scores": [
+              0.11984805017709732,
+              0.7857800126075745,
+              0.09437188506126404
+            ]
+          },
+          {
+            "start_frame": 9000,
+            "end_frame_exclusive": 12000,
+            "prediction": "static",
+            "scores": [
+              0.02096930332481861,
+              0.9597334861755371,
+              0.019297217950224876
+            ]
+          },
+          {
+            "start_frame": 10500,
+            "end_frame_exclusive": 13500,
+            "prediction": "static",
+            "scores": [
+              0.030649235472083092,
+              0.9464895129203796,
+              0.02286122553050518
+            ]
+          },
+          {
+            "start_frame": 12000,
+            "end_frame_exclusive": 15000,
+            "prediction": "static",
+            "scores": [
+              0.021979624405503273,
+              0.9663176536560059,
+              0.011702721007168293
+            ]
+          },
+          {
+            "start_frame": 13500,
+            "end_frame_exclusive": 16500,
+            "prediction": "static",
+            "scores": [
+              0.030906083062291145,
+              0.9524195194244385,
+              0.01667444035410881
+            ]
+          },
+          {
+            "start_frame": 15000,
+            "end_frame_exclusive": 18000,
+            "prediction": "static",
+            "scores": [
+              0.021588535979390144,
+              0.9675037860870361,
+              0.010907743126153946
+            ]
+          },
+          {
+            "start_frame": 16500,
+            "end_frame_exclusive": 19500,
+            "prediction": "static",
+            "scores": [
+              0.10211735218763351,
+              0.8657512664794922,
+              0.0321313813328743
+            ]
+          },
+          {
+            "start_frame": 18000,
+            "end_frame_exclusive": 21000,
+            "prediction": "static",
+            "scores": [
+              0.0884673073887825,
+              0.8772985339164734,
+              0.034234240651130676
+            ]
+          },
+          {
+            "start_frame": 19500,
+            "end_frame_exclusive": 22500,
+            "prediction": "static",
+            "scores": [
+              0.08642852306365967,
+              0.8817043304443359,
+              0.031867075711488724
+            ]
+          },
+          {
+            "start_frame": 21000,
+            "end_frame_exclusive": 24000,
+            "prediction": "static",
+            "scores": [
+              0.08624979108572006,
+              0.8756382465362549,
+              0.03811201825737953
+            ]
+          },
+          {
+            "start_frame": 22500,
+            "end_frame_exclusive": 25500,
+            "prediction": "static",
+            "scores": [
+              0.05812312662601471,
+              0.913153886795044,
+              0.02872302383184433
+            ]
+          },
+          {
+            "start_frame": 24000,
+            "end_frame_exclusive": 27000,
+            "prediction": "static",
+            "scores": [
+              0.08822304755449295,
+              0.8771069645881653,
+              0.03466995432972908
+            ]
+          },
+          {
+            "start_frame": 25500,
+            "end_frame_exclusive": 28500,
+            "prediction": "static",
+            "scores": [
+              0.017986945807933807,
+              0.9697320461273193,
+              0.012281033210456371
+            ]
+          },
+          {
+            "start_frame": 27000,
+            "end_frame_exclusive": 30000,
+            "prediction": "static",
+            "scores": [
+              0.01904456876218319,
+              0.9716395735740662,
+              0.00931591633707285
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "20260917-s40",
+      "session_id": 40,
+      "label": "empty",
+      "path": "mac_collector_output/raw/20260917/212018_empty_s40",
+      "quality": {
+        "common_start_tx_seq": 152119,
+        "frames": 30002,
+        "crc_checked_frames": 88237,
+        "input": "raw .csi, manifest receiver identities only"
+      },
+      "ensemble": {
+        "status": "VALIDATED_ON_EXISTING_DATA; new-date deployment validation pending",
+        "prediction": "empty",
+        "mean_scores": {
+          "empty": 0.6530401110649109,
+          "static": 0.30885300040245056,
+          "motion": 0.038106922060251236
+        },
+        "window_seconds": 30.0,
+        "stride_seconds": 15.0,
+        "valid_windows": 19,
+        "candidate_windows": 19,
+        "scores_are_calibrated": false,
+        "windows": [
+          {
+            "start_frame": 0,
+            "end_frame_exclusive": 3000,
+            "prediction": "empty",
+            "scores": [
+              0.8617138266563416,
+              0.1078241690993309,
+              0.030462021008133888
+            ]
+          },
+          {
+            "start_frame": 1500,
+            "end_frame_exclusive": 4500,
+            "prediction": "empty",
+            "scores": [
+              0.82957524061203,
+              0.13646243512630463,
+              0.033962298184633255
+            ]
+          },
+          {
+            "start_frame": 3000,
+            "end_frame_exclusive": 6000,
+            "prediction": "empty",
+            "scores": [
+              0.7426795959472656,
+              0.2173125296831131,
+              0.04000791162252426
+            ]
+          },
+          {
+            "start_frame": 4500,
+            "end_frame_exclusive": 7500,
+            "prediction": "empty",
+            "scores": [
+              0.7493535876274109,
+              0.21348224580287933,
+              0.0371641106903553
+            ]
+          },
+          {
+            "start_frame": 6000,
+            "end_frame_exclusive": 9000,
+            "prediction": "empty",
+            "scores": [
+              0.6926465630531311,
+              0.2655959129333496,
+              0.04175743833184242
+            ]
+          },
+          {
+            "start_frame": 7500,
+            "end_frame_exclusive": 10500,
+            "prediction": "empty",
+            "scores": [
+              0.8785874843597412,
+              0.09233351796865463,
+              0.0290790144354105
+            ]
+          },
+          {
+            "start_frame": 9000,
+            "end_frame_exclusive": 12000,
+            "prediction": "empty",
+            "scores": [
+              0.5838582515716553,
+              0.37203681468963623,
+              0.0441049300134182
+            ]
+          },
+          {
+            "start_frame": 10500,
+            "end_frame_exclusive": 13500,
+            "prediction": "empty",
+            "scores": [
+              0.6699441075325012,
+              0.28850457072257996,
+              0.041551318019628525
+            ]
+          },
+          {
+            "start_frame": 12000,
+            "end_frame_exclusive": 15000,
+            "prediction": "empty",
+            "scores": [
+              0.6555703282356262,
+              0.3058387339115143,
+              0.03859087452292442
+            ]
+          },
+          {
+            "start_frame": 13500,
+            "end_frame_exclusive": 16500,
+            "prediction": "static",
+            "scores": [
+              0.4260532855987549,
+              0.5287550091743469,
+              0.04519172012805939
+            ]
+          },
+          {
+            "start_frame": 15000,
+            "end_frame_exclusive": 18000,
+            "prediction": "static",
+            "scores": [
+              0.13876710832118988,
+              0.8323853015899658,
+              0.02884756587445736
+            ]
+          },
+          {
+            "start_frame": 16500,
+            "end_frame_exclusive": 19500,
+            "prediction": "empty",
+            "scores": [
+              0.7315009236335754,
+              0.2257585972547531,
+              0.04274040833115578
+            ]
+          },
+          {
+            "start_frame": 18000,
+            "end_frame_exclusive": 21000,
+            "prediction": "static",
+            "scores": [
+              0.33902430534362793,
+              0.6177210211753845,
+              0.04325474426150322
+            ]
+          },
+          {
+            "start_frame": 19500,
+            "end_frame_exclusive": 22500,
+            "prediction": "static",
+            "scores": [
+              0.36998435854911804,
+              0.5920693278312683,
+              0.03794633597135544
+            ]
+          },
+          {
+            "start_frame": 21000,
+            "end_frame_exclusive": 24000,
+            "prediction": "empty",
+            "scores": [
+              0.7240000367164612,
+              0.23856307566165924,
+              0.037436868995428085
+            ]
+          },
+          {
+            "start_frame": 22500,
+            "end_frame_exclusive": 25500,
+            "prediction": "empty",
+            "scores": [
+              0.810316801071167,
+              0.15497490763664246,
+              0.034708280116319656
+            ]
+          },
+          {
+            "start_frame": 24000,
+            "end_frame_exclusive": 27000,
+            "prediction": "empty",
+            "scores": [
+              0.8117831349372864,
+              0.15218240022659302,
+              0.03603449836373329
+            ]
+          },
+          {
+            "start_frame": 25500,
+            "end_frame_exclusive": 28500,
+            "prediction": "empty",
+            "scores": [
+              0.7882458567619324,
+              0.17506055533885956,
+              0.03669363632798195
+            ]
+          },
+          {
+            "start_frame": 27000,
+            "end_frame_exclusive": 30000,
+            "prediction": "empty",
+            "scores": [
+              0.6041568517684937,
+              0.35134562849998474,
+              0.04449756070971489
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "20260917-s41",
+      "session_id": 41,
+      "label": "motion",
+      "path": "mac_collector_output/raw/20260917/213039_motion_s41",
+      "quality": {
+        "common_start_tx_seq": 214176,
+        "frames": 30001,
+        "crc_checked_frames": 86665,
+        "input": "raw .csi, manifest receiver identities only"
+      },
+      "ensemble": {
+        "status": "VALIDATED_ON_EXISTING_DATA; new-date deployment validation pending",
+        "prediction": "motion",
+        "mean_scores": {
+          "empty": 0.01620938815176487,
+          "static": 0.004744207952171564,
+          "motion": 0.9790464639663696
+        },
+        "window_seconds": 30.0,
+        "stride_seconds": 15.0,
+        "valid_windows": 19,
+        "candidate_windows": 19,
+        "scores_are_calibrated": false,
+        "windows": [
+          {
+            "start_frame": 0,
+            "end_frame_exclusive": 3000,
+            "prediction": "motion",
+            "scores": [
+              0.015089128166437149,
+              0.006423812359571457,
+              0.9784870147705078
+            ]
+          },
+          {
+            "start_frame": 1500,
+            "end_frame_exclusive": 4500,
+            "prediction": "motion",
+            "scores": [
+              0.02008301578462124,
+              0.0051345606334507465,
+              0.974782407283783
+            ]
+          },
+          {
+            "start_frame": 3000,
+            "end_frame_exclusive": 6000,
+            "prediction": "motion",
+            "scores": [
+              0.01558209303766489,
+              0.004312874283641577,
+              0.9801049828529358
+            ]
+          },
+          {
+            "start_frame": 4500,
+            "end_frame_exclusive": 7500,
+            "prediction": "motion",
+            "scores": [
+              0.01248418539762497,
+              0.0022130392026156187,
+              0.985302746295929
+            ]
+          },
+          {
+            "start_frame": 6000,
+            "end_frame_exclusive": 9000,
+            "prediction": "motion",
+            "scores": [
+              0.01034606248140335,
+              0.002665328560397029,
+              0.9869886040687561
+            ]
+          },
+          {
+            "start_frame": 7500,
+            "end_frame_exclusive": 10500,
+            "prediction": "motion",
+            "scores": [
+              0.012884005904197693,
+              0.00614568404853344,
+              0.9809703826904297
+            ]
+          },
+          {
+            "start_frame": 9000,
+            "end_frame_exclusive": 12000,
+            "prediction": "motion",
+            "scores": [
+              0.011854897253215313,
+              0.0035343682393431664,
+              0.9846107363700867
+            ]
+          },
+          {
+            "start_frame": 10500,
+            "end_frame_exclusive": 13500,
+            "prediction": "motion",
+            "scores": [
+              0.008139540441334248,
+              0.0017773248255252838,
+              0.9900832176208496
+            ]
+          },
+          {
+            "start_frame": 12000,
+            "end_frame_exclusive": 15000,
+            "prediction": "motion",
+            "scores": [
+              0.009676896966993809,
+              0.0013510346179828048,
+              0.988972008228302
+            ]
+          },
+          {
+            "start_frame": 13500,
+            "end_frame_exclusive": 16500,
+            "prediction": "motion",
+            "scores": [
+              0.012714591808617115,
+              0.0035750020761042833,
+              0.9837103486061096
+            ]
+          },
+          {
+            "start_frame": 15000,
+            "end_frame_exclusive": 18000,
+            "prediction": "motion",
+            "scores": [
+              0.022777928039431572,
+              0.007721025962382555,
+              0.9695010185241699
+            ]
+          },
+          {
+            "start_frame": 16500,
+            "end_frame_exclusive": 19500,
+            "prediction": "motion",
+            "scores": [
+              0.021293828263878822,
+              0.005669520702213049,
+              0.9730365872383118
+            ]
+          },
+          {
+            "start_frame": 18000,
+            "end_frame_exclusive": 21000,
+            "prediction": "motion",
+            "scores": [
+              0.01804002746939659,
+              0.006137946154922247,
+              0.9758220314979553
+            ]
+          },
+          {
+            "start_frame": 19500,
+            "end_frame_exclusive": 22500,
+            "prediction": "motion",
+            "scores": [
+              0.012864228338003159,
+              0.003324487479403615,
+              0.9838113188743591
+            ]
+          },
+          {
+            "start_frame": 21000,
+            "end_frame_exclusive": 24000,
+            "prediction": "motion",
+            "scores": [
+              0.016094060614705086,
+              0.004933539777994156,
+              0.9789724349975586
+            ]
+          },
+          {
+            "start_frame": 22500,
+            "end_frame_exclusive": 25500,
+            "prediction": "motion",
+            "scores": [
+              0.01761298067867756,
+              0.004619356710463762,
+              0.9777676463127136
+            ]
+          },
+          {
+            "start_frame": 24000,
+            "end_frame_exclusive": 27000,
+            "prediction": "motion",
+            "scores": [
+              0.01887325383722782,
+              0.004439346492290497,
+              0.9766874313354492
+            ]
+          },
+          {
+            "start_frame": 25500,
+            "end_frame_exclusive": 28500,
+            "prediction": "motion",
+            "scores": [
+              0.02411731332540512,
+              0.009176166728138924,
+              0.9667065143585205
+            ]
+          },
+          {
+            "start_frame": 27000,
+            "end_frame_exclusive": 30000,
+            "prediction": "motion",
+            "scores": [
+              0.027450358495116234,
+              0.00698554003611207,
+              0.9655641913414001
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "20260917-s42",
+      "session_id": 42,
+      "label": "static",
+      "path": "mac_collector_output/raw/20260917/213701_static_s42",
+      "quality": {
+        "common_start_tx_seq": 252420,
+        "frames": 29999,
+        "crc_checked_frames": 87712,
+        "input": "raw .csi, manifest receiver identities only"
+      },
+      "ensemble": {
+        "status": "VALIDATED_ON_EXISTING_DATA; new-date deployment validation pending",
+        "prediction": "static",
+        "mean_scores": {
+          "empty": 0.14476469159126282,
+          "static": 0.7973742485046387,
+          "motion": 0.057861097157001495
+        },
+        "window_seconds": 30.0,
+        "stride_seconds": 15.0,
+        "valid_windows": 18,
+        "candidate_windows": 18,
+        "scores_are_calibrated": false,
+        "windows": [
+          {
+            "start_frame": 0,
+            "end_frame_exclusive": 3000,
+            "prediction": "static",
+            "scores": [
+              0.0018143513007089496,
+              0.9967942237854004,
+              0.0013914289884269238
+            ]
+          },
+          {
+            "start_frame": 1500,
+            "end_frame_exclusive": 4500,
+            "prediction": "static",
+            "scores": [
+              0.15005698800086975,
+              0.6689245104789734,
+              0.18101854622364044
+            ]
+          },
+          {
+            "start_frame": 3000,
+            "end_frame_exclusive": 6000,
+            "prediction": "empty",
+            "scores": [
+              0.45074033737182617,
+              0.38633573055267334,
+              0.16292394697666168
+            ]
+          },
+          {
+            "start_frame": 4500,
+            "end_frame_exclusive": 7500,
+            "prediction": "empty",
+            "scores": [
+              0.6055689454078674,
+              0.27892473340034485,
+              0.11550631374120712
+            ]
+          },
+          {
+            "start_frame": 6000,
+            "end_frame_exclusive": 9000,
+            "prediction": "static",
+            "scores": [
+              0.3725673258304596,
+              0.5152478814125061,
+              0.11218484491109848
+            ]
+          },
+          {
+            "start_frame": 7500,
+            "end_frame_exclusive": 10500,
+            "prediction": "static",
+            "scores": [
+              0.06349899619817734,
+              0.896109402179718,
+              0.04039153829216957
+            ]
+          },
+          {
+            "start_frame": 9000,
+            "end_frame_exclusive": 12000,
+            "prediction": "static",
+            "scores": [
+              0.007008677814155817,
+              0.9844291806221008,
+              0.008562144823372364
+            ]
+          },
+          {
+            "start_frame": 10500,
+            "end_frame_exclusive": 13500,
+            "prediction": "static",
+            "scores": [
+              0.023229798302054405,
+              0.9285967946052551,
+              0.04817340895533562
+            ]
+          },
+          {
+            "start_frame": 12000,
+            "end_frame_exclusive": 15000,
+            "prediction": "static",
+            "scores": [
+              0.018504565581679344,
+              0.9511861205101013,
+              0.030309317633509636
+            ]
+          },
+          {
+            "start_frame": 13500,
+            "end_frame_exclusive": 16500,
+            "prediction": "static",
+            "scores": [
+              0.004090993199497461,
+              0.9913771748542786,
+              0.0045317597687244415
+            ]
+          },
+          {
+            "start_frame": 15000,
+            "end_frame_exclusive": 18000,
+            "prediction": "static",
+            "scores": [
+              0.2220582365989685,
+              0.7188045382499695,
+              0.05913722887635231
+            ]
+          },
+          {
+            "start_frame": 16500,
+            "end_frame_exclusive": 19500,
+            "prediction": "static",
+            "scores": [
+              0.23052024841308594,
+              0.7016817927360535,
+              0.06779799610376358
+            ]
+          },
+          {
+            "start_frame": 18000,
+            "end_frame_exclusive": 21000,
+            "prediction": "static",
+            "scores": [
+              0.04183421656489372,
+              0.9312745928764343,
+              0.026891155168414116
+            ]
+          },
+          {
+            "start_frame": 19500,
+            "end_frame_exclusive": 22500,
+            "prediction": "static",
+            "scores": [
+              0.01400778815150261,
+              0.9753890037536621,
+              0.01060319971293211
+            ]
+          },
+          {
+            "start_frame": 21000,
+            "end_frame_exclusive": 24000,
+            "prediction": "static",
+            "scores": [
+              0.09946221113204956,
+              0.8672015070915222,
+              0.033336348831653595
+            ]
+          },
+          {
+            "start_frame": 22500,
+            "end_frame_exclusive": 25500,
+            "prediction": "static",
+            "scores": [
+              0.14962930977344513,
+              0.808459460735321,
+              0.041911277920007706
+            ]
+          },
+          {
+            "start_frame": 24000,
+            "end_frame_exclusive": 27000,
+            "prediction": "static",
+            "scores": [
+              0.09059276431798935,
+              0.8727533221244812,
+              0.036653947085142136
+            ]
+          },
+          {
+            "start_frame": 25500,
+            "end_frame_exclusive": 28500,
+            "prediction": "static",
+            "scores": [
+              0.0605783611536026,
+              0.8792464137077332,
+              0.060175228863954544
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "20260917-s43",
+      "session_id": 43,
+      "label": "empty",
+      "path": "mac_collector_output/raw/20260917/214412_empty_s43",
+      "quality": {
+        "common_start_tx_seq": 295484,
+        "frames": 30005,
+        "crc_checked_frames": 88236,
+        "input": "raw .csi, manifest receiver identities only"
+      },
+      "ensemble": {
+        "status": "VALIDATED_ON_EXISTING_DATA; new-date deployment validation pending",
+        "prediction": "static",
+        "mean_scores": {
+          "empty": 0.45140933990478516,
+          "static": 0.47620001435279846,
+          "motion": 0.0723906010389328
+        },
+        "window_seconds": 30.0,
+        "stride_seconds": 15.0,
+        "valid_windows": 19,
+        "candidate_windows": 19,
+        "scores_are_calibrated": false,
+        "windows": [
+          {
+            "start_frame": 0,
+            "end_frame_exclusive": 3000,
+            "prediction": "static",
+            "scores": [
+              0.2952803373336792,
+              0.6351074576377869,
+              0.06961222738027573
+            ]
+          },
+          {
+            "start_frame": 1500,
+            "end_frame_exclusive": 4500,
+            "prediction": "static",
+            "scores": [
+              0.41548076272010803,
+              0.5036043524742126,
+              0.08091490715742111
+            ]
+          },
+          {
+            "start_frame": 3000,
+            "end_frame_exclusive": 6000,
+            "prediction": "empty",
+            "scores": [
+              0.4962131083011627,
+              0.42952167987823486,
+              0.07426518201828003
+            ]
+          },
+          {
+            "start_frame": 4500,
+            "end_frame_exclusive": 7500,
+            "prediction": "empty",
+            "scores": [
+              0.5284344553947449,
+              0.38181161880493164,
+              0.08975391834974289
+            ]
+          },
+          {
+            "start_frame": 6000,
+            "end_frame_exclusive": 9000,
+            "prediction": "empty",
+            "scores": [
+              0.6084631681442261,
+              0.2991960346698761,
+              0.09234074503183365
+            ]
+          },
+          {
+            "start_frame": 7500,
+            "end_frame_exclusive": 10500,
+            "prediction": "empty",
+            "scores": [
+              0.7474431991577148,
+              0.18028388917446136,
+              0.07227293401956558
+            ]
+          },
+          {
+            "start_frame": 9000,
+            "end_frame_exclusive": 12000,
+            "prediction": "empty",
+            "scores": [
+              0.7726761698722839,
+              0.1663895547389984,
+              0.06093435361981392
+            ]
+          },
+          {
+            "start_frame": 10500,
+            "end_frame_exclusive": 13500,
+            "prediction": "empty",
+            "scores": [
+              0.5879793167114258,
+              0.3433408737182617,
+              0.06867974996566772
+            ]
+          },
+          {
+            "start_frame": 12000,
+            "end_frame_exclusive": 15000,
+            "prediction": "empty",
+            "scores": [
+              0.6075430512428284,
+              0.30718526244163513,
+              0.0852716937661171
+            ]
+          },
+          {
+            "start_frame": 13500,
+            "end_frame_exclusive": 16500,
+            "prediction": "empty",
+            "scores": [
+              0.8177857398986816,
+              0.11384480446577072,
+              0.06836947798728943
+            ]
+          },
+          {
+            "start_frame": 15000,
+            "end_frame_exclusive": 18000,
+            "prediction": "static",
+            "scores": [
+              0.2775173485279083,
+              0.6531181931495667,
+              0.0693645179271698
+            ]
+          },
+          {
+            "start_frame": 16500,
+            "end_frame_exclusive": 19500,
+            "prediction": "static",
+            "scores": [
+              0.32634595036506653,
+              0.6016142964363098,
+              0.07203974574804306
+            ]
+          },
+          {
+            "start_frame": 18000,
+            "end_frame_exclusive": 21000,
+            "prediction": "static",
+            "scores": [
+              0.4002138078212738,
+              0.5160925984382629,
+              0.08369359374046326
+            ]
+          },
+          {
+            "start_frame": 19500,
+            "end_frame_exclusive": 22500,
+            "prediction": "static",
+            "scores": [
+              0.0929732620716095,
+              0.8660520911216736,
+              0.040974657982587814
+            ]
+          },
+          {
+            "start_frame": 21000,
+            "end_frame_exclusive": 24000,
+            "prediction": "empty",
+            "scores": [
+              0.5996920466423035,
+              0.3099588453769684,
+              0.09034907817840576
+            ]
+          },
+          {
+            "start_frame": 22500,
+            "end_frame_exclusive": 25500,
+            "prediction": "static",
+            "scores": [
+              0.10684552788734436,
+              0.8509398102760315,
+              0.04221464321017265
+            ]
+          },
+          {
+            "start_frame": 24000,
+            "end_frame_exclusive": 27000,
+            "prediction": "static",
+            "scores": [
+              0.25593528151512146,
+              0.6749129295349121,
+              0.06915175914764404
+            ]
+          },
+          {
+            "start_frame": 25500,
+            "end_frame_exclusive": 28500,
+            "prediction": "empty",
+            "scores": [
+              0.48583102226257324,
+              0.4248006045818329,
+              0.08936841040849686
+            ]
+          },
+          {
+            "start_frame": 27000,
+            "end_frame_exclusive": 30000,
+            "prediction": "static",
+            "scores": [
+              0.15412528812885284,
+              0.7900249361991882,
+              0.055849839001894
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "20260917-s44",
+      "session_id": 44,
+      "label": "motion",
+      "path": "mac_collector_output/raw/20260917/215718_motion_s44",
+      "quality": {
+        "common_start_tx_seq": 374096,
+        "frames": 30005,
+        "crc_checked_frames": 86498,
+        "input": "raw .csi, manifest receiver identities only"
+      },
+      "ensemble": {
+        "status": "VALIDATED_ON_EXISTING_DATA; new-date deployment validation pending",
+        "prediction": "motion",
+        "mean_scores": {
+          "empty": 0.021701261401176453,
+          "static": 0.008308939635753632,
+          "motion": 0.9699898958206177
+        },
+        "window_seconds": 30.0,
+        "stride_seconds": 15.0,
+        "valid_windows": 17,
+        "candidate_windows": 19,
+        "scores_are_calibrated": false,
+        "windows": [
+          {
+            "start_frame": 0,
+            "end_frame_exclusive": 3000,
+            "prediction": "motion",
+            "scores": [
+              0.02812863141298294,
+              0.009909621439874172,
+              0.9619617462158203
+            ]
+          },
+          {
+            "start_frame": 1500,
+            "end_frame_exclusive": 4500,
+            "prediction": "motion",
+            "scores": [
+              0.020047085359692574,
+              0.004674895666539669,
+              0.9752780795097351
+            ]
+          },
+          {
+            "start_frame": 3000,
+            "end_frame_exclusive": 6000,
+            "prediction": "motion",
+            "scores": [
+              0.019308969378471375,
+              0.00606565410271287,
+              0.9746253490447998
+            ]
+          },
+          {
+            "start_frame": 4500,
+            "end_frame_exclusive": 7500,
+            "prediction": "motion",
+            "scores": [
+              0.025756007060408592,
+              0.007857908494770527,
+              0.9663861393928528
+            ]
+          },
+          {
+            "start_frame": 6000,
+            "end_frame_exclusive": 9000,
+            "prediction": "motion",
+            "scores": [
+              0.020886041224002838,
+              0.007200503721833229,
+              0.9719135165214539
+            ]
+          },
+          {
+            "start_frame": 7500,
+            "end_frame_exclusive": 10500,
+            "prediction": "motion",
+            "scores": [
+              0.01479740347713232,
+              0.008300290443003178,
+              0.9769023060798645
+            ]
+          },
+          {
+            "start_frame": 9000,
+            "end_frame_exclusive": 12000,
+            "prediction": "motion",
+            "scores": [
+              0.019602669402956963,
+              0.010738737881183624,
+              0.9696585536003113
+            ]
+          },
+          {
+            "start_frame": 10500,
+            "end_frame_exclusive": 13500,
+            "prediction": "motion",
+            "scores": [
+              0.020148208364844322,
+              0.011716022156178951,
+              0.9681357741355896
+            ]
+          },
+          {
+            "start_frame": 12000,
+            "end_frame_exclusive": 15000,
+            "prediction": "motion",
+            "scores": [
+              0.020771825686097145,
+              0.012227739207446575,
+              0.967000424861908
+            ]
+          },
+          {
+            "start_frame": 13500,
+            "end_frame_exclusive": 16500,
+            "prediction": "motion",
+            "scores": [
+              0.022736413404345512,
+              0.00901078525930643,
+              0.9682528376579285
+            ]
+          },
+          {
+            "start_frame": 15000,
+            "end_frame_exclusive": 18000,
+            "prediction": "motion",
+            "scores": [
+              0.0224177073687315,
+              0.007784280925989151,
+              0.9697980880737305
+            ]
+          },
+          {
+            "start_frame": 16500,
+            "end_frame_exclusive": 19500,
+            "prediction": "motion",
+            "scores": [
+              0.0221855565905571,
+              0.008372657001018524,
+              0.9694417119026184
+            ]
+          },
+          {
+            "start_frame": 21000,
+            "end_frame_exclusive": 24000,
+            "prediction": "motion",
+            "scores": [
+              0.01911039650440216,
+              0.006433310452848673,
+              0.9744563102722168
+            ]
+          },
+          {
+            "start_frame": 22500,
+            "end_frame_exclusive": 25500,
+            "prediction": "motion",
+            "scores": [
+              0.021024217829108238,
+              0.008396118879318237,
+              0.9705796837806702
+            ]
+          },
+          {
+            "start_frame": 24000,
+            "end_frame_exclusive": 27000,
+            "prediction": "motion",
+            "scores": [
+              0.02286623604595661,
+              0.007438817527145147,
+              0.9696949124336243
+            ]
+          },
+          {
+            "start_frame": 25500,
+            "end_frame_exclusive": 28500,
+            "prediction": "motion",
+            "scores": [
+              0.025687657296657562,
+              0.007385951932519674,
+              0.9669263958930969
+            ]
+          },
+          {
+            "start_frame": 27000,
+            "end_frame_exclusive": 30000,
+            "prediction": "motion",
+            "scores": [
+              0.023446371778845787,
+              0.007738687098026276,
+              0.9688149094581604
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "20260917-s45",
+      "session_id": 45,
+      "label": "empty",
+      "path": "mac_collector_output/raw/20260917/220312_empty_s45",
+      "quality": {
+        "common_start_tx_seq": 409471,
+        "frames": 30005,
+        "crc_checked_frames": 85593,
+        "input": "raw .csi, manifest receiver identities only"
+      },
+      "ensemble": {
+        "status": "VALIDATED_ON_EXISTING_DATA; new-date deployment validation pending",
+        "prediction": "empty",
+        "mean_scores": {
+          "empty": 0.6115316152572632,
+          "static": 0.25310078263282776,
+          "motion": 0.13536757230758667
+        },
+        "window_seconds": 30.0,
+        "stride_seconds": 15.0,
+        "valid_windows": 19,
+        "candidate_windows": 19,
+        "scores_are_calibrated": false,
+        "windows": [
+          {
+            "start_frame": 0,
+            "end_frame_exclusive": 3000,
+            "prediction": "empty",
+            "scores": [
+              0.513598620891571,
+              0.3640170991420746,
+              0.12238427996635437
+            ]
+          },
+          {
+            "start_frame": 1500,
+            "end_frame_exclusive": 4500,
+            "prediction": "empty",
+            "scores": [
+              0.7995308041572571,
+              0.1279408037662506,
+              0.07252839207649231
+            ]
+          },
+          {
+            "start_frame": 3000,
+            "end_frame_exclusive": 6000,
+            "prediction": "empty",
+            "scores": [
+              0.8610424399375916,
+              0.08103396743535995,
+              0.0579235814511776
+            ]
+          },
+          {
+            "start_frame": 4500,
+            "end_frame_exclusive": 7500,
+            "prediction": "empty",
+            "scores": [
+              0.7237767577171326,
+              0.1856316477060318,
+              0.09059169143438339
+            ]
+          },
+          {
+            "start_frame": 6000,
+            "end_frame_exclusive": 9000,
+            "prediction": "empty",
+            "scores": [
+              0.7248366475105286,
+              0.19327014684677124,
+              0.08189325779676437
+            ]
+          },
+          {
+            "start_frame": 7500,
+            "end_frame_exclusive": 10500,
+            "prediction": "empty",
+            "scores": [
+              0.7615641951560974,
+              0.15886279940605164,
+              0.07957297563552856
+            ]
+          },
+          {
+            "start_frame": 9000,
+            "end_frame_exclusive": 12000,
+            "prediction": "empty",
+            "scores": [
+              0.7380900382995605,
+              0.15090779960155487,
+              0.1110021099448204
+            ]
+          },
+          {
+            "start_frame": 10500,
+            "end_frame_exclusive": 13500,
+            "prediction": "empty",
+            "scores": [
+              0.5741938948631287,
+              0.27269089221954346,
+              0.1531151831150055
+            ]
+          },
+          {
+            "start_frame": 12000,
+            "end_frame_exclusive": 15000,
+            "prediction": "empty",
+            "scores": [
+              0.5511041879653931,
+              0.27818048000335693,
+              0.17071527242660522
+            ]
+          },
+          {
+            "start_frame": 13500,
+            "end_frame_exclusive": 16500,
+            "prediction": "static",
+            "scores": [
+              0.26839613914489746,
+              0.6291372179985046,
+              0.10246661305427551
+            ]
+          },
+          {
+            "start_frame": 15000,
+            "end_frame_exclusive": 18000,
+            "prediction": "empty",
+            "scores": [
+              0.6682007312774658,
+              0.1933574229478836,
+              0.13844189047813416
+            ]
+          },
+          {
+            "start_frame": 16500,
+            "end_frame_exclusive": 19500,
+            "prediction": "empty",
+            "scores": [
+              0.47857609391212463,
+              0.3753242492675781,
+              0.14609961211681366
+            ]
+          },
+          {
+            "start_frame": 18000,
+            "end_frame_exclusive": 21000,
+            "prediction": "static",
+            "scores": [
+              0.42953941226005554,
+              0.4426661729812622,
+              0.12779448926448822
+            ]
+          },
+          {
+            "start_frame": 19500,
+            "end_frame_exclusive": 22500,
+            "prediction": "empty",
+            "scores": [
+              0.5895439982414246,
+              0.29170793294906616,
+              0.11874806880950928
+            ]
+          },
+          {
+            "start_frame": 21000,
+            "end_frame_exclusive": 24000,
+            "prediction": "static",
+            "scores": [
+              0.42407408356666565,
+              0.4542637765407562,
+              0.12166213244199753
+            ]
+          },
+          {
+            "start_frame": 22500,
+            "end_frame_exclusive": 25500,
+            "prediction": "empty",
+            "scores": [
+              0.6633020043373108,
+              0.15916770696640015,
+              0.1775302290916443
+            ]
+          },
+          {
+            "start_frame": 24000,
+            "end_frame_exclusive": 27000,
+            "prediction": "empty",
+            "scores": [
+              0.6264755129814148,
+              0.15779155492782593,
+              0.21573294699192047
+            ]
+          },
+          {
+            "start_frame": 25500,
+            "end_frame_exclusive": 28500,
+            "prediction": "empty",
+            "scores": [
+              0.5985386371612549,
+              0.16089554131031036,
+              0.24056582152843475
+            ]
+          },
+          {
+            "start_frame": 27000,
+            "end_frame_exclusive": 30000,
+            "prediction": "empty",
+            "scores": [
+              0.6247169375419617,
+              0.13206803798675537,
+              0.24321503937244415
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

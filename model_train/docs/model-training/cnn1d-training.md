@@ -1,7 +1,7 @@
-# 3-RX 1D-CNN Training
+# 수신기 3대의 1차원 CNN 학습 방법
 
 > 상태: **CURRENT** — 소형 fixture 검증 및 2026-09-17 실제 데이터 MPS 학습·평가 완료.
-> 실험 결과: [1D-CNN과 LSTM 비교 보고서](cnn1d-vs-lstm-report.md).
+> 실험 결과: [1차원 CNN·LSTM 비교 결과](archive/cnn1d-vs-lstm-report.md).
 
 실행 코드: [`CNN1D.py`](../../cnn1d/CNN1D.py).
 입력은 [공식 전처리](../preprocessing/design.md)의 `(N, 300, 192)` raw amplitude다.
@@ -33,7 +33,7 @@ Validation window macro-F1로 best checkpoint와 early stopping을 결정한다.
 설정은 validation에서 선택한다. Test는 별도 명령으로만 예측·평가한다.
 공통 dataset 검증은 train 단계에서도 세 split의 형식과 유한값을 검사한다.
 기존 test split은 이미 LSTM 평가에 사용했으므로 추가 결과는
-[비교 프로토콜](model-comparison.md)에 따라 탐색적 비교로 해석한다.
+[비교 프로토콜](archive/model-comparison.md)에 따라 탐색적 비교로 해석한다.
 
 ```bash
 conda run -n wifi-csi-lstm python model_train/cnn1d/CNN1D.py validate \

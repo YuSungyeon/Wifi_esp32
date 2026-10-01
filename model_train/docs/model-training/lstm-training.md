@@ -1,4 +1,4 @@
-# 3-RX LSTM Design and Training
+# 수신기 3대의 LSTM 구조·학습·평가 방법
 
 > 상태: **CURRENT — 공식 3-RX LSTM 학습·검증·최종 평가와 baseline 실험 완료**
 >
@@ -6,11 +6,11 @@
 >
 > 학습 코드: [`LSTM.py`](../../lstm/LSTM.py) · 테스트: [`test_lstm.py`](../../../tests/test_lstm.py)
 >
-> 전처리 기준: [3-RX CSI Preprocessing Design](../preprocessing/design.md)
+> 전처리 기준: [수신기 3대의 CSI 전처리 설계](../preprocessing/design.md)
 >
-> 모델 비교 근거: [Model Comparison and Selection](model-comparison.md)
+> 모델 비교 근거: [초기 모델 후보 비교와 선택 근거](archive/model-comparison.md)
 >
-> 실제 실험 결과: [3-RX LSTM Baseline Training and Final Evaluation](lstm-baseline-report.md)
+> 실제 실험 결과: [LSTM 기준 모델 학습·평가 결과](archive/lstm-baseline-report.md)
 
 이 문서는 `preprocess_3rx.py`가 만든 3-RX 전처리 결과만 입력으로 사용하는 LSTM
 baseline의 공식 설계이자 현재 구현 기준이다. `LSTM.py`는 구형
@@ -84,7 +84,7 @@ model_train/preprocessing/output/20260616/
 이 수치는 현재 `manifest.json`의 결과다. 전처리 설정이나 원본 데이터가 바뀌면
 코드에 window 수를 고정하지 않고 새 manifest와 실제 배열 shape를 기준으로 한다.
 
-## 3. Session split 계약
+## 3. 세션 단위의 학습·검증·평가 분리 규칙
 
 같은 session에서 만들어진 window는 원본 frame을 많이 공유하므로 window 단위로
 무작위 분할하지 않는다. 한 session의 모든 window는 하나의 split에만 속한다.
@@ -100,7 +100,7 @@ Session 22는 RX102 record가 3개뿐이어서 전처리 품질 gate에서 제�
 사용한다. Train은 파라미터 학습, validation은 설정과 checkpoint 선택, test는
 설정을 모두 고정한 뒤 최종 성능 확인에만 사용한다.
 
-## 4. Feature와 Tensor shape
+## 4. 입력 특징과 배열 크기
 
 한 RX가 TX frame 하나에서 제공하는 `csi_amp` 64개를 64개 feature로 사용한다.
 세 RX를 manifest의 고정 순서 `[101, 102, 103]`으로 이어 붙이면 한 시점의 feature는
@@ -127,7 +127,7 @@ window 하나:   (300, 192)  # 100Hz × 3초
 `tx_seq`, RX의 `seq`, 수신 시각은 정렬과 추적을 위한 metadata이며 LSTM 입력
 feature에 포함하지 않는다.
 
-## 5. 데이터 로딩과 normalization
+## 5. 데이터 읽기와 정규화
 
 ### 5.1 메모리 사용 방식
 
@@ -147,7 +147,7 @@ X.npy를 memory map으로 열기
 worker 수는 실행 장치와 메모리 사용량을 확인하며 설정하고 config에 기록한다.
 기본값은 `num_workers=0`이며, 이 경우 학습 프로세스가 직접 데이터를 읽는다.
 
-### 5.2 Feature별 train 통계
+### 5.2 특징별 학습 자료 통계
 
 `normalization.npz`의 평균과 표준편차는 특정 class 하나가 아니라 train의
 `empty`, `static`, `motion` window 전체에서 계산한다. Train 배열이
@@ -167,7 +167,7 @@ std.shape      = (192,)
 std_safe.shape = (192,)
 ```
 
-### 5.3 세 split에 같은 기준 적용
+### 5.3 학습·검증·평가에 같은 기준 적용
 
 저장된 `X.npy`에는 정규화 전 raw amplitude가 들어 있다. Dataset은 window를
 읽을 때 다음 공식을 적용한다.
@@ -187,7 +187,7 @@ Validation과 test에서 평균과 표준편차를 새로 계산하지 않는다
 분포를 미리 사용하면 data leakage가 발생한다. 표준편차가 `1e-6`보다 작은
 feature는 `std_safe=1.0`을 사용해 0으로 나누는 문제를 막는다.
 
-## 6. LSTM baseline 구조
+## 6. LSTM 기준 모델 구조
 
 첫 baseline은 다음 구조로 고정한다.
 
@@ -264,7 +264,7 @@ shuffle 순서, Dropout mask 등의 무작위 시작점을 정하는 번호다. 
 checkpoint를 선택한다. 최종 결과는 세 실행의 평균과 표준편차를 함께 보고하며,
 test가 가장 잘 나온 seed 하나만 골라 보고하지 않는다.
 
-### 7.1 Class weight 결정
+### 7.1 클래스별 학습 가중치 결정
 
 Validation과 test 데이터를 복제하거나 삭제해 class 수를 맞추지 않는다. 현재
 train window 수는 다음과 같다.
@@ -306,7 +306,7 @@ class별 recall·F1과 confusion matrix로 적은 class가 실제로 개선됐�
 Class weight는 오분류 loss의 중요도만 조정한다. 입력 `X`와 normalization의
 `mean`, `std_safe`는 두 실험에서 동일하다.
 
-## 8. Epoch 처리와 validation
+## 8. 한 차례 학습(epoch)과 검증
 
 Epoch 하나는 **Train 단계에서 파라미터를 갱신한 뒤, Validation 단계에서 갱신된
 모델을 고정하고 성능을 측정하는 순서**로 실행한다.
@@ -319,7 +319,7 @@ Epoch 시작
 Epoch 종료
 ```
 
-### 8.1 Train 단계: 파라미터 갱신
+### 8.1 학습 단계: 모델 가중치 갱신
 
 `model.train()`으로 학습 모드를 켠다. Train loader가 전체 train window index를
 무작위로 섞어 32개씩 CPU batch로 전달하면, 학습 반복문이 batch를 선택한 장치로
@@ -336,7 +336,7 @@ Epoch 종료
 `drop_last=False`를 기준으로 epoch마다 523개 batch, 즉 523번의 파라미터 갱신이
 발생한다. Train loader 전체를 처리하면 epoch의 train loss와 accuracy를 계산한다.
 
-### 8.2 Validation 단계: 파라미터 고정
+### 8.2 검증 단계: 모델 가중치 고정
 
 Train 단계가 끝난 직후의 파라미터를 그대로 유지한 채 `model.eval()`과
 `torch.no_grad()`로 validation loader 전체를 평가한다. 각 validation batch에서도
@@ -351,7 +351,7 @@ optimizer.step()    실행하지 않음
 않고, 현재 모델이 학습에 사용하지 않은 session에서도 잘 동작하는지만 측정한다.
 현재 validation window 5,933개와 batch size 32에서는 186개 batch를 평가한다.
 
-### 8.3 Checkpoint와 다음 epoch 결정
+### 8.3 모델 저장과 다음 학습 여부 결정
 
 Validation 전체의 window-level macro-F1이 이전 최고점보다 높으면 현재 파라미터를 best
 checkpoint로 저장하고 patience 횟수를 0으로 되돌린다. 개선되지 않으면
@@ -376,7 +376,7 @@ epoch 소요 시간
 Accuracy만으로 checkpoint를 선택하지 않는다. 한 class에 치우친 모델을 구분하기
 위해 세 class의 F1을 동일 비중으로 평균한 validation macro-F1을 기준으로 한다.
 
-## 9. 최종 test
+## 9. 최종 평가
 
 모델 구조, normalization, class weight, early stopping, checkpoint 선택 기준을
 train과 validation으로 모두 고정한 뒤 test를 평가한다. Test 결과를 본 뒤 같은
@@ -513,5 +513,5 @@ conda run -n wifi-csi-lstm python model_train/lstm/LSTM.py test \
 `tests/test_lstm.py`의 소형 end-to-end 학습·test와 저장소 전체 테스트가 통과했다.
 실제 `20260616` 데이터는 28,585개 window의 계약과 전체 유한값 검사를 통과했다.
 실제 seed·class-weight 6개 학습과 선택된 balanced seed 3개의 최종 test 결과는
-[3-RX LSTM Baseline Training and Final Evaluation](lstm-baseline-report.md)에
+[LSTM 기준 모델 학습·평가 결과](archive/lstm-baseline-report.md)에
 별도로 기록한다.

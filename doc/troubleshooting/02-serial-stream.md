@@ -1,6 +1,6 @@
 # 시리얼 스트림·프레임 무결성
 
-> 프레임 규격은 [data-schema.md](../data-schema.md). Python 정본 `scripts/csi_store.py`, C 정본 `esp32s3_csi_recv_poc/main/app_main.c`.
+> 프레임 규격은 [CSI 저장 데이터 규격](../data-schema.md). Python 정본 `scripts/csi_store.py`, C 정본 `esp32s3_csi_recv_poc/main/app_main.c`.
 
 ## 2026-08-25 — 오탐 magic 이 검증 없이 저장됨 → CRC32
 
