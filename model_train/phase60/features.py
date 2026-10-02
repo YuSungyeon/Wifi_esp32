@@ -79,7 +79,7 @@ def valid_starts(phase: np.ndarray, window: int, stride: int) -> np.ndarray:
 
 
 def windows(phase: np.ndarray, starts: np.ndarray, window: int, downsample: int,
-            diff: bool = False) -> np.ndarray:
+            diff: bool = False, pool: str = "mean") -> np.ndarray:
     """(n, window/downsample, 156) — 다운샘플 평균 후 창 평균을 뺀다.
 
     창 평균 차감이 정규화의 전부다. 위상 잔차는 이미 상대값이라 스케일 조정이 필요 없다.
@@ -90,9 +90,38 @@ def windows(phase: np.ndarray, starts: np.ndarray, window: int, downsample: int,
     view = np.lib.stride_tricks.sliding_window_view(phase, window, axis=0)
     w = view[starts].transpose(0, 2, 1)                 # (n, window, 156)
     n, t, f = w.shape
-    w = w[:, : t - t % downsample].reshape(n, t // downsample, downsample, f).mean(axis=2)
+    chunks = w[:, : t - t % downsample].reshape(n, t // downsample, downsample, f)
+    w = chunks.mean(axis=2)
     centred = (w - w.mean(axis=1, keepdims=True)).astype(np.float32)
+    if pool == "mean+std":
+        # 다운샘플 구간 안의 변동폭. 평균만 남기면 구간 내부의 빠른 흔들림이 사라진다.
+        centred = np.concatenate([centred, chunks.std(axis=2).astype(np.float32)], axis=2)
     if not diff:
         return centred
     d = np.diff(centred, axis=1, prepend=centred[:, :1])
     return np.concatenate([centred, d], axis=2)
+
+
+#: 호흡 대역 (Hz). 성인 안정 시 호흡은 0.2~0.33Hz(12~20회/분)이고, 몸 흔들림은 그보다 느리거나
+#: 빠르다. 넉넉히 0.05~1.0Hz 를 본다.
+BREATH_BAND = (0.05, 1.0)
+
+
+def spectrum(w: np.ndarray, rate_hz: float, band: tuple = BREATH_BAND) -> np.ndarray:
+    """(n, T, F) 창 → (n, bins, F) 호흡 대역 로그 진폭 스펙트럼.
+
+    창이 짧아도 주기성은 주파수 축에서 분리된다. 시간 축 CNN 에 그대로 넣을 수 있도록
+    주파수를 '시간처럼' 늘어놓는다 — 인코더는 축의 의미를 모르고 국소 패턴만 본다.
+    """
+    n, t, f = w.shape
+    freqs = np.fft.rfftfreq(t, d=1.0 / rate_hz)
+    keep = (freqs >= band[0]) & (freqs <= band[1])
+    mag = np.abs(np.fft.rfft(w - w.mean(axis=1, keepdims=True), axis=1))[:, keep]
+    out = np.log1p(mag).astype(np.float32)
+    return out - out.mean(axis=1, keepdims=True)
+
+
+def n_input_columns(diff: bool = False, pool: str = "mean") -> int:
+    """창 변환이 만드는 열 수. 모델의 groups 와 반드시 같아야 한다."""
+    cols = N_COLS * (2 if pool == "mean+std" else 1)
+    return cols * (2 if diff else 1)

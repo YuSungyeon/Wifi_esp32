@@ -1,0 +1,76 @@
+{
+  "model": "model.pt",
+  "window_s": 30.0,
+  "kind": "진폭",
+  "bursts": [
+    {
+      "burst_seconds": 1,
+      "max_motion_prob": 0.127,
+      "detected": false
+    },
+    {
+      "burst_seconds": 2,
+      "max_motion_prob": 0.111,
+      "detected": false
+    },
+    {
+      "burst_seconds": 3,
+      "max_motion_prob": 0.111,
+      "detected": false
+    },
+    {
+      "burst_seconds": 5,
+      "max_motion_prob": 0.111,
+      "detected": false
+    },
+    {
+      "burst_seconds": 10,
+      "max_motion_prob": 0.111,
+      "detected": false
+    },
+    {
+      "burst_seconds": 15,
+      "max_motion_prob": 0.111,
+      "detected": false
+    },
+    {
+      "burst_seconds": 20,
+      "max_motion_prob": 0.111,
+      "detected": false
+    },
+    {
+      "burst_seconds": 30,
+      "max_motion_prob": 0.946,
+      "detected": true
+    },
+    {
+      "burst_seconds": 45,
+      "max_motion_prob": 0.958,
+      "detected": true
+    }
+  ],
+  "min_detected_s": 30,
+  "transitions": [
+    {
+      "from": "empty",
+      "to": "motion",
+      "delay_s": 26.0
+    },
+    {
+      "from": "motion",
+      "to": "static",
+      "delay_s": 3.0
+    },
+    {
+      "from": "static",
+      "to": "motion",
+      "delay_s": 28.0
+    },
+    {
+      "from": "motion",
+      "to": "empty",
+      "delay_s": 30.0
+    }
+  ],
+  "hold_s": 60.0
+}

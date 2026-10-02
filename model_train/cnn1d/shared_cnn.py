@@ -20,7 +20,8 @@ class SharedTemporalCNN(nn.Module):
     특정 서브캐리어 조합(=배치별 다중경로 지문)을 외울 수 없게 하는 구조다.
     """
 
-    def __init__(self, dropout: float = 0.2, groups: tuple = (156,), n_classes: int = 3) -> None:
+    def __init__(self, dropout: float = 0.2, groups: tuple = (156,), n_classes: int = 3,
+                 width: int = 16) -> None:
         # groups: 모달리티(진폭·위상)별 시계열 수. 모달리티마다 인코더와 풀링을 따로 둔다.
         super().__init__()
 
@@ -29,11 +30,13 @@ class SharedTemporalCNN(nn.Module):
                     nn.BatchNorm1d(cout), nn.ReLU()]
 
         self.groups = list(groups)
+        w2 = width * 2
         self.encoders = nn.ModuleList(
-            nn.Sequential(*block(1, 16, 5), nn.MaxPool1d(2),
-                          *block(16, 32, 5), nn.MaxPool1d(2), *block(32, 32, 3))
+            nn.Sequential(*block(1, width, 5), nn.MaxPool1d(2),
+                          *block(width, w2, 5), nn.MaxPool1d(2), *block(w2, w2, 3))
             for _ in self.groups)
-        self.head = nn.Sequential(nn.Linear(128 * len(self.groups), 64), nn.ReLU(),
+        # 묶음마다 (시간 평균·표준편차) × (서브캐리어 평균·표준편차) = 4 × w2
+        self.head = nn.Sequential(nn.Linear(4 * w2 * len(self.groups), 64), nn.ReLU(),
                                   nn.Dropout(dropout), nn.Linear(64, n_classes))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # (B, T, F)

@@ -1,0 +1,183 @@
+{
+  "model": "model_s60-10hz.pt",
+  "window_s": 60.0,
+  "kind": "위상",
+  "control": [
+    {
+      "burst_seconds": 1,
+      "max_motion_prob": 0.001,
+      "baseline_prob": 0.001,
+      "rise": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 2,
+      "max_motion_prob": 0.001,
+      "baseline_prob": 0.001,
+      "rise": -0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 3,
+      "max_motion_prob": 0.001,
+      "baseline_prob": 0.001,
+      "rise": -0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 5,
+      "max_motion_prob": 0.0,
+      "baseline_prob": 0.001,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 10,
+      "max_motion_prob": 0.0,
+      "baseline_prob": 0.001,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 15,
+      "max_motion_prob": 0.0,
+      "baseline_prob": 0.001,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 20,
+      "max_motion_prob": 0.0,
+      "baseline_prob": 0.001,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 30,
+      "max_motion_prob": 0.0,
+      "baseline_prob": 0.001,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 45,
+      "max_motion_prob": 0.0,
+      "baseline_prob": 0.001,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 60,
+      "max_motion_prob": 0.0,
+      "baseline_prob": 0.001,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 90,
+      "max_motion_prob": 0.0,
+      "baseline_prob": 0.001,
+      "rise": -0.001,
+      "detected": false
+    }
+  ],
+  "control_false_fire_s": null,
+  "bursts": [
+    {
+      "burst_seconds": 1,
+      "max_motion_prob": 0.002,
+      "baseline_prob": 0.001,
+      "rise": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 2,
+      "max_motion_prob": 0.001,
+      "baseline_prob": 0.001,
+      "rise": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 3,
+      "max_motion_prob": 0.001,
+      "baseline_prob": 0.001,
+      "rise": -0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 5,
+      "max_motion_prob": 0.002,
+      "baseline_prob": 0.001,
+      "rise": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 10,
+      "max_motion_prob": 0.018,
+      "baseline_prob": 0.001,
+      "rise": 0.017,
+      "detected": false
+    },
+    {
+      "burst_seconds": 15,
+      "max_motion_prob": 0.207,
+      "baseline_prob": 0.001,
+      "rise": 0.206,
+      "detected": false
+    },
+    {
+      "burst_seconds": 20,
+      "max_motion_prob": 0.602,
+      "baseline_prob": 0.001,
+      "rise": 0.6,
+      "detected": false
+    },
+    {
+      "burst_seconds": 30,
+      "max_motion_prob": 0.695,
+      "baseline_prob": 0.001,
+      "rise": 0.694,
+      "detected": false
+    },
+    {
+      "burst_seconds": 45,
+      "max_motion_prob": 1.0,
+      "baseline_prob": 0.001,
+      "rise": 0.999,
+      "detected": true
+    },
+    {
+      "burst_seconds": 60,
+      "max_motion_prob": 1.0,
+      "baseline_prob": 0.001,
+      "rise": 0.999,
+      "detected": true
+    },
+    {
+      "burst_seconds": 90,
+      "max_motion_prob": 1.0,
+      "baseline_prob": 0.001,
+      "rise": 0.999,
+      "detected": true
+    }
+  ],
+  "min_detected_s": 45,
+  "transitions": [
+    {
+      "from": "empty",
+      "to": "motion",
+      "delay_s": 34.0
+    },
+    {
+      "from": "motion",
+      "to": "static",
+      "delay_s": 31.0
+    },
+    {
+      "from": "static",
+      "to": "motion",
+      "delay_s": 0.0
+    }
+  ],
+  "hold_s": 90.0
+}

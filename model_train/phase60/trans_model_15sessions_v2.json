@@ -1,0 +1,76 @@
+{
+  "model": "model_15sessions_v2.pt",
+  "window_s": 90.0,
+  "kind": "위상",
+  "bursts": [
+    {
+      "burst_seconds": 1,
+      "max_motion_prob": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 2,
+      "max_motion_prob": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 3,
+      "max_motion_prob": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 5,
+      "max_motion_prob": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 10,
+      "max_motion_prob": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 15,
+      "max_motion_prob": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 20,
+      "max_motion_prob": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 30,
+      "max_motion_prob": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 45,
+      "max_motion_prob": 0.254,
+      "detected": false
+    },
+    {
+      "burst_seconds": 60,
+      "max_motion_prob": 0.752,
+      "detected": true
+    },
+    {
+      "burst_seconds": 90,
+      "max_motion_prob": 1.0,
+      "detected": true
+    }
+  ],
+  "min_detected_s": 60,
+  "transitions": [
+    {
+      "from": "empty",
+      "to": "motion",
+      "delay_s": 59.0
+    },
+    {
+      "from": "motion",
+      "to": "static",
+      "delay_s": null
+    }
+  ],
+  "hold_s": 120.0
+}

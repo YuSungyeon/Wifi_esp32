@@ -64,8 +64,8 @@ def load_dates(dates: tuple, window: int, stride: int) -> dict:
 def train_one(train: dict, seed: int, args, device: torch.device) -> nn.Module:
     torch.manual_seed(seed)
     np.random.seed(seed)
-    groups = (F.N_COLS, F.N_COLS) if args.diff else (F.N_COLS,)
-    model = SharedTemporalCNN(dropout=args.dropout, groups=groups, n_classes=3).to(device)
+    model = SharedTemporalCNN(dropout=args.dropout, groups=model_groups(args),
+                              n_classes=3, width=args.width).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     weight = (torch.tensor(args.class_weight, dtype=torch.float32, device=device)
               if args.class_weight else None)
@@ -77,8 +77,8 @@ def train_one(train: dict, seed: int, args, device: torch.device) -> nn.Module:
         order = rng.permutation(len(index))
         for b in range(0, len(order), args.batch):
             rows = [index[i] for i in order[b:b + args.batch]]
-            xb = np.concatenate([F.windows(train[k]["phase"], np.array([s]), args.window,
-                                           args.downsample, args.diff) for k, s in rows])
+            xb = np.concatenate([make_input(train[k]["phase"], np.array([s]), args)
+                                 for k, s in rows])
             yb = np.array([train[k]["label"] for k, _ in rows])
             if args.augment > 0:
                 # 세 클래스 모두 시간 방향과 무관하다 → 뒤집어도 라벨이 보존된다.
@@ -95,8 +95,48 @@ def train_one(train: dict, seed: int, args, device: torch.device) -> nn.Module:
     return model.eval()
 
 
+def model_groups(args) -> tuple:
+    """입력 열을 어떤 묶음으로 나눌지. 묶음마다 인코더와 풀링이 따로 돈다."""
+    cols = F.n_input_columns(args.diff, args.pool) * (2 if args.spectral == "add" else 1)
+    if args.per_rx:                       # RX 마다 따로 요약 — 보드별 신호 차이를 살린다
+        return tuple(cols // 3 for _ in range(3))
+    if args.spectral == "add" or args.diff or args.pool == "mean+std":
+        return tuple(cols // 2 for _ in range(2))
+    return (cols,)
+
+
+class _Cfg:
+    """evaluate 가 make_input 에 넘길 최소 설정 (학습 때의 args 와 같은 필드)."""
+
+    def __init__(self, window, downsample, diff, pool, spectral="none"):
+        self.window, self.downsample = window, downsample
+        self.diff, self.pool, self.spectral = diff, pool, spectral
+
+
+def make_input(phase, starts, args):
+    """창 변환 한 곳 — 학습과 평가가 반드시 같은 함수를 쓴다."""
+    w = F.windows(phase, starts, args.window, args.downsample, args.diff, args.pool)
+    mode = getattr(args, "spectral", "none")
+    if mode == "none":
+        return w
+    spec = F.spectrum(w, 100.0 / args.downsample)
+    if mode == "only":
+        return spec
+    # 두 묶음을 나란히 넣으려면 길이가 같아야 한다. 시간 쪽을 자르면 정보를 버리게 되므로
+    # 주파수 쪽을 선형 보간으로 늘린다 (스펙트럼은 이웃 bin 이 매끄럽다).
+    t = w.shape[1]
+    src = np.linspace(0, 1, spec.shape[1])
+    dst = np.linspace(0, 1, t)
+    spec_up = np.stack([np.stack([np.interp(dst, src, spec[i, :, c])
+                                  for c in range(spec.shape[2])], axis=1)
+                        for i in range(spec.shape[0])]).astype(np.float32)
+    return np.concatenate([w, spec_up], axis=2)
+
+
 def evaluate(models: list, sessions: dict, window: int, downsample: int,
-             device: torch.device, diff: bool = False) -> dict:
+             device: torch.device, diff: bool = False, pool: str = "mean",
+             spectral: str = "none") -> dict:
+    cfg = _Cfg(window, downsample, diff, pool, spectral)
     """세션별 softmax 평균(seed 앙상블)으로 판정. 창 단위 정확도도 함께 낸다."""
     rows, cm = [], np.zeros((3, 3), int)
     with torch.no_grad():
@@ -104,7 +144,7 @@ def evaluate(models: list, sessions: dict, window: int, downsample: int,
             probs = []
             for b in range(0, len(v["starts"]), 32):
                 xb = np.ascontiguousarray(
-                    F.windows(v["phase"], v["starts"][b:b + 32], window, downsample, diff))
+                    make_input(v["phase"], v["starts"][b:b + 32], cfg))
                 x = torch.from_numpy(xb).to(device)
                 probs.append(torch.stack([m(x).softmax(1) for m in models]).mean(0).cpu().numpy())
             probs = np.concatenate(probs)
@@ -146,6 +186,12 @@ def main() -> int:
     ap.add_argument("--label-smoothing", type=float, default=0.0)
     ap.add_argument("--class-weight", type=float, nargs=3, default=None,
                     help="empty static motion 손실 가중치")
+    ap.add_argument("--pool", choices=("mean", "mean+std"), default="mean",
+                    help="다운샘플 구간 요약 방식")
+    ap.add_argument("--per-rx", action="store_true", help="RX 별로 묶어 따로 요약한다")
+    ap.add_argument("--width", type=int, default=16, help="인코더 첫 채널 수 (기본 16)")
+    ap.add_argument("--spectral", choices=("none", "add", "only"), default="none",
+                    help="호흡 대역(0.05~1Hz) 로그 스펙트럼: 두 번째 묶음으로 더하거나(add) 그것만(only)")
     args = ap.parse_args()
 
     overlap = set(args.train) & set(args.eval)
@@ -167,7 +213,8 @@ def main() -> int:
         print(f"  seed {seed} 완료 ({time.time() - s0:.0f}s)", flush=True)
 
     print("[평가] 학습에 쓰지 않은 날짜로 판정", flush=True)
-    metrics = evaluate(models, test, args.window, args.downsample, device, args.diff)
+    metrics = evaluate(models, test, args.window, args.downsample, device, args.diff,
+                       args.pool, args.spectral)
     print(f"  세션 {metrics['sessions']} · 사람 있음/없음 {metrics['presence']} · "
           f"빈방vs정지 {metrics['empty_vs_static']} · 창 정답률 {metrics['window_accuracy']}",
           flush=True)
@@ -178,6 +225,10 @@ def main() -> int:
         "feature_version": F.FEATURE_VERSION,
         "mode": "P",
         "diff_channel": args.diff,
+        "pool": args.pool,
+        "spectral": args.spectral,
+        "per_rx": args.per_rx,
+        "width": args.width,
         "window_frames": args.window,
         "stride_frames": args.eval_stride,
         "downsample": args.downsample,
@@ -193,7 +244,9 @@ def main() -> int:
         "config": {"epochs": args.epochs, "lr": args.lr, "batch": args.batch,
                    "seeds": args.seeds, "train_stride": args.train_stride,
                    "dropout": args.dropout, "diff": args.diff, "augment": args.augment,
-                   "label_smoothing": args.label_smoothing, "class_weight": args.class_weight},
+                   "label_smoothing": args.label_smoothing, "class_weight": args.class_weight,
+                   "pool": args.pool,
+        "spectral": args.spectral, "per_rx": args.per_rx, "width": args.width},
         "status": (f"학습 {len(train)}세션({'+'.join(args.train)}) · "
                    f"평가 {len(test)}세션({'+'.join(args.eval)}) 세션 {metrics['sessions']} · "
                    "전환 구간·장시간 운영 미검증"),

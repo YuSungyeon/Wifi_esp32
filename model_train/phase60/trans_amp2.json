@@ -1,0 +1,160 @@
+{
+  "model": "model.pt",
+  "window_s": 30.0,
+  "kind": "진폭",
+  "control": [
+    {
+      "burst_seconds": 1,
+      "max_motion_prob": 0.061,
+      "baseline_prob": 0.06,
+      "rise": 0.0,
+      "detected": false
+    },
+    {
+      "burst_seconds": 2,
+      "max_motion_prob": 0.059,
+      "baseline_prob": 0.06,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 3,
+      "max_motion_prob": 0.059,
+      "baseline_prob": 0.06,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 5,
+      "max_motion_prob": 0.059,
+      "baseline_prob": 0.06,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 10,
+      "max_motion_prob": 0.059,
+      "baseline_prob": 0.06,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 15,
+      "max_motion_prob": 0.059,
+      "baseline_prob": 0.06,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 20,
+      "max_motion_prob": 0.059,
+      "baseline_prob": 0.06,
+      "rise": -0.001,
+      "detected": false
+    },
+    {
+      "burst_seconds": 30,
+      "max_motion_prob": 0.102,
+      "baseline_prob": 0.06,
+      "rise": 0.042,
+      "detected": false
+    },
+    {
+      "burst_seconds": 45,
+      "max_motion_prob": 0.102,
+      "baseline_prob": 0.06,
+      "rise": 0.042,
+      "detected": false
+    }
+  ],
+  "control_false_fire_s": null,
+  "bursts": [
+    {
+      "burst_seconds": 1,
+      "max_motion_prob": 0.127,
+      "baseline_prob": 0.06,
+      "rise": 0.066,
+      "detected": false
+    },
+    {
+      "burst_seconds": 2,
+      "max_motion_prob": 0.111,
+      "baseline_prob": 0.06,
+      "rise": 0.05,
+      "detected": false
+    },
+    {
+      "burst_seconds": 3,
+      "max_motion_prob": 0.111,
+      "baseline_prob": 0.06,
+      "rise": 0.05,
+      "detected": false
+    },
+    {
+      "burst_seconds": 5,
+      "max_motion_prob": 0.111,
+      "baseline_prob": 0.06,
+      "rise": 0.05,
+      "detected": false
+    },
+    {
+      "burst_seconds": 10,
+      "max_motion_prob": 0.111,
+      "baseline_prob": 0.06,
+      "rise": 0.05,
+      "detected": false
+    },
+    {
+      "burst_seconds": 15,
+      "max_motion_prob": 0.111,
+      "baseline_prob": 0.06,
+      "rise": 0.05,
+      "detected": false
+    },
+    {
+      "burst_seconds": 20,
+      "max_motion_prob": 0.111,
+      "baseline_prob": 0.06,
+      "rise": 0.05,
+      "detected": false
+    },
+    {
+      "burst_seconds": 30,
+      "max_motion_prob": 0.946,
+      "baseline_prob": 0.06,
+      "rise": 0.885,
+      "detected": true
+    },
+    {
+      "burst_seconds": 45,
+      "max_motion_prob": 0.958,
+      "baseline_prob": 0.06,
+      "rise": 0.898,
+      "detected": true
+    }
+  ],
+  "min_detected_s": 30,
+  "transitions": [
+    {
+      "from": "empty",
+      "to": "motion",
+      "delay_s": 26.0
+    },
+    {
+      "from": "motion",
+      "to": "static",
+      "delay_s": 3.0
+    },
+    {
+      "from": "static",
+      "to": "motion",
+      "delay_s": 28.0
+    },
+    {
+      "from": "motion",
+      "to": "empty",
+      "delay_s": 30.0
+    }
+  ],
+  "hold_s": 60.0
+}
