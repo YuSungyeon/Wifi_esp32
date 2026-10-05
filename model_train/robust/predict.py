@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 from pathlib import Path
 import sys
 
@@ -16,7 +17,7 @@ from model_train.robust.shared_temporal import SharedEncoder, amplitude_input, C
 from model_train.robust.run_experiment import DEFAULT_OUTPUT, save_json
 
 
-def load_raw_amplitude(folder):
+def load_raw_amplitude(folder, *, include_presence=False, min_common_length=None):
     # Reuse the audited CRC, reboot/corruption handling and tx_seq alignment.
     # Only receiver identities are consumed from session.json, never its label.
     from model_train.analysis.prepare_phase_experiment import checked_frames, select_common, CFG
@@ -29,7 +30,8 @@ def load_raw_amplitude(folder):
         h = f["hdr"]
         if not ((h["channel"] == 11) & (h["rate"] == 11) & (h["sig_len"] == 47)).all():
             raise ValueError("RF profile differs from training channel/rate/packet length")
-    chosen, quality, _ = select_common(frames)
+    cfg = CFG if min_common_length is None else replace(CFG, min_common_length=min_common_length)
+    chosen, quality, _ = select_common(frames, cfg=cfg)
     start, length = chosen["common_start"], chosen["common_length"]
     amp = np.full((3, length, 51), np.nan, np.float32)
     present = np.zeros((3, length), bool)
@@ -45,16 +47,23 @@ def load_raw_amplitude(folder):
         amp[r, grid] = np.abs(cs.complex_csi(f, valid_only=False)[:, phase.RAW_INDICES])
         present[r, grid] = True
     pre.interpolate_short_gaps(amp, present, CFG)
-    return amp.transpose(1, 0, 2).reshape(length, 153), {
+    result = amp.transpose(1, 0, 2).reshape(length, 153), {
         "common_start_tx_seq": int(start), "frames": length,
         "crc_checked_frames": sum(q["crc_checked_frames"] for q in quality.values()),
         "input": "raw .csi, manifest receiver identities only"}
+    return (*result, present) if include_presence else result
 
 
 def load_bundle(path):
     bundle = torch.load(path, map_location="cpu", weights_only=True)
-    if (bundle["feature_version"] != CONFIG["version"] or bundle["mode"] != "A"
-            or bundle["rx_order"] != [101, 102, 103] or bundle["window_frames"] != 3000):
+    from model_train.preprocessing.phase_features import RAW_INDICES
+    if (bundle.get("format_version") != 1 or bundle.get("feature_version") != CONFIG["version"]
+            or bundle.get("mode") != "A" or bundle.get("rx_order") != [101, 102, 103]
+            or bundle.get("window_frames") != 3000 or bundle.get("sample_rate_hz") != 100
+            or bundle.get("raw_tone_order") != RAW_INDICES.tolist()
+            or bundle.get("class_names") != ["empty", "static", "motion"]
+            or len(bundle.get("state_dicts", [])) != 3
+            or not isinstance(bundle.get("stride_frames"), int) or bundle["stride_frames"] <= 0):
         raise ValueError("unsupported model/input contract")
     models = []
     for state in bundle["state_dicts"]:
@@ -63,6 +72,24 @@ def load_bundle(path):
         model.eval()
         models.append(model)
     return bundle, models
+
+
+def _predict_inputs(x, models):
+    with torch.no_grad():
+        scores = torch.stack([m(x).softmax(1) for m in models]).mean(0).numpy()
+    if not np.isfinite(scores).all():
+        raise ValueError("non-finite inference")
+    np.testing.assert_allclose(scores.sum(1), 1, atol=1e-6)
+    return scores
+
+
+def predict_window(amp, bundle, models):
+    """실시간과 오프라인이 공유하는 단일 30초 창의 3-seed 확률 평균."""
+    if np.asarray(amp).shape != (bundle["window_frames"], 153) or len(models) != 3:
+        raise ValueError("expected one 30-second 3-RX window and 3 models")
+    x = torch.from_numpy(amplitude_input(amp)).unsqueeze(0)
+    scores = _predict_inputs(x, models)[0]
+    return tuple(float(p) for p in scores)
 
 
 def predict_amplitude(amp, bundle, models):
@@ -78,7 +105,7 @@ def predict_amplitude(amp, bundle, models):
         for pos in range(0, len(starts), 32):
             sub = starts[pos:pos+32]
             x = torch.from_numpy(np.stack([amplitude_input(amp[i:i+w]) for i in sub]))
-            p = torch.stack([m(x).softmax(1) for m in models]).mean(0).numpy()
+            p = _predict_inputs(x, models)
             predictions.extend(p)
     scores = np.asarray(predictions)
     if not np.isfinite(scores).all():

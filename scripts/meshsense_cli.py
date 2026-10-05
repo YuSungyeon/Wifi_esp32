@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import signal
 import shutil
 import subprocess
 import sys
@@ -53,6 +54,65 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from csi_session import create_session, finalize_session, next_session_id, set_session_note, summarize  # noqa: E402
 from csi_store import LABELS  # noqa: E402
 from session_meta import read_label_target, read_session_id  # noqa: E402
+from realtime_launch import MODEL, build_command, build_live_command, check_runtime, new_output_dir  # noqa: E402
+
+
+def _run_model(session: Optional[Path], *, follow: bool = False, plain: bool = False,
+               model: Path = MODEL, stride: int = 30, output_dir: Optional[Path] = None,
+               live_port: Optional[str] = None) -> int:
+    child = None
+    old_term = None
+    try:
+        cmd = (build_live_command(live_port, output_dir=output_dir or new_output_dir(),
+                                  model=model, stride=stride, plain=plain) if live_port else
+               build_command(session, follow=follow, plain=plain, model=model,
+                             stride=stride, output_dir=output_dir))
+        check_runtime(model)
+        print("\n[판단 실행]", " ".join(cmd), flush=True)
+        print("현재 SINK 수집·판단을 함께 실행합니다. Ctrl+C로 함께 종료합니다." if live_port else
+              "수집은 별도 터미널/GUI에서 실행합니다. 판단은 원본 파일을 읽기만 합니다.", flush=True)
+        def interrupted(signum, frame):
+            raise KeyboardInterrupt
+        old_term = signal.getsignal(signal.SIGTERM)
+        signal.signal(signal.SIGTERM, interrupted)
+        child = subprocess.Popen(cmd, cwd=str(REPO_ROOT))
+        return child.wait()
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        print(f"[판단 실행 실패] {exc}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        return 130
+    finally:
+        if child is not None and child.poll() is None:
+            child.terminate()
+            try:
+                child.wait(timeout=8 if live_port else 3)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait(timeout=3)
+        if old_term is not None:
+            signal.signal(signal.SIGTERM, old_term)
+
+
+def _model_menu() -> None:
+    mode = _choose("판단 방식", ["현재 보드 실시간 (수집+판단)", "녹화 재생 (보드 불필요)",
+                                "수집 파일 따라 읽기 (다른 터미널/GUI에서 수집 중)", "취소"])
+    if mode == 3:
+        return
+    if mode == 0:
+        port = input("SINK USB 포트 (예: /dev/cu.usbmodem101): ").strip()
+        if port:
+            _run_model(None, live_port=port)
+        return
+    sessions = sorted((OUTPUT_DIR / "raw").glob("*/*/session.json"), reverse=True)
+    if not sessions:
+        print("저장 세션이 없습니다. 먼저 수집하세요.")
+        return
+    options = [str(p.parent.relative_to(REPO_ROOT)) for p in sessions[:30]]
+    choice = _choose("판단할 세션", options + ["취소"])
+    if choice == len(options):
+        return
+    _run_model(REPO_ROOT / options[choice], follow=mode == 2)
 
 
 def _pause(msg: str = "계속하려면 Enter…") -> None:
@@ -940,6 +1000,7 @@ def _menu_usb_pipeline() -> None:
                 "블록 순서 뽑기 (클래스 순서 무작위)",
                 "세션 메타 편집 (브라우저 폼)",
                 "보드 관리 (registry 등록·검증)",
+                "모델 판단 (재생·실시간)",
                 "파이프라인 선택으로 돌아가기",
             ],
         )
@@ -955,6 +1016,8 @@ def _menu_usb_pipeline() -> None:
             _open_session_form()
         elif idx == 4:
             _menu_board_management()
+        elif idx == 5:
+            _model_menu()
         else:
             break
 
@@ -1046,6 +1109,15 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="전체 가이드 없이 메인 메뉴만 표시",
     )
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--realtime", type=Path, metavar="SESSION", help="세션을 배포 모델로 판단")
+    source.add_argument("--live", action="store_true", help="현재 SINK 수집·판단을 함께 실행")
+    parser.add_argument("--port", help="--live의 SINK USB 포트")
+    parser.add_argument("--follow", action="store_true", help="수집 중인 세션을 따라 읽기")
+    parser.add_argument("--plain", action="store_true", help="판단을 한 줄로 출력")
+    parser.add_argument("--model", type=Path, default=MODEL)
+    parser.add_argument("--stride", type=int, default=30, help="판단 간격 프레임 (100Hz, 기본 30=0.3초)")
+    parser.add_argument("--output-dir", type=Path, help="원본과 분리한 판단 결과 폴더")
     return parser.parse_args()
 
 
@@ -1055,8 +1127,17 @@ def main() -> int:
         return 1
 
     args = _parse_args()
+    if args.live:
+        if not args.port:
+            print("--live에는 --port <SINK USB 포트>가 필요합니다.", file=sys.stderr)
+            return 1
+        return _run_model(None, live_port=args.port, plain=args.plain,
+                          model=args.model, stride=args.stride, output_dir=args.output_dir)
+    if args.realtime:
+        return _run_model(args.realtime, follow=args.follow, plain=args.plain,
+                          model=args.model, stride=args.stride, output_dir=args.output_dir)
     try:
-            _main_menu(quick=args.quick)
+        _main_menu(quick=args.quick)
     except KeyboardInterrupt:
         print("\n\n[중단] Ctrl+C — 메뉴를 종료합니다.")
         return 130

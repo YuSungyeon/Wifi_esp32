@@ -114,6 +114,8 @@ def main() -> int:
                    help="이 시간 동안 프레임이 하나도 없으면 스트림 정지로 보고 종료")
     p.add_argument("--duration", type=float, default=0.0, help="0이면 무한, 양수면 그 시간 뒤 정상 종료")
     p.add_argument("--stats-every", type=int, default=500, help="N 프레임마다 진행 상태 출력")
+    p.add_argument("--flush-interval", type=float, default=FLUSH_INTERVAL_S,
+                   help="파일 버퍼 flush 간격 초 (일반 수집 기본 1, 실시간 판단은 0.1)")
     p.add_argument("--flush-idle-ms", type=float, default=200.0,
                    help="포트 open 직후 이 시간 동안 새 바이트가 없으면 백로그 없음으로 판단")
     p.add_argument("--flush-max-s", type=float, default=3.0, help="백로그 비우기 최대 시간")
@@ -124,6 +126,8 @@ def main() -> int:
                    help="포트 open 시 DTR/RTS를 눌러둠 (USB-UART 브리지 칩 보드용. "
                         "ESP32-S3 USB-Serial-JTAG에서는 오히려 리셋을 유발하니 쓰지 말 것)")
     args = p.parse_args()
+    if not 0 < args.flush_interval < float('inf'):
+        p.error("--flush-interval은 유한한 양수여야 합니다")
 
     tag = f"[reader {Path(args.port).name}]"
     if not args.identify and args.session_dir is None:
@@ -321,7 +325,7 @@ def main() -> int:
                           file=sys.stderr)
 
             now = time.monotonic()
-            if now - last_flush >= FLUSH_INTERVAL_S:
+            if now - last_flush >= args.flush_interval:
                 for x in streams.values():
                     x.flush()
                 last_flush = now

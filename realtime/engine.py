@@ -13,6 +13,8 @@ import argparse
 import json
 import sys
 import time
+import hashlib
+from collections import deque
 from pathlib import Path
 from typing import Iterator
 
@@ -22,8 +24,8 @@ import torch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from model_train.robust.predict import load_bundle  # noqa: E402
-from model_train.robust.shared_temporal import amplitude_input  # noqa: E402
+from model_train.robust.predict import load_bundle, predict_window  # noqa: E402
+from scripts.realtime_launch import new_output_dir  # noqa: E402
 from realtime.state import Event, Reading, StateMachine  # noqa: E402
 from realtime.stream import CsiStream  # noqa: E402
 
@@ -42,21 +44,51 @@ def write_status(path: Path, view: dict) -> None:
 
 class Engine:
     def __init__(self, session_dir: Path, model_path: Path = MODEL, stride: int = 30,
-                 conf: float = 0.7, device: str = "cpu") -> None:
-        self.dir = Path(session_dir)
+                 conf: float = 0.7, device: str = "cpu", output_dir: Path | None = None) -> None:
+        if stride <= 0 or not 0 <= conf <= 1 or device != "cpu":
+            raise ValueError("stride > 0, 0 ≤ conf ≤ 1, device=cpu가 필요합니다")
+        torch.set_num_threads(2)
+        self.dir = Path(session_dir).resolve()
+        self.out = Path(output_dir or new_output_dir()).resolve()
+        if self.out == self.dir or self.out in self.dir.parents or self.dir in self.out.parents:
+            raise ValueError("판단 출력은 원본 세션 밖의 별도 폴더를 사용하세요")
         self.stream = CsiStream(self.dir)
-        self.sm = StateMachine(conf=conf)
+        self.sm = StateMachine(conf=conf, immediate=True)
         self.stride = stride
         self.device = device
-        self.events: list[Event] = []
-        self.bundle, self.models = (None, [])
-        if model_path is not None:
-            self.bundle, self.models = load_bundle(model_path)
-        self.window = self.bundle["window_frames"] if self.bundle else 3000
+        self.events = deque(maxlen=1000)
+        self.model_path = Path(model_path).resolve()
+        self.bundle, self.models = load_bundle(self.model_path)
+        self.model_sha256 = hashlib.sha256(self.model_path.read_bytes()).hexdigest()
+        self.window = self.bundle["window_frames"]
+        self.follow = True
+        self.running = True
+        self.out.mkdir(parents=True, exist_ok=True)
         self._t0 = time.monotonic()
         self._frames = 0
         self._hz, self._rx = 0.0, ()
-        self._window_probs: list[tuple] = []     # (t, probs) — 화면 타임라인용
+        self._window_probs = deque(maxlen=12000)  # 장시간 실행 시 메모리 무한 증가 방지
+        self.n_predictions = 0
+        self._last_window_end = None
+
+    def prepare_replay(self) -> None:
+        self.follow = False
+        self.stream.load_replay()
+        if self.stream.available_frames < self.window:
+            raise ValueError("재생할 공통 구간이 30초 미만입니다")
+        self.stream.rewind(self.window)
+
+    def record_failure(self, message: str) -> None:
+        self.running = False
+        self._rx, self._hz = (), 0.0
+        self.sm._to(self.sm._t, "suspended", 0.0)
+        self.sm.probs = (0.0, 0.0, 0.0)
+        self.sm.note = f"판단 오류로 중지: {message}"
+        write_status(self.out / STATUS_NAME, self.view())
+
+    def close(self) -> None:
+        self.running = False
+        write_status(self.out / STATUS_NAME, self.view())
 
     # ── 판단 한 번 ──────────────────────────────────────────────────────────
     def predict(self) -> tuple | None:
@@ -64,35 +96,44 @@ class Engine:
         win = self.stream.latest(self.window)
         if win is None or not np.isfinite(win.amp).all():
             return None
-        x = torch.from_numpy(amplitude_input(win.amp)).unsqueeze(0)
-        with torch.no_grad():
-            probs = torch.stack([m(x).softmax(1) for m in self.models]).mean(0)
         self._hz, self._rx = win.hz, win.rx_alive
-        return tuple(probs[0].tolist()), win.rx_alive
+        return predict_window(win.amp, self.bundle, self.models), win.rx_alive
 
     def step(self, now: float | None = None) -> Event | None:
         self._frames += self.stream.poll()
         t = now if now is not None else time.monotonic() - self._t0
-        got = self.predict()
+        alive = self.stream.rx_alive() if self.follow else tuple(self.stream.rx_order)
+        self._rx = alive
+        end = (self.stream._base or 0) + (self.stream.common_end if self.follow else self.stream._cursor)
+        if (self.follow and len(alive) == 3 and self._last_window_end is not None
+                and 0 <= end - self._last_window_end < self.stride):
+            self.sm._t = t
+            write_status(self.out / STATUS_NAME, self.view())
+            return None
+        got = self.predict() if len(alive) == 3 else None
         if got is None:
-            alive = self.stream.rx_alive() if now is None else ()
-            reading = Reading(t=t, probs=(0.0, 0.0, 0.0), n_rx=len(alive) or 3)
-            if self.sm.state == "deciding":       # 아직 창이 안 찼다 — 조용히 기다린다
+            self._hz = 0.0
+            reading = Reading(t=t, probs=(0.0, 0.0, 0.0), n_rx=len(alive), valid=False)
+            if self.sm.state == "deciding" and self.stream.available_frames < self.window:
                 self.sm._t = t
-                write_status(self.dir / STATUS_NAME, self.view())
+                self.sm._cand = None
+                self.sm.note = f"30초 입력 준비 중 · 수신 RX {len(alive)}/3"
+                write_status(self.out / STATUS_NAME, self.view())
                 return None
         else:
             probs, alive = got
             reading = Reading(t=t, probs=probs, n_rx=len(alive))
             self._window_probs.append((t, probs))
+            self.n_predictions += 1
+            self._last_window_end = end
         ev = self.sm.update(reading)
         if ev:
             self.events.append(ev)
-            with (self.dir / EVENTS_NAME).open("a", encoding="utf-8") as fp:
+            with (self.out / EVENTS_NAME).open("a", encoding="utf-8") as fp:
                 fp.write(json.dumps({"t": round(ev.t, 2), "from": ev.frm, "to": ev.to,
                                      "confidence": round(ev.confidence, 4),
                                      "wall": time.time()}, ensure_ascii=False) + "\n")
-        write_status(self.dir / STATUS_NAME, self.view())
+        write_status(self.out / STATUS_NAME, self.view())
         return ev
 
     def mark(self, note: str = "") -> dict:
@@ -103,7 +144,7 @@ class Engine:
         win = self.stream.latest(1)
         row = {"t": round(self.sm._t, 2), "wall": time.time(), "note": note,
                "tx_seq": int(win.tx_seq0) if win else None, "state": self.sm.state}
-        with (self.dir / MARKS_NAME).open("a", encoding="utf-8") as fp:
+        with (self.out / MARKS_NAME).open("a", encoding="utf-8") as fp:
             fp.write(json.dumps(row, ensure_ascii=False) + "\n")
         return row
 
@@ -114,13 +155,22 @@ class Engine:
                 "confidence": round(self.sm.confidence, 4), "note": self.sm.note,
                 "candidate": cand, "remaining_s": round(remaining, 1),
                 "threshold": self.sm.threshold, "t": round(self.sm._t, 2),
+                "decision_mode": "instant", "display_interval_s": self.stride / 100,
                 "probs": {c: round(p, 4) for c, p in
                           zip(("empty", "static", "motion"), self.sm.probs)},
-                "n_rx": len(self._rx) if self._rx else len(self.stream.rx_alive()),
+                "n_rx": len(self._rx),
                 "hz": round(self._hz, 1),
                 "session": self.dir.name, "window_s": self.window / 100,
+                "session_path": str(self.dir), "output_dir": str(self.out),
+                "mode": ("live" if self.stream.input_kind == "realtime_monitor" else "follow")
+                        if self.follow else "replay", "running": self.running,
+                "model": str(self.model_path),
+                "model_sha256": self.model_sha256, "model_count": len(self.models),
+                "stride_s": self.stride / 100, "predictions": self.n_predictions,
+                "tx_seq": self._last_window_end - 1 if self._last_window_end is not None else None,
+                "warmup_remaining_s": max(0, self.window - self.stream.available_frames) / 100,
                 "events": [{"t": round(e.t, 2), "from": e.frm, "to": e.to,
-                            "confidence": round(e.confidence, 4)} for e in self.events[-30:]]}
+                            "confidence": round(e.confidence, 4)} for e in list(self.events)[-30:]]}
 
     # ── 루프 ────────────────────────────────────────────────────────────────
     def run(self, follow: bool) -> Iterator[Event]:
@@ -130,8 +180,7 @@ class Engine:
                 if ev:
                     yield ev
                 time.sleep(self.stride / 100.0)
-        self.stream.poll()
-        self.stream.rewind(self.window)
+        self.prepare_replay()
         t = self.window / 100.0
         while True:
             ev = self.step(now=t)
@@ -148,13 +197,29 @@ def main() -> int:
     ap.add_argument("--follow", action="store_true", help="실시간(파일 tail). 없으면 재생")
     ap.add_argument("--stride", type=int, default=30, help="판단 간격 (frame, 100Hz)")
     ap.add_argument("--conf", type=float, default=0.7)
+    ap.add_argument("--model", type=Path, default=MODEL)
+    ap.add_argument("--output-dir", type=Path)
     args = ap.parse_args()
     torch.set_num_threads(2)
-    eng = Engine(args.session, stride=args.stride, conf=args.conf)
-    for ev in eng.run(args.follow):
-        print(f"{ev.t:8.1f}s  {ev.frm} → {ev.to}  ({ev.confidence:.0%})", flush=True)
+    eng = None
+    try:
+        eng = Engine(args.session, model_path=args.model, stride=args.stride, conf=args.conf,
+                     output_dir=args.output_dir)
+        print(f"모델: {eng.model_path} · 기록: {eng.out}", flush=True)
+        for ev in eng.run(args.follow):
+            print(f"{ev.t:8.1f}s  {ev.frm} → {ev.to}  ({ev.confidence:.0%})", flush=True)
+    except (OSError, ValueError, KeyError) as exc:
+        if eng is not None:
+            eng.record_failure(str(exc))
+        print(f"[판단 오류] {exc}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        return 130
+    finally:
+        if eng is not None:
+            eng.close()
     v = eng.view()
-    print(f"\n마지막 상태: {v['state']} ({v['confidence']:.0%}) · 판단 {len(eng._window_probs)}회")
+    print(f"\n마지막 상태: {v['state']} ({v['confidence']:.0%}) · 판단 {eng.n_predictions}회")
     return 0
 
 

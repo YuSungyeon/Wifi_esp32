@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""상태 기계 — 3-class 모델 확률을 화면에 띄울 상태로 바꾼다.
+"""3-class 모델 확률을 표시 상태로 바꾼다.
+
+배포 엔진은 immediate=True로 매 창의 최대 확률 클래스를 즉시 표시한다.
+아래 확신/유지 규칙은 과거 실험의 재현용이며 현재 GUI·CLI에는 적용하지 않는다.
 
 모델은 30초 창마다 독립적으로 판단한다. 그대로 띄우면 경계에서 깜빡이고, 확신 없는 판단도
 그대로 나간다. 여기서 두 가지를 건다.
@@ -24,6 +27,7 @@ class Reading:
     t: float                 # 초 단위 단조 시각
     probs: tuple             # (empty, static, motion)
     n_rx: int                # 이 창에서 살아 있던 RX 수
+    valid: bool = True       # 배포 엔진에 유효한 전체 입력이 있는가
 
 
 @dataclass(frozen=True)
@@ -37,7 +41,8 @@ class Event:
 class StateMachine:
     def __init__(self, conf: float = 0.7, degraded_conf: float = 0.85,
                  motion_hold_s: float = 1.0, rest_hold_s: float = 15.0,
-                 direct_switch_s: float = 60.0) -> None:
+                 direct_switch_s: float = 60.0, immediate: bool = False) -> None:
+        self.immediate = immediate
         self.conf, self.degraded_conf = conf, degraded_conf
         self.motion_hold_s, self.rest_hold_s = motion_hold_s, rest_hold_s
         self.direct_switch_s = direct_switch_s
@@ -52,6 +57,8 @@ class StateMachine:
     # ── 조회 ────────────────────────────────────────────────────────────────
     @property
     def threshold(self) -> float:
+        if self.immediate:
+            return 0.0
         return self.degraded_conf if self._degraded else self.conf
 
     @property
@@ -81,20 +88,33 @@ class StateMachine:
         self._degraded = r.n_rx == 2
         self.note = ""
 
-        if r.n_rx <= 1:
+        if r.n_rx <= 1 or (self.immediate and r.n_rx != 3):
             self._cand = None
             self.note = f"RX {r.n_rx}대 — 판단 정지. 마지막 판단 {self._last_decided or '없음'}"
             return self._to(r.t, SUSPENDED, 0.0) if self.state != SUSPENDED else None
+        if not r.valid:
+            self._cand = None
+            self.note = f"유효한 3-RX 30초 입력 없음 — 판단 정지. 마지막 판단 {self._last_decided or '없음'}"
+            return self._to(r.t, SUSPENDED, 0.0) if self.state != SUSPENDED else None
+        if self.immediate:
+            self._cand = None
+            top = int(max(range(3), key=lambda i: r.probs[i]))
+            candidate, p = CLASSES[top], float(r.probs[top])
+            if candidate != self.state:
+                return self._to(r.t, candidate, p)
+            self.confidence = p
+            return None
         if self._degraded:
             self.note = f"RX 2대 — 확신 {self.degraded_conf:.0%} 이상일 때만 판단합니다"
 
         top = int(max(range(3), key=lambda i: r.probs[i]))
         candidate, p = CLASSES[top], float(r.probs[top])
+        resumed = self._to(r.t, DECIDING, p) if self.state == SUSPENDED else None
         if p < self.threshold:
             self._cand = None                       # 확신이 없으면 후보를 쌓지 않는다
             if self.state in (DECIDING, SUSPENDED):
                 self.confidence = p
-            return None
+            return resumed
         if candidate == self.state:
             self._cand, self.confidence = None, p
             return None
@@ -102,7 +122,7 @@ class StateMachine:
             self._cand, self._cand_from = candidate, r.t
         if r.t - self._cand_from >= self._hold_for(candidate):
             return self._to(r.t, candidate, p)
-        return None
+        return resumed
 
     def _to(self, t: float, new: str, confidence: float) -> Event:
         ev = Event(t=t, frm=self.state, to=new, confidence=confidence)

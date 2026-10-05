@@ -2,9 +2,12 @@
 
 이 저장소는 문서 주도 개발을 사용합니다. 현재 동작과 데이터 규격은 문서를 먼저 변경한 뒤 코드에 반영합니다.
 
+현재 완료한 작업과 남은 문제는 [10월 6일까지 작업·결과 요약](work-summary-20261006.md)에 있습니다.
+
 현재 학습한 모델을 확인하려면 [모델 학습 문서 안내](../model_train/docs/README.md)에서
 [쉬운 결과 설명](../model_train/docs/model-training/robust-three-class-report-easy.md)부터 읽습니다.
 최근 자료 구성과 결과는 [9월 16·17일 데이터 확인·최종 모델 평가](../model_train/docs/model-training/20260916-17-model-evaluation.md)에 있습니다.
+실제 행동 전환 결과는 [10월 6일 첫 실시간 전환 시험](../model_train/docs/model-training/20261006-live-transition-evaluation.md)에 있습니다.
 
 ## 읽는 순서
 

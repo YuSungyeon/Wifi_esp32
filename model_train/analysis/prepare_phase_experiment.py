@@ -124,7 +124,7 @@ def checked_frames(path, expected_rx_id):
     return frames
 
 
-def select_common(frames_by_rx):
+def select_common(frames_by_rx, cfg=CFG):
     candidates, diagnostics = {}, {}
     for rx, frames in frames_by_rx.items():
         h = frames["hdr"]
@@ -135,8 +135,8 @@ def select_common(frames_by_rx):
         for lo, hi in zip(edges[:-1], edges[1:]):
             records = [pre.Record(int(i)+1, int(h["seq"][i]), int(h["tx_seq"][i]), None)
                        for i in range(lo, hi)]
-            kept, removed, ambiguous = pre.remove_single_corrupt(records, CFG)
-            parts, _, dropped = pre.split_boot_segments(kept, CFG)
+            kept, removed, ambiguous = pre.remove_single_corrupt(records, cfg)
+            parts, _, dropped = pre.split_boot_segments(kept, cfg)
             segments.extend(parts)
             removed_all.extend(removed)
             ambiguous_all.extend(ambiguous)
@@ -148,11 +148,11 @@ def select_common(frames_by_rx):
                                 "boot_id_changes": len(edges)-2,
                                 "segments": len(segments), "removed_single_corrupt": removed_all,
                                 "ambiguous": ambiguous_all, "dropped_boundary_frames": dropped_count}
-    chosen = pre.choose_combination(candidates, CFG)
-    if chosen is None or chosen["common_length"] < CFG.min_common_length:
+    chosen = pre.choose_combination(candidates, cfg)
+    if chosen is None or chosen["common_length"] < cfg.min_common_length:
         raise ValueError("no sufficiently long common segment")
-    ratios = pre.observed_ratios(chosen, CFG)
-    if min(ratios.values()) < CFG.min_observed_ratio:
+    ratios = pre.observed_ratios(chosen, cfg)
+    if min(ratios.values()) < cfg.min_observed_ratio:
         raise ValueError(f"observed ratio below threshold: {ratios}")
     return chosen, diagnostics, ratios
 

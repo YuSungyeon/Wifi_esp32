@@ -9,6 +9,31 @@ python scripts/meshsense_gui.py
 
 현재 호스트 흐름은 ESP-NOW TX/RX 펌웨어 플래시와 multi-RX USB 수집만 지원합니다.
 
+## 학습 모델로 상태 판단
+
+`.venv/bin/python -m pip install -r requirements-robust.txt`로 판단 의존성을 준비한다.
+GUI **실시간** 탭의 **실시간 시작**은 현재 SINK 수집과 모델 판단을 함께 켠다.
+세션 선택은 필요 없다. **판단 정지**는 그 실행의 수집·판단을 함께 끈다.
+과거 자료는 세션을 고르고 **녹화 재생**한다. **수집 파일 따라 읽기**는 외부에서
+저장 중인 세션을 읽는 별도 모드다. TX/RX/SINK 펌웨어를 자동으로 바꾸지 않는다.
+
+```bash
+# 현재 보드 신호를 수집하면서 판단 (Ctrl+C로 함께 종료)
+.venv/bin/python scripts/meshsense_cli.py --live --port /dev/cu.usbmodem101 --plain
+# 보드 없이 저장 데이터 확인
+.venv/bin/python scripts/meshsense_cli.py --realtime mac_collector_output/raw/<날짜>/<세션> --plain
+# 다른 터미널/GUI에서 수집 중인 동일 세션을 따라 읽기
+.venv/bin/python scripts/meshsense_cli.py --realtime mac_collector_output/raw/<날짜>/<세션> --follow
+```
+
+배포 모델 `model_train/robust/model.pt` 사용, 30초 입력·0.3초 판단 간격이다.
+각 창의 최대 확률 클래스를 바로 표시한다. 확신 70%·클래스 유지 시간은 쓰지 않는다.
+최초 30초 준비와 신호 누락 때의 판단 정지는 유지한다. GUI 판단 화면 갱신은 300ms다.
+원본 대신 `mac_collector_output/realtime/`에 실행 기록을 남긴다. 현재 보드 모드의
+raw I/Q는 실행 폴더의 `capture/`, 판단은 `prediction/`에 저장된다. 정답 라벨 없이
+학습 데이터와 분리하므로 기존 세션·라벨·registry를 수정하지 않는다.
+입력 품질·수신 중단 처리와 검증 한계는 [실시간 상태 판단](../doc/realtime-inference.md)을 따른다.
+
 ## 권장 진입점
 
 ```bash

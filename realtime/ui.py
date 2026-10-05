@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import select
+import signal
 import sys
 import time
 from pathlib import Path
@@ -20,7 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from realtime.engine import Engine  # noqa: E402
+from realtime.engine import Engine, MODEL  # noqa: E402
 
 LABEL = {"empty": "빈 방", "static": "정지", "motion": "움직임",
          "deciding": "판단 중", "suspended": "판단 정지"}
@@ -65,14 +66,16 @@ def state_block(view: dict, color: bool) -> list[str]:
         if cand:
             line = f"     {LABEL.get(cand, cand)} 확인 중 — {int(view['remaining_s'])}초 남음"
         else:
-            line = f"     확신 {view['confidence']:.0%} · 기준 {view['threshold']:.0%} 미만"
+            warmup = view.get("warmup_remaining_s", 0)
+            line = (f"     30초 입력 준비 중 — {warmup:.1f}초 남음" if warmup else
+                    f"     확신 {view['confidence']:.0%} · 기준 {view['threshold']:.0%} 미만")
         rows.append(line)
         visible.append(_cells(line))
     else:
         line = f"     {hms(view['held_s'])}째"
         rows.append(line)
         visible.append(_cells(line))
-        conf = f"     확신  {bar(view['confidence'])}  {view['confidence']:.0%}"
+        conf = f"     확률  {bar(view['confidence'])}  {view['confidence']:.0%}"
         rows.append(conf)
         visible.append(_cells(conf))
 
@@ -116,6 +119,10 @@ def render_plain(view: dict) -> str:
     extra = ""
     if view["state"] == "deciding" and view.get("candidate"):
         extra = f" ({LABEL.get(view['candidate'])} 확인 중 {int(view['remaining_s'])}초)"
+    elif view.get("warmup_remaining_s", 0):
+        extra = f" (30초 입력 준비 · {view['warmup_remaining_s']:.1f}초 남음)"
+    if view.get("note"):
+        extra += f" · {view['note']}"
     return (f"[{time.strftime('%H:%M:%S')}] {LABEL.get(view['state'], view['state']):5s} "
             f"{view['confidence']:>4.0%}  {hms(view['held_s']):>8}  "
             f"{view['hz']:.1f}Hz RX{view['n_rx']}{extra}")
@@ -136,6 +143,8 @@ def main() -> int:
     ap.add_argument("--plain", action="store_true", help="한 줄 갱신 모드")
     ap.add_argument("--stride", type=int, default=30, help="판단 간격 (frame, 100Hz)")
     ap.add_argument("--conf", type=float, default=0.7)
+    ap.add_argument("--model", type=Path, default=MODEL)
+    ap.add_argument("--output-dir", type=Path)
     ap.add_argument("--speed", type=float, default=0.0,
                     help="재생 속도 (0=최대한 빨리, 1=실제 속도)")
     args = ap.parse_args()
@@ -143,7 +152,21 @@ def main() -> int:
     if not (args.session / "session.json").is_file():
         print(f"세션 디렉터리가 아닙니다: {args.session}")
         return 1
-    eng = Engine(args.session, stride=args.stride, conf=args.conf)
+    if args.stride <= 0 or args.speed < 0 or not 0 <= args.conf <= 1:
+        ap.error("stride > 0, speed ≥ 0, 0 ≤ conf ≤ 1이 필요합니다")
+    eng = None
+    try:
+        eng = Engine(args.session, model_path=args.model, stride=args.stride, conf=args.conf,
+                     output_dir=args.output_dir)
+        if not args.follow:
+            eng.prepare_replay()
+    except (OSError, ValueError, KeyError) as exc:
+        if eng is not None:
+            eng.record_failure(str(exc))
+        print(f"[판단 오류] {exc}", file=sys.stderr)
+        return 1
+    print(f"[모델] {eng.model_path} · 3-seed 평균 · 30초 입력 · {args.stride/100:g}초 간격", flush=True)
+    print(f"[기록] {eng.out} · {'실시간' if args.follow else '녹화 재생'}", flush=True)
     size = None
     try:
         import shutil
@@ -151,10 +174,11 @@ def main() -> int:
     except OSError:
         pass
 
-    if not args.follow:
-        eng.stream.poll()
-        eng.stream.rewind(eng.window)
     t = eng.window / 100.0
+    old_term = signal.getsignal(signal.SIGTERM)
+    def interrupted(signum, frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
     try:
         while True:
             key = read_key()
@@ -180,6 +204,14 @@ def main() -> int:
                     time.sleep(args.stride / 100.0 / args.speed)
     except KeyboardInterrupt:
         print()
+    except (OSError, ValueError, KeyError) as exc:
+        eng.record_failure(str(exc))
+        print(f"[판단 오류] {exc}", file=sys.stderr)
+        return 1
+    finally:
+        eng.close()
+        signal.signal(signal.SIGTERM, old_term)
+    print(f"[종료] 판단 {eng.n_predictions}회 · 마지막 상태 {eng.sm.state}", flush=True)
     return 0
 
 

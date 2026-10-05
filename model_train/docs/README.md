@@ -8,12 +8,15 @@
 9월 16·17일의 15세션에 최종 파일을 적용한 최신 결과는 구간
 **234/280(83.57%)**, 세션 **12/15(80.00%)**다. 빈 방·정지 혼동이 남았고,
 특히 9/16에서는 정지한 사람을 빈 방으로 판단하는 오류가 확인됐다.
+이후 [10월 6일 첫 실시간 전환 시험](model-training/20261006-live-transition-evaluation.md)에서는
+빈 방을 주로 정지로 오판했다. 실시간 연결 완료를 실사용 안정성 확보로 해석하지 않는다.
 
 ## 먼저 읽을 문서
 
 | 문서 | 알 수 있는 내용 |
 |---|---|
 | [쉽게 읽는 학습 결과](model-training/robust-three-class-report-easy.md) | 어떤 자료로 학습·평가했는지, 점수를 어디까지 믿을 수 있는지 |
+| [첫 실시간 상태 전환 시험](model-training/20261006-live-transition-evaluation.md) | 사용자 방의 실제 행동 전환·반응 지연·빈 방 오판·입력 누락 |
 | [9월 16·17일 데이터 확인·최종 모델 평가](model-training/20260916-17-model-evaluation.md) | 최신 15세션의 품질·날짜별 점수와 정지 상태 오분류 |
 | [9월 17일 최종 모델 평가 결과](model-training/20260917-model-evaluation.md) | 저장된 최종 파일의 실제 추가 평가와 빈 방 오분류 |
 | [전처리부터 CNN·학습까지 전체 흐름](model-training/robust-three-class-pipeline.md) | 서브캐리어 선택, 상대 진폭, CNN 크기와 특징 통합 과정 |

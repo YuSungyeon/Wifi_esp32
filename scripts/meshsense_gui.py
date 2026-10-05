@@ -32,6 +32,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from csi_session import next_session_id, read_manifest, repo_provenance, set_session_note  # noqa: E402
 from csi_store import LABELS  # noqa: E402
+from realtime_launch import build_command, build_live_command, check_runtime, new_output_dir, runtime_info  # noqa: E402
+from realtime_live import ensure_port_free  # noqa: E402
 from session_form import (  # noqa: E402
     DEVICE_REGISTRY, FIELDS, SESSION_META, known_devices, read_meta, write_meta,
 )
@@ -59,33 +61,42 @@ class Job:
         self.rc: Optional[int] = None
         self.done_note = ""
         self.on_done = None
+        self.session_dir: Optional[Path] = None
+        self.output_dir: Optional[Path] = None
+        self.mode = ""
 
     @property
     def running(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
-    def start(self, name: str, cmd: list[str], on_done=None) -> Optional[str]:
+    def start(self, name: str, cmd: list[str], on_done=None, *,
+              session_dir=None, output_dir=None, mode="") -> Optional[str]:
         with self.lock:
             if self.running:
                 return f"이미 실행 중입니다: {self.name}"
             self.name, self.rc, self.done_note, self.on_done = name, None, "", on_done
             self.log.clear()
             self.log.append(f"$ {' '.join(cmd)}")
+            self.session_dir, self.output_dir, self.mode = session_dir, output_dir, mode
             self.proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1, cwd=str(REPO_ROOT),
             )
-            threading.Thread(target=self._pump, daemon=True).start()
+            threading.Thread(target=self._pump, args=(self.proc, on_done), daemon=True).start()
         return None
 
-    def _pump(self) -> None:
-        assert self.proc and self.proc.stdout
-        for line in self.proc.stdout:
-            self.log.append(line.rstrip())
-        self.rc = self.proc.wait()
-        if self.on_done:
+    def _pump(self, proc, on_done) -> None:
+        assert proc.stdout
+        for line in proc.stdout:
+            if self.proc is proc:
+                self.log.append(line.rstrip())
+        rc = proc.wait()
+        if self.proc is not proc:
+            return
+        self.rc = rc
+        if on_done:
             try:
-                self.done_note = self.on_done(self.rc) or ""
+                self.done_note = on_done(self.rc) or ""
             except Exception as exc:                       # 콜백 실패로 서버가 죽지 않게
                 self.done_note = f"후처리 실패: {exc}"
         self.log.append(f"— 종료 (코드 {self.rc}) {self.done_note}")
@@ -94,13 +105,22 @@ class Job:
         p = self.proc
         if p and p.poll() is None:
             p.terminate()
+            try:
+                p.wait(timeout=10 if self.mode == "live" else 3)
+            except subprocess.TimeoutExpired:
+                p.kill()
+                p.wait(timeout=3)
 
     def state(self) -> dict:
         return {"running": self.running, "name": self.name,
-                "rc": self.rc, "log": list(self.log), "note": self.done_note}
+                "rc": self.rc, "log": list(self.log), "note": self.done_note,
+                "session_path": str(self.session_dir) if self.session_dir else None,
+                "mode": self.mode}
 
 
 JOB = Job()
+RT_JOB = Job()  # 파일을 읽는 판단 프로세스는 USB 수집과 독립적으로 실행한다.
+PORT_LOCK = threading.RLock()  # 식별·수집 기동 사이에 같은 포트를 다시 열지 않는다.
 
 
 # ── 상태 조회 ─────────────────────────────────────────────────────────────────
@@ -197,11 +217,17 @@ def session_note(d: Path) -> str:
     return ""
 
 
-def realtime_view(raw_root: Path = RAW_ROOT) -> Optional[dict]:
+def realtime_view(raw_root: Path = RAW_ROOT, *, status_file: Optional[Path] = None) -> Optional[dict]:
     """가장 최근 세션의 realtime_status.json. 실시간 판단이 안 돌면 None."""
     # 폴더 이름이 아니라 **마지막으로 갱신된** 상태 파일을 고른다 — 지금 돌고 있는 것이 그것이다
-    files = sorted(Path(raw_root).glob("*/*/realtime_status.json"),
-                   key=lambda f: f.stat().st_mtime, reverse=True)
+    if status_file is not None:
+        files = [status_file] if status_file.is_file() else []
+    else:
+        candidates = list(Path(raw_root).glob("*/*/realtime_status.json"))
+        candidates += list((Path(raw_root).parent / "realtime").glob("*/realtime_status.json"))
+        candidates += list((Path(raw_root).parent / "realtime").glob("*/prediction/realtime_status.json"))
+        files = sorted(candidates,
+                       key=lambda f: f.stat().st_mtime, reverse=True)
     if not files:
         return None
     p = files[0]
@@ -211,6 +237,16 @@ def realtime_view(raw_root: Path = RAW_ROOT) -> Optional[dict]:
         return None
     view["spans"] = timeline_spans(view.get("events", []), view.get("t", 0.0))
     view["stale_s"] = round(time.time() - p.stat().st_mtime, 1)
+    view["status_dir"] = str(p.parent)
+    view["active"] = bool(view.get("running")) and view["stale_s"] <= 5
+    return view
+
+
+def current_realtime_view() -> Optional[dict]:
+    view = realtime_view(status_file=RT_JOB.output_dir / "realtime_status.json"
+                         if RT_JOB.output_dir else None)
+    if view is not None and RT_JOB.output_dir:
+        view["active"] = RT_JOB.running and bool(view.get("running", True))
     return view
 
 
@@ -354,7 +390,7 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
   <span id="jobbadge" class="hint" style="margin-left:auto"></span>
 </header>
 <main>
-  <section id="realtime" class="on"></section>
+  <section id="realtime" class="on"><div id="rt-controls"></div><div id="rt-view"></div></section>
   <section id="boards"></section>
   <section id="collect"></section>
   <section id="sessions"></section>
@@ -369,7 +405,7 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <script>__JS__</script></body></html>"""
 
 JS = r"""
-let S = null, tab = 'realtime', shownPng = null;
+let S = null, tab = 'realtime', shownPng = null, rtSelected = '';
 let order = null;  // 이번 블록의 무작위 클래스 순서
 try { order = JSON.parse(localStorage.getItem('blockOrder')); } catch (e) {}
 // 섹션별 데이터 지문. 바뀐 섹션만 다시 그린다 —
@@ -397,6 +433,22 @@ async function refresh() {
   S = await (await fetch('/api/state')).json();
   render(); renderJob();
 }
+let realtimeBusy = false;
+async function refreshRealtime() {
+  if (!S || tab !== 'realtime' || realtimeBusy) return;
+  realtimeBusy = true;
+  try {
+    const result = await (await fetch('/api/realtime/state', {cache:'no-store'})).json();
+    S.realtime = result.realtime;
+    renderRealtimeView();
+  } catch (e) { /* 서버 재시작 시 다음 폴링에서 복구 */ }
+  finally { realtimeBusy = false; }
+}
+function renderRealtimeView() {
+  if (S && tab === 'realtime' && changed('rt-view', S.realtime)) {
+    document.getElementById('rt-view').innerHTML = renderRealtime(S.realtime);
+  }
+}
 function renderJob() {
   const j = S.job, card = document.getElementById('logcard');
   document.getElementById('jobbadge').innerHTML = j.running
@@ -414,9 +466,10 @@ function renderJob() {
 function render() {
   if (!S) return;
   const busy = S.job.running;
-  if (tab === 'realtime' && changed('realtime', [S.realtime])) {
-    document.getElementById('realtime').innerHTML = renderRealtime(S.realtime);
+  if (tab === 'realtime' && changed('realtime', [S.realtime_job, S.sessions, S.realtime_runtime, S.job.running])) {
+    document.getElementById('rt-controls').innerHTML = renderRealtimeControls();
   }
+  renderRealtimeView();
   if (tab === 'boards' && changed('boards', [S.boards, busy])) {
     const rows = S.boards.map(b => `<tr>
       <td><code>${esc(b.port)}</code></td>
@@ -518,26 +571,58 @@ function spanLabel(spans){
   const s = (spans && spans[0] && spans[0].covers_s) || 0;
   return s >= 3600 ? '60분' : held(s);
 }
+function renderRealtimeControls(){
+  const j = S.realtime_job, rt = S.realtime_runtime;
+  if (!rtSelected && S.sessions.length) rtSelected = S.sessions[0].path;
+  const opts = S.sessions.map(s => `<option value="${esc(s.path)}" ${s.path===rtSelected?'selected':''}>${esc(s.date + ' / ' + s.name)}</option>`).join('');
+  const external = S.realtime && S.realtime.active && !j.running;
+  const ended = external ? '외부 CLI 판단 실행 중 (종료는 해당 터미널에서 Ctrl+C)' : j.name && !j.running ? (j.rc===0 ? '완료/중지' : '중지/오류 · 로그 확인') : '';
+  return `<div class="card"><h2>현재 보드로 실시간 판단</h2>
+    <p class="sub">${esc(rt.model)} · 모델 3개의 예측 평균 · 30초 입력 · 0.3초 판단 간격</p>
+    <p class="sub">매번 최대 확률 클래스를 즉시 표시합니다. 확신 기준·유지 시간 대기 없음.</p>
+    ${rt.model_exists ? '' : '<p class="note">배포 모델 파일이 없습니다.</p>'}
+    <div class="bar" style="margin-top:.8rem">
+      <button class="act primary" ${j.running||S.job.running||!rt.model_exists?'disabled':''} onclick="post('/api/realtime/live')">실시간 시작</button>
+      <button class="act danger" ${j.running?'':'disabled'} onclick="post('/api/realtime/stop')">판단 정지</button>
+      <span class="hint">${j.running ? (j.mode==='live'?'현재 보드 수집·판단 실행 중':j.mode==='follow'?'수집 파일 따라 읽는 중':'녹화 재생 중') : ended}</span></div>
+    <p class="sub">세션 선택 없이 현재 SINK 신호를 수집하고 판단합니다. 처음 30초는 준비 시간입니다. 판단 정지는 이 버튼으로 시작한 수집도 함께 종료합니다. 학습용 데이터에는 넣지 않습니다.</p>
+    ${S.job.running?'<p class="note">다른 수집/작업이 실행 중입니다. 해당 작업을 끝내거나 아래 수집 파일 따라 읽기를 사용하세요.</p>':''}
+    <details><summary>저장 데이터 재생 / 수집 파일 따라 읽기</summary>
+      <label for="rt-session">저장 세션 (현재 보드 신호와 별개)</label>
+      <select id="rt-session" ${j.running?'disabled':''} onchange="rtSelected=this.value">${opts}</select>
+      <div class="bar" style="margin-top:.8rem">
+        <button class="act" ${j.running||!opts||!rt.model_exists?'disabled':''} onclick="startRealtime(false)">녹화 재생</button>
+        <button class="act" ${j.running||!opts||!rt.model_exists?'disabled':''} onclick="startRealtime(true)">수집 파일 따라 읽기</button></div>
+      <p class="sub">따라 읽기는 다른 수집 작업이 현재 저장 중인 동일 세션에만 사용하세요. 이 모드의 판단 정지는 외부 수집을 종료하지 않습니다.</p>
+    </details>
+    ${j.log.length ? `<details ${j.rc && !j.running?'open':''}><summary>판단 로그</summary><pre class="log">${esc(j.log.join('\n'))}</pre></details>` : ''}
+  </div>`;
+}
+function startRealtime(follow){
+  rtSelected = document.getElementById('rt-session').value;
+  post('/api/realtime/start', {path:rtSelected, follow});
+}
 function renderRealtime(r){
   if (!r) return `<div class="card"><h2>실시간 판단이 실행 중이 아닙니다</h2>
-    <p class="sub">터미널에서 시작합니다 — 수집 중인 세션을 지정하세요:</p>
-    <pre class="log">python realtime/ui.py --session mac_collector_output/raw/&lt;날짜&gt;/&lt;세션&gt; --follow</pre></div>`;
+    <p class="sub">현재 보드는 실시간 시작, 저장 자료는 녹화 재생을 누르세요.</p></div>`;
   const deciding = r.state === 'deciding';
+  const warming = r.warmup_remaining_s > 0;
   const pct = deciding
-    ? Math.round(100 * (1 - Math.min(1, r.remaining_s / 60)))
+    ? Math.round(100 * (1 - Math.min(1, warming ? r.warmup_remaining_s / 30 : r.remaining_s / 60)))
     : Math.round(r.confidence * 100);
   const sub = deciding
     ? (r.candidate ? `${esc(RT_LABEL[r.candidate] || r.candidate)} 확인 중`
+                   : r.warmup_remaining_s > 0 ? `30초 입력 준비 · ${r.warmup_remaining_s.toFixed(1)}초 남음`
                    : `확신이 기준(${Math.round(r.threshold*100)}%)에 못 미칩니다`)
-    : `확신 ${Math.round(r.confidence*100)}%`;
+    : `모델 확률 ${Math.round(r.confidence*100)}%`;
   return `<div class="card hero s-${esc(r.state)}">
       <p class="state">${esc(RT_LABEL[r.state] || r.state)}</p>
       <p class="sub-state"><b>${deciding ? sub : held(r.held_s) + '째'}</b>
         <span>${deciding ? '' : '· ' + esc(r.session)}</span></p>
-      <div class="meter"><span class="lab">${deciding ? '남음' : '확신'}</span>
+      <div class="meter"><span class="lab">${deciding ? '남음' : '확률'}</span>
         <span class="track"><span class="fill" style="width:${pct}%"></span>
-          ${deciding ? '' : `<span class="mark" style="left:${Math.round(r.threshold*100)}%"></span>`}</span>
-        <span class="num">${deciding ? Math.round(r.remaining_s) + '초' : pct + '%'}</span></div>
+          ${deciding || !r.threshold ? '' : `<span class="mark" style="left:${Math.round(r.threshold*100)}%"></span>`}</span>
+        <span class="num">${deciding ? (warming ? r.warmup_remaining_s.toFixed(1) : Math.round(r.remaining_s)) + '초' : pct + '%'}</span></div>
       ${r.note ? `<p class="note">${esc(r.note)}</p>` : ''}
     </div>
     <div class="card"><h2>최근 기록</h2>
@@ -557,12 +642,12 @@ function renderRealtime(r){
          <td class="c">${Math.round(e.confidence*100)}%</td></tr>`).join('')}</table>`
         : `<p class="sub">아직 상태 변화가 없습니다.</p>`}</div>
     <div class="card"><div class="statusbar">
-      <button class="act" onclick="post('/api/mark')">전환 표시</button>
+      <button class="act" ${r.active?'':'disabled'} onclick="post('/api/mark')">전환 표시</button>
       <span class="meta">
         <span class="tag ${r.n_rx >= 3 ? 'ok' : 'warn'}">RX ${r.n_rx}대</span>
         <span>${r.hz}Hz</span><span>창 ${r.window_s}초</span>
-        <span>${esc(r.session)}</span>
-        <span>${r.stale_s > 5 ? '갱신 ' + Math.round(r.stale_s) + '초 전' : '갱신 중'}</span>
+        <span>${r.mode==='live'?'현재 보드 신호':esc(r.session)}</span>
+        <span>${r.active ? '갱신 중' : '완료/중지된 기록'}</span>
       </span></div></div>`;
 }
 function tog(id){const f=document.getElementById('devices.expected_device_ids');
@@ -594,6 +679,7 @@ function noteSession(p){
 function delSession(p){ if(confirm(p+'\n\n이 세션을 삭제할까요?')) post('/api/delete',{path:p}); }
 function showPng(p){ shownPng = (shownPng === p+'/csi_waterfall.png') ? null : p+'/csi_waterfall.png'; render(); }
 refresh(); setInterval(refresh, 1200);
+setInterval(refreshRealtime, 300);
 """
 
 
@@ -623,6 +709,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(b)))
             self.end_headers()
             self.wfile.write(b)
+        elif u.path == "/api/realtime/state":
+            self._json({"realtime": current_realtime_view()})
         elif u.path == "/api/state":
             rows = session_rows()
             meta = read_meta(SESSION_META)
@@ -639,7 +727,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "diag_png_mtime": int((REPO_ROOT / DIAG_PNG_REL).stat().st_mtime)
                 if (REPO_ROOT / DIAG_PNG_REL).is_file() else 0,
                 "readiness": readiness(),
-                "realtime": realtime_view(),
+                "realtime": current_realtime_view(),
+                "realtime_job": RT_JOB.state(), "realtime_runtime": runtime_info(),
                 "job": JOB.state(),
             })
         elif u.path == "/api/img":
@@ -675,11 +764,67 @@ DIAG_PNG_REL = "mac_collector_output/separability.png"
 
 
 def rescan() -> dict:
-    Handler.boards_cache = [identify(p) for p in list_ports()]
-    return {"ok": True}
+    with PORT_LOCK:
+        if JOB.running or (RT_JOB.running and RT_JOB.mode == "live"):
+            return {"error": "수집 중에는 포트를 다시 검색하지 않습니다. 먼저 수집을 정지하세요."}
+        boards = []
+        for port in list_ports():
+            try:
+                ensure_port_free(port)
+                boards.append(identify(port))
+            except (OSError, ValueError, subprocess.SubprocessError):
+                continue
+        Handler.boards_cache = boards
+        return {"ok": True}
 
 
 def dispatch(path: str, body: dict) -> dict:
+    with PORT_LOCK:
+        return _dispatch(path, body)
+
+
+def _dispatch(path: str, body: dict) -> dict:
+    if path == "/api/realtime/live":
+        with PORT_LOCK:
+            if RT_JOB.running:
+                return {"error": "판단이 이미 실행 중입니다. 먼저 판단 정지를 누르세요."}
+            if JOB.running:
+                return {"error": "다른 수집/작업이 실행 중입니다. 먼저 종료하세요."}
+            check_runtime()
+            # 포트 번호는 재연결 때 바뀐다. 캐시 번호를 그대로 사용하지 않는다.
+            result = rescan()
+            if "error" in result:
+                return result
+            sinks = [b for b in Handler.boards_cache if b.get("role") == "sink"]
+            if len(sinks) != 1:
+                return {"error": "SINK 1대를 USB로 연결하세요. 자동 플래시나 리셋은 하지 않습니다."}
+            output = new_output_dir()
+            cmd = build_live_command(sinks[0]["port"], output_dir=output)
+            err = RT_JOB.start("현재 보드 실시간 판단", cmd, session_dir=output / "capture",
+                               output_dir=output / "prediction", mode="live")
+            return {"error": err} if err else {"ok": True, "output_dir": str(output)}
+    if path == "/api/realtime/start":
+        if RT_JOB.running:
+            return {"error": "판단이 이미 실행 중입니다. 먼저 판단 정지를 누르세요."}
+        if JOB.running and "플래시" in JOB.name:
+            return {"error": "보드 플래시가 끝난 뒤 판단을 시작하세요"}
+        target = (REPO_ROOT / str(body.get("path", ""))).resolve()
+        if not target.is_relative_to(RAW_ROOT.resolve()) or not (target / "session.json").is_file():
+            return {"error": "수집 폴더 아래의 세션을 선택하세요"}
+        follow = body.get("follow", False)
+        if not isinstance(follow, bool):
+            return {"error": "follow는 true/false여야 합니다"}
+        check_runtime()
+        output = new_output_dir()
+        cmd = build_command(target, follow=follow, output_dir=output, speed=1 if not follow else 0)
+        err = RT_JOB.start("실시간 판단" if follow else "녹화 재생", cmd,
+                           session_dir=target, output_dir=output, mode="follow" if follow else "replay")
+        return {"error": err} if err else {"ok": True, "output_dir": str(output)}
+
+    if path == "/api/realtime/stop":
+        RT_JOB.stop()
+        return {"ok": True}
+
     if path == "/api/rescan":
         return rescan()
 
@@ -688,6 +833,8 @@ def dispatch(path: str, body: dict) -> dict:
         return {"ok": True}
 
     if path == "/api/flash":
+        if RT_JOB.running:
+            return {"error": "보드 플래시 전에 판단 정지를 누르세요"}
         port, kind = body.get("port"), body.get("kind")
         proj = SEND_POC if kind == "tx" else RECV_POC
         def after_flash(rc: int) -> str:
@@ -700,13 +847,16 @@ def dispatch(path: str, body: dict) -> dict:
         return {"error": err} if err else {"ok": True}
 
     if path == "/api/collect":
-        label, dur = body.get("label"), float(body.get("duration") or 300)
-        delay = max(0.0, float(body.get("delay") or 0))
-        if label not in LABELS:
-            return {"error": f"알 수 없는 라벨: {label}"}
-        err = JOB.start(f"수집 · {label} · {dur:.0f}초",
-                        [PY, str(SCRIPT_DIR / "_collect_run.py"), label, str(dur), str(delay)])
-        return {"error": err} if err else {"ok": True}
+        with PORT_LOCK:
+            if RT_JOB.running and RT_JOB.mode == "live":
+                return {"error": "현재 보드 실시간 수집 중입니다. 먼저 판단 정지를 누르세요."}
+            label, dur = body.get("label"), float(body.get("duration") or 300)
+            delay = max(0.0, float(body.get("delay") or 0))
+            if label not in LABELS:
+                return {"error": f"알 수 없는 라벨: {label}"}
+            err = JOB.start(f"수집 · {label} · {dur:.0f}초",
+                            [PY, str(SCRIPT_DIR / "_collect_run.py"), label, str(dur), str(delay)])
+            return {"error": err} if err else {"ok": True}
 
     if path == "/api/diagnose":
         err = JOB.start("분리 가능성 진단",
@@ -732,20 +882,22 @@ def dispatch(path: str, body: dict) -> dict:
         return {"ok": True}
 
     if path == "/api/mark":
-        view = realtime_view()
-        if not view:
+        view = current_realtime_view()
+        if not view or not view.get("active"):
             return {"error": "실시간 판단이 실행 중이 아닙니다"}
-        target = next((d for d in sorted(RAW_ROOT.glob("*/*"), reverse=True)
-                       if d.name == view.get("session")), None)
+        target = Path(view["status_dir"])
         if target is None:
             return {"error": "세션을 찾지 못했습니다"}
         with (target / "realtime_marks.jsonl").open("a", encoding="utf-8") as fp:
             fp.write(json.dumps({"wall": time.time(), "note": str(body.get("note", "")),
-                                 "via": "gui"}, ensure_ascii=False) + "\n")
+                                 "via": "gui", "t": view.get("t"), "tx_seq": view.get("tx_seq"),
+                                 "state": view.get("state")}, ensure_ascii=False) + "\n")
         return {"ok": True}
 
     if path == "/api/delete":
         target = (REPO_ROOT / body.get("path", "")).resolve()
+        if RT_JOB.running and target == RT_JOB.session_dir:
+            return {"error": "판단 중인 세션은 삭제할 수 없습니다. 먼저 판단 정지를 누르세요."}
         if not str(target).startswith(str(RAW_ROOT)) or not (target / "session.json").is_file():
             return {"error": "세션 디렉터리가 아닙니다"}
         shutil.rmtree(target)
@@ -771,6 +923,7 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\n[gui] 종료")
     finally:
+        RT_JOB.stop()
         JOB.stop()
         srv.server_close()
     return 0
