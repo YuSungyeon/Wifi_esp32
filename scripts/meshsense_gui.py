@@ -32,6 +32,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from csi_session import next_session_id, read_manifest, repo_provenance, set_session_note  # noqa: E402
 from csi_store import LABELS  # noqa: E402
+from train_sessions import (  # noqa: E402
+    available_eval_dates, check_selection, group_by_date, list_sessions,
+)
 from session_form import (  # noqa: E402
     DEVICE_REGISTRY, FIELDS, SESSION_META, known_devices, read_meta, write_meta,
 )
@@ -41,6 +44,11 @@ RAW_ROOT = OUTPUT_DIR / "raw"
 SEND_POC = REPO_ROOT / "esp32s3_csi_send_poc"
 RECV_POC = REPO_ROOT / "esp32s3_csi_recv_poc"
 PY = sys.executable
+
+sys.path.insert(0, str(SCRIPT_DIR))
+from _train_run import PRESETS as _PRESETS  # noqa: E402
+
+PRESET_INFO = {k: {"label": v["label"], "detail": v["detail"]} for k, v in _PRESETS.items()}
 
 LABEL_DESC = {"empty": "부재 — 공간에 사람 없음",
               "static": "정지 — 사람이 있으나 움직이지 않음",
@@ -235,6 +243,39 @@ def timeline_spans(events: list, now: float, minutes: int = 60) -> list:
     return out
 
 
+def training_state() -> dict:
+    """학습 탭이 쓰는 것: 날짜별 세션과 지금까지 학습한 모델."""
+    sessions = list_sessions()
+    groups = [{"date": date, "sessions": items}
+              for date, items in group_by_date(sessions).items()]
+    return {"dates": groups, "presets": PRESET_INFO, "models": trained_models()}
+
+
+def trained_models() -> list:
+    """model_train/*/model_*.pt 의 요약. 체크포인트 안의 기록을 그대로 읽는다."""
+    import torch
+
+    out = []
+    for d in (ROOT := REPO_ROOT / "model_train", ):
+        for p in sorted(d.glob("*/model_*.pt"), key=lambda f: f.stat().st_mtime, reverse=True):
+            try:
+                b = torch.load(p, map_location="cpu", weights_only=False)
+            except Exception:
+                continue
+            m = b.get("metrics", {})
+            out.append({
+                "path": str(p.relative_to(REPO_ROOT)), "name": p.stem.replace("model_", ""),
+                "mode": b.get("mode", "?"), "window_s": b.get("window_frames", 0) / 100,
+                "sessions": len(b.get("training_sessions", [])),
+                "train_dates": b.get("training_dates", []),
+                "eval_dates": b.get("evaluation_dates", []),
+                "score": m.get("sessions"), "window_acc": m.get("window_accuracy"),
+                "trained_at": b.get("trained_at", ""),
+                "size_kb": round(p.stat().st_size / 1024),
+            })
+    return out[:12]
+
+
 def label_counts(rows) -> dict:
     c = {l: 0 for l in LABELS}
     for r in rows:
@@ -334,6 +375,28 @@ img.wf{width:100%;border:1px solid var(--line);border-radius:10px;margin-top:.6r
 .statusbar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
 .statusbar .meta{margin-left:auto;display:flex;gap:1rem;flex-wrap:wrap;color:var(--muted);
  font-size:.8rem;font-variant-numeric:tabular-nums}
+/* 학습 탭 */
+.datebox{border:1px solid var(--line);border-radius:10px;padding:.7rem .8rem;margin-bottom:.6rem;
+ background:var(--card)}
+.datehead{display:flex;align-items:center;gap:.6rem;font-weight:600;font-size:.92rem}
+.datehead .hint{font-weight:400}
+.datehead button{margin-left:auto}
+.slist{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:.3rem;margin-top:.6rem}
+.slist label{display:flex;align-items:center;gap:.4rem;margin:0;font-weight:400;font-size:.85rem;
+ padding:.2rem .35rem;border-radius:6px;cursor:pointer}
+.slist label:hover{background:var(--bg)}
+.slist input{width:auto;margin:0}
+.slist .bad{color:var(--warn)}
+.slist .lab{font-variant-numeric:tabular-nums;color:var(--muted)}
+.locked{opacity:.5}
+.presets{display:grid;gap:.4rem}
+.presets label{display:flex;gap:.6rem;align-items:baseline;margin:0;padding:.5rem .6rem;
+ border:1px solid var(--line);border-radius:8px;font-weight:400;cursor:pointer}
+.presets input{width:auto;margin:0}
+.presets b{font-weight:600;min-width:7rem}
+.presets span{color:var(--muted);font-size:.85rem}
+.prog{height:12px;border-radius:999px;background:var(--bg);border:1px solid var(--line);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent)}
 .ready{border-radius:8px;padding:.55rem .75rem;margin-bottom:.6rem;font-size:.88rem;
  background:var(--warnbg);color:var(--warn);border:1px solid var(--warn)}
 """
@@ -348,6 +411,7 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
     <button data-t="boards">보드</button>
     <button data-t="collect">수집</button>
     <button data-t="sessions">세션</button>
+    <button data-t="train">학습</button>
     <button data-t="analyze">진단·데이터셋</button>
     <button data-t="meta">실험 정보</button>
   </nav>
@@ -358,11 +422,14 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
   <section id="boards"></section>
   <section id="collect"></section>
   <section id="sessions"></section>
+  <section id="train"></section>
   <section id="analyze"></section>
   <section id="meta"></section>
   <div class="card" id="logcard" style="display:none">
     <div class="bar"><h2 id="logtitle" style="margin:0">작업 로그</h2>
       <button class="act danger" id="stopbtn" onclick="post('/api/stop')">중지</button></div>
+    <div id="progbar" style="display:none;margin-bottom:.6rem"><div class="prog"><i style="width:0%"></i></div></div>
+    <p class="sub" style="margin:.3rem 0 .8rem"></p>
     <pre class="log" id="log"></pre>
   </div>
 </main>
@@ -405,6 +472,16 @@ function renderJob() {
     card.style.display = '';
     document.getElementById('logtitle').textContent = j.name + (j.running ? '' : ` — 완료 (코드 ${j.rc})`);
     document.getElementById('stopbtn').disabled = !j.running;
+    const prog = j.log.slice().reverse().find(l => l.startsWith('[진행]'));
+    const bar = document.getElementById('progbar');
+    if (bar) {
+      const m = prog && prog.match(/\((\d+)%\)/);
+      bar.style.display = m ? '' : 'none';
+      if (m) {
+        bar.querySelector('i').style.width = m[1] + '%';
+        bar.nextElementSibling.textContent = prog.replace('[진행] ', '');
+      }
+    }
     const pre = document.getElementById('log');
     const stick = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
     pre.textContent = j.log.join('\n');
@@ -476,6 +553,9 @@ function render() {
       ${S.sessions.length?`<table><tr><th>날짜</th><th>라벨</th><th>길이</th><th>RX</th><th>품질</th><th></th></tr>${rows}</table>`
         :`<p class="sub">아직 수집한 세션이 없습니다.</p>`}
       ${shownPng ? `<img class="wf" src="/api/img?path=${encodeURIComponent(shownPng)}">` : ''}</div>`;
+  }
+  if (tab === 'train' && changed('train', [S.training, busy, trainPick.size, trainEval, trainPreset])) {
+    document.getElementById('train').innerHTML = renderTrain(S.training, busy);
   }
   if (tab === 'analyze' && changed('analyze', [busy, S.diag_png])) {
     document.getElementById('analyze').innerHTML = `<div class="card">
@@ -565,6 +645,86 @@ function renderRealtime(r){
         <span>${r.stale_s > 5 ? '갱신 ' + Math.round(r.stale_s) + '초 전' : '갱신 중'}</span>
       </span></div></div>`;
 }
+let trainPick = new Set(), trainEval = null, trainPreset = 'balanced';
+function trainToggle(key){ trainPick.has(key) ? trainPick.delete(key) : trainPick.add(key);
+  if (trainEval && [...trainPick].some(k => k.startsWith(trainEval))) trainEval = null;
+  delete sig.train; render(); }
+function trainToggleDate(date, keys){
+  const all = keys.every(k => trainPick.has(k));
+  keys.forEach(k => all ? trainPick.delete(k) : trainPick.add(k));
+  if (trainEval && [...trainPick].some(k => k.startsWith(trainEval))) trainEval = null;
+  delete sig.train; render(); }
+function trainSetEval(d){ trainEval = d || null; delete sig.train; render(); }
+function trainSetPreset(p){ trainPreset = p; delete sig.train; render(); }
+function startTrain(){
+  post('/api/train', {sessions: [...trainPick], eval_dates: trainEval ? [trainEval] : [],
+                      preset: trainPreset});
+}
+function renderTrain(t, busy){
+  if (!t) return '';
+  const lockedDates = new Set([...trainPick].map(k => k.split('_')[0]));
+  const counts = {empty:0, static:0, motion:0};
+  t.dates.forEach(g => g.sessions.forEach(s => { if (trainPick.has(s.key)) counts[s.label]++; }));
+  const total = trainPick.size;
+  const ready = total > 0 && Object.values(counts).every(c => c >= 2);
+
+  const dates = t.dates.map(g => {
+    const keys = g.sessions.map(s => s.key);
+    const picked = keys.filter(k => trainPick.has(k)).length;
+    const isEval = trainEval === g.date;
+    return `<div class="datebox${isEval ? ' locked' : ''}">
+      <div class="datehead">${esc(g.date)}
+        <span class="hint">${picked}/${g.sessions.length} 선택${isEval ? ' · 평가용' : ''}</span>
+        <button class="act" ${isEval||busy?'disabled':''}
+          onclick='trainToggleDate("${g.date}", ${JSON.stringify(keys)})'>날짜 전체</button></div>
+      <div class="slist">${g.sessions.map(s => `<label title="${esc(s.name)}">
+        <input type="checkbox" ${trainPick.has(s.key)?'checked':''} ${isEval||busy?'disabled':''}
+          onchange='trainToggle("${s.key}")'>
+        <span class="${s.ok?'':'bad'}">${esc(s.label)}</span>
+        <span class="lab">s${esc(s.key.split('_')[1])} · ${s.hz}Hz${s.ok?'':' ⚠'}</span>
+      </label>`).join('')}</div></div>`;
+  }).join('');
+
+  const evalOptions = t.dates.map(g => g.date).filter(d => !lockedDates.has(d));
+  const presets = Object.entries(t.presets).map(([k, p]) => `<label>
+    <input type="radio" name="preset" ${trainPreset===k?'checked':''} ${busy?'disabled':''}
+      onchange='trainSetPreset("${k}")'><b>${esc(p.label)}</b><span>${esc(p.detail)}</span></label>`).join('');
+
+  const models = t.models.length ? `<table><tr><th>모델</th><th>구성</th><th>학습</th><th>평가</th><th>크기</th></tr>
+    ${t.models.map(m => `<tr>
+      <td>${esc(m.name)}<br><span class="hint">${esc(m.trained_at)}</span></td>
+      <td>${esc(m.mode)} · 창 ${m.window_s}초</td>
+      <td>${m.sessions}세션<br><span class="hint">${esc((m.train_dates||[]).join(' '))}</span></td>
+      <td>${m.score ? esc(m.score) + `<br><span class="hint">창 ${m.window_acc}</span>` : '—'}</td>
+      <td class="hint">${m.size_kb}KB</td></tr>`).join('')}</table>`
+    : `<p class="sub">아직 학습한 모델이 없습니다.</p>`;
+
+  return `<div class="card">
+      <h2>1. 세션 고르기</h2>
+      <p class="sub">학습에 쓸 세션을 고릅니다. ⚠ 는 수집 품질이 미달한 세션입니다.</p>
+      ${dates}
+      <p class="sub" style="margin:.6rem 0 0">선택 <b>${total}세션</b> —
+        빈 방 ${counts.empty} · 정지 ${counts.static} · 움직임 ${counts.motion}
+        ${ready ? '' : '<span class="tag warn">클래스마다 2세션 이상 필요</span>'}</p>
+    </div>
+    <div class="card"><h2>2. 평가 날짜</h2>
+      <p class="sub">학습에 쓴 날짜는 고를 수 없습니다 — 그 데이터로 평가하면 점수가 부풀기 때문입니다.</p>
+      <div class="bar">${evalOptions.map(d => `<button class="act ${trainEval===d?'primary':''}"
+        ${busy?'disabled':''} onclick='trainSetEval("${d}")'>${esc(d)}</button>`).join('')}
+        <button class="act ${trainEval===null?'primary':''}" ${busy?'disabled':''}
+          onclick='trainSetEval(null)'>평가 없이 학습만</button></div>
+    </div>
+    <div class="card"><h2>3. 설정</h2>
+      <p class="sub">실험에서 가장 좋았던 구성입니다. 효과가 없던 조합은 올리지 않았습니다.</p>
+      <div class="presets">${presets}</div>
+    </div>
+    <div class="card"><div class="bar" style="margin:0">
+      <button class="act primary" ${busy||!ready?'disabled':''} onclick="startTrain()">학습 시작</button>
+      <span class="hint">${busy ? '다른 작업이 실행 중입니다'
+        : ready ? `${total}세션 · seed 3개 · epoch 10` : '세션을 더 고르세요'}</span>
+    </div></div>
+    <div class="card"><h2>학습한 모델</h2>${models}</div>`;
+}
 function tog(id){const f=document.getElementById('devices.expected_device_ids');
   const s=f.value.split(/[,\s]+/).filter(Boolean);const i=s.indexOf(String(id));
   if(i<0)s.push(String(id));else s.splice(i,1);f.value=s.sort((a,b)=>a-b).join(', ');}
@@ -639,6 +799,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "diag_png_mtime": int((REPO_ROOT / DIAG_PNG_REL).stat().st_mtime)
                 if (REPO_ROOT / DIAG_PNG_REL).is_file() else 0,
                 "readiness": readiness(),
+                "training": training_state(),
                 "realtime": realtime_view(),
                 "job": JOB.state(),
             })
@@ -730,6 +891,21 @@ def dispatch(path: str, body: dict) -> dict:
             return {"error": "세션 디렉터리가 아닙니다"}
         set_session_note(target, str(body.get("text", "")))
         return {"ok": True}
+
+    if path == "/api/train":
+        keys = list(body.get("sessions") or [])
+        eval_dates = list(body.get("eval_dates") or [])
+        preset = body.get("preset", "balanced")
+        if preset not in PRESET_INFO:
+            return {"error": f"알 수 없는 설정: {preset}"}
+        problems = check_selection(keys, eval_dates)
+        if problems:
+            return {"error": " / ".join(problems)}
+        cmd = [PY, str(SCRIPT_DIR / "_train_run.py"), "--preset", preset, "--sessions", *keys]
+        if eval_dates:
+            cmd += ["--eval", *eval_dates]
+        err = JOB.start(f"학습 · {PRESET_INFO[preset]['label']} · {len(keys)}세션", cmd)
+        return {"error": err} if err else {"ok": True}
 
     if path == "/api/mark":
         view = realtime_view()

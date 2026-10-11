@@ -75,3 +75,4 @@ presentations/
 
 # --- phase60 위상 캐시 (재생성 가능) ---
 model_train/phase60/cache/
+model_train/amp60/cache/

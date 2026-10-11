@@ -33,8 +33,16 @@ FORMAT_VERSION = 1
 
 
 # ── 데이터 ────────────────────────────────────────────────────────────────────
-def load_dates(dates: tuple, window: int, stride: int) -> dict:
-    """{키: {phase, label, starts}}. 위상 추출이 느려 세션별로 캐시한다."""
+def session_key(date: str, dir_name: str) -> str:
+    """`20260916_31` — 날짜가 다르면 세션 번호가 겹치므로 날짜를 붙인다."""
+    return f"{date}_{dir_name.rsplit('_s', 1)[1]}"
+
+
+def load_dates(dates: tuple, window: int, stride: int, only: set | None = None) -> dict:
+    """{키: {phase, label, starts}}. 위상 추출이 느려 세션별로 캐시한다.
+
+    `only` 를 주면 그 세션 키만 읽는다 (화면에서 세션을 골랐을 때).
+    """
     CACHE.mkdir(parents=True, exist_ok=True)
     out = {}
     for date in dates:
@@ -44,7 +52,9 @@ def load_dates(dates: tuple, window: int, stride: int) -> dict:
             label = d.name.split("_")[1]
             if label not in CLASS_NAMES:
                 continue
-            key = f"{date}_{d.name.rsplit('_s', 1)[1]}"
+            key = session_key(date, d.name)
+            if only is not None and key not in only:
+                continue
             npz = CACHE / f"{key}.npz"
             if npz.exists():
                 phase = np.load(npz)["phase"]
@@ -169,8 +179,10 @@ def evaluate(models: list, sessions: dict, window: int, downsample: int,
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--name", required=True, help="체크포인트 이름 (model_<name>.pt)")
-    ap.add_argument("--train", nargs="+", required=True, help="학습에 쓸 날짜 폴더")
-    ap.add_argument("--eval", nargs="+", required=True, help="평가에 쓸 날짜 폴더 (학습과 겹치면 안 됨)")
+    ap.add_argument("--train", nargs="+", default=None, help="학습에 쓸 날짜 폴더")
+    ap.add_argument("--sessions", nargs="+", default=None,
+                    help="학습에 쓸 세션 키 (예: 20260916_31). --train 대신 쓴다")
+    ap.add_argument("--eval", nargs="+", default=[], help="평가에 쓸 날짜 폴더 (학습 날짜와 겹치면 거부)")
     ap.add_argument("--window", type=int, default=6000)
     ap.add_argument("--downsample", type=int, default=20)
     ap.add_argument("--train-stride", type=int, default=30)
@@ -194,15 +206,32 @@ def main() -> int:
                     help="호흡 대역(0.05~1Hz) 로그 스펙트럼: 두 번째 묶음으로 더하거나(add) 그것만(only)")
     args = ap.parse_args()
 
-    overlap = set(args.train) & set(args.eval)
+    if not args.train and not args.sessions:
+        print("[중단] --train 또는 --sessions 가 필요하다")
+        return 1
+    only = set(args.sessions) if args.sessions else None
+    train_dates = sorted({k.split("_")[0] for k in only}) if only else list(args.train)
+
+    # 날짜 단위로 막는다. 같은 날·같은 배치가 학습과 평가 양쪽에 들어가면 점수가 부풀고,
+    # 화면에서 세션을 고르게 하면 그 실수가 특히 쉬워진다.
+    overlap = set(train_dates) & set(args.eval)
     if overlap:
-        print(f"[중단] 학습과 평가 날짜가 겹친다: {sorted(overlap)}")
+        print(f"[중단] 학습에 쓴 날짜를 평가에도 쓸 수 없다: {sorted(overlap)}")
         return 1
 
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-    print(f"[데이터] 학습 {args.train} / 평가 {args.eval} · device={device}", flush=True)
-    train = load_dates(tuple(args.train), args.window, args.train_stride)
-    test = load_dates(tuple(args.eval), args.window, args.eval_stride)
+    print(f"[데이터] 학습 {train_dates} / 평가 {args.eval or '없음'} · device={device}", flush=True)
+    train = load_dates(tuple(train_dates), args.window, args.train_stride, only)
+    if only:
+        missing = only - set(train)
+        if missing:
+            print(f"[중단] 읽지 못한 세션: {sorted(missing)}")
+            return 1
+    labels = {v["label"] for v in train.values()}
+    if len(labels) < 3:
+        print(f"[중단] 세 클래스가 모두 필요하다 — 지금 {sorted(CLASS_NAMES[i] for i in labels)}")
+        return 1
+    test = load_dates(tuple(args.eval), args.window, args.eval_stride) if args.eval else {}
     n_win = sum(len(v["starts"]) for v in train.values())
     print(f"  학습 {len(train)}세션 (창 {n_win}개) → 평가 {len(test)}세션", flush=True)
 
@@ -212,12 +241,16 @@ def main() -> int:
         models.append(train_one(train, seed, args, device))
         print(f"  seed {seed} 완료 ({time.time() - s0:.0f}s)", flush=True)
 
-    print("[평가] 학습에 쓰지 않은 날짜로 판정", flush=True)
-    metrics = evaluate(models, test, args.window, args.downsample, device, args.diff,
-                       args.pool, args.spectral)
-    print(f"  세션 {metrics['sessions']} · 사람 있음/없음 {metrics['presence']} · "
-          f"빈방vs정지 {metrics['empty_vs_static']} · 창 정답률 {metrics['window_accuracy']}",
-          flush=True)
+    if test:
+        print("[평가] 학습에 쓰지 않은 날짜로 판정", flush=True)
+        metrics = evaluate(models, test, args.window, args.downsample, device, args.diff,
+                           args.pool, args.spectral)
+        print(f"  세션 {metrics['sessions']} · 사람 있음/없음 {metrics['presence']} · "
+              f"빈방vs정지 {metrics['empty_vs_static']} · 창 정답률 {metrics['window_accuracy']}",
+              flush=True)
+    else:
+        metrics = {"note": "평가 없이 학습만 했다 — evaluate.py 로 따로 재야 한다"}
+        print("[평가] 건너뜀 (--eval 없음)", flush=True)
 
     out = HERE / f"model_{args.name}.pt"
     torch.save({
@@ -238,7 +271,7 @@ def main() -> int:
         "class_names": list(CLASS_NAMES),
         "state_dicts": [m.cpu().state_dict() for m in models],
         "training_sessions": sorted(train),
-        "training_dates": list(args.train),
+        "training_dates": train_dates,
         "evaluation_dates": list(args.eval),
         "metrics": metrics,
         "config": {"epochs": args.epochs, "lr": args.lr, "batch": args.batch,
@@ -247,9 +280,10 @@ def main() -> int:
                    "label_smoothing": args.label_smoothing, "class_weight": args.class_weight,
                    "pool": args.pool,
         "spectral": args.spectral, "per_rx": args.per_rx, "width": args.width},
-        "status": (f"학습 {len(train)}세션({'+'.join(args.train)}) · "
-                   f"평가 {len(test)}세션({'+'.join(args.eval)}) 세션 {metrics['sessions']} · "
-                   "전환 구간·장시간 운영 미검증"),
+        "status": (f"학습 {len(train)}세션({'+'.join(train_dates)}) · "
+                   + (f"평가 {len(test)}세션({'+'.join(args.eval)}) 세션 {metrics['sessions']}"
+                      if test else "평가 없음")
+                   + " · 전환 구간·장시간 운영 미검증"),
         "trained_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }, out)
     (HERE / f"model_{args.name}.metrics.json").write_text(

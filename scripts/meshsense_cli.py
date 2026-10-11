@@ -53,6 +53,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from csi_session import create_session, finalize_session, next_session_id, set_session_note, summarize  # noqa: E402
 from csi_store import LABELS  # noqa: E402
 from session_meta import read_label_target, read_session_id  # noqa: E402
+from train_sessions import (  # noqa: E402
+    available_eval_dates, check_selection, group_by_date, list_sessions,
+)
 
 
 def _pause(msg: str = "계속하려면 Enter…") -> None:
@@ -922,6 +925,101 @@ def _draw_block_order(prev: Optional[List[str]]) -> List[str]:
             return order
 
 
+TRAIN_RUN_SCRIPT = SCRIPT_DIR / "_train_run.py"
+
+
+def _train_pick_sessions(chosen: set) -> set:
+    """날짜별로 세션을 토글한다. 전체 목록을 매번 그리는 쪽이 터미널에서는 더 읽기 쉽다."""
+    sessions = list_sessions()
+    by_date = group_by_date(sessions)
+    while True:
+        print("\n--- 세션 고르기 ---")
+        index = {}
+        n = 0
+        for date, items in by_date.items():
+            picked = sum(1 for s in items if s["key"] in chosen)
+            print(f"\n  {date}   [{picked}/{len(items)} 선택]   (d{list(by_date).index(date) + 1} = 날짜 전체)")
+            for s in items:
+                n += 1
+                index[n] = s["key"]
+                mark = "x" if s["key"] in chosen else " "
+                flag = "" if s["ok"] else "  ← 품질 미달"
+                print(f"    [{mark}] {n:>3}  {s['label']:7s} {s['span_s']:>5.0f}s "
+                      f"{s['hz']:>5.1f}Hz  {s['name']}{flag}")
+        counts = {l: sum(1 for s in sessions if s["key"] in chosen and s["label"] == l)
+                  for l in ("empty", "static", "motion")}
+        print(f"\n  선택 {len(chosen)}세션 — " + " · ".join(f"{k} {v}" for k, v in counts.items()))
+        raw = input("  번호(여러 개는 공백) / dN=날짜 전체 / c=모두 해제 / Enter=확정: ").strip()
+        if not raw:
+            return chosen
+        if raw == "c":
+            chosen = set()
+            continue
+        for token in raw.split():
+            if token.startswith("d") and token[1:].isdigit():
+                date = list(by_date)[int(token[1:]) - 1]
+                keys = {s["key"] for s in by_date[date]}
+                chosen = (chosen - keys) if keys <= chosen else (chosen | keys)
+            elif token.isdigit() and int(token) in index:
+                key = index[int(token)]
+                chosen ^= {key}
+
+
+def _train_pick_eval(chosen: set) -> list:
+    """평가 날짜. 학습에 쓴 날짜는 아예 보여주지 않는다."""
+    options = available_eval_dates(chosen)
+    if not options:
+        print("\n  평가에 쓸 수 있는 날짜가 없습니다 (모든 날짜를 학습에 골랐습니다).")
+        return []
+    idx = _choose("평가 날짜", [*options, "평가 없이 학습만"])
+    return [] if idx == len(options) else [options[idx]]
+
+
+def _menu_train() -> None:
+    """고른 세션으로 모델을 학습한다. 설정은 검증된 프리셋만 고른다."""
+    sys.path.insert(0, str(SCRIPT_DIR))
+    from _train_run import PRESETS
+
+    chosen: set = set()
+    eval_dates: list = []
+    preset = "balanced"
+    while True:
+        print("\n--- 모델 학습 ---")
+        print(f"  [1] 세션 고르기     현재: {len(chosen)}세션"
+              + (f" ({', '.join(sorted({k.split('_')[0] for k in chosen}))})" if chosen else ""))
+        print(f"  [2] 평가 날짜       현재: {', '.join(eval_dates) if eval_dates else '없음'}")
+        print(f"  [3] 설정            현재: {PRESETS[preset]['label']} — {PRESETS[preset]['detail']}")
+        print("  [4] 학습 시작")
+        print("  [5] 돌아가기")
+        idx = _choose("선택", ["세션 고르기", "평가 날짜", "설정", "학습 시작", "돌아가기"])
+        if idx == 0:
+            chosen = _train_pick_sessions(chosen)
+            if set(eval_dates) & {k.split("_")[0] for k in chosen}:
+                eval_dates = []          # 학습에 넣은 날짜가 평가에 남아 있으면 비운다
+                print("  (평가 날짜가 학습과 겹쳐 비웠습니다)")
+        elif idx == 1:
+            eval_dates = _train_pick_eval(chosen)
+        elif idx == 2:
+            keys = list(PRESETS)
+            pick = _choose("설정", [f"{PRESETS[k]['label']} — {PRESETS[k]['detail']}" for k in keys])
+            preset = keys[pick]
+        elif idx == 3:
+            problems = check_selection(chosen, eval_dates)
+            if problems:
+                print("\n[중단] 이대로는 학습할 수 없습니다:")
+                for line in problems:
+                    print(f"  · {line}")
+                _pause()
+                continue
+            cmd = ["--preset", preset, "--sessions", *sorted(chosen)]
+            if eval_dates:
+                cmd += ["--eval", *eval_dates]
+            _run_python(TRAIN_RUN_SCRIPT, cmd)
+            _pause()
+        else:
+            return
+
+
 def _menu_usb_pipeline() -> None:
     """USB 수집 파이프라인 — esp-csi 베이스 PoC (USB 시리얼 100Hz, 모델 학습 데이터)."""
     order: Optional[List[str]] = None
@@ -938,6 +1036,7 @@ def _menu_usb_pipeline() -> None:
                 "보드 플래시 (PoC, MAC 자동 매칭)",
                 "수집 (라벨·시간 입력)",
                 "블록 순서 뽑기 (클래스 순서 무작위)",
+                "모델 학습 (세션 선택)",
                 "세션 메타 편집 (브라우저 폼)",
                 "보드 관리 (registry 등록·검증)",
                 "파이프라인 선택으로 돌아가기",
@@ -952,8 +1051,10 @@ def _menu_usb_pipeline() -> None:
         elif idx == 2:
             order = _draw_block_order(order)
         elif idx == 3:
-            _open_session_form()
+            _menu_train()
         elif idx == 4:
+            _open_session_form()
+        elif idx == 5:
             _menu_board_management()
         else:
             break
