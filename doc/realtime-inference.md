@@ -19,6 +19,12 @@ GUI·CLI에서 진폭 30초(기본) / 위상 60초(시험 후보)를 선택할 �
 
 ### GUI·CLI에서 모델 실행
 
+**추가 완료 (2026-10-13):** `phase60_room`은 **위상 60초 · 내 방 추가 학습**을 선택한다.
+파일은 `model_train/phase60/model_room_20261012.pt`, 입력은 기존 위상 60초 경로다.
+이번 방 녹화로 추가 학습했으며 독립 성능 확인 전의 실시간 시험 후보다.
+GUI에서 선택 후 실시간 시작, CLI는 `--model-kind phase60_room`을 사용한다.
+학습·연결 확인 범위는 [추가 학습 결과](../model_train/docs/model-training/20261013-phase60-room-finetuning.md)에 있다.
+
 GUI·CLI는 선택한 모델 파일과 입력 규칙을 공통 실행기로 전달한다. 가중치는
 바꾸거나 재학습하지 않는다. 프로젝트 `.venv`가 있으면 판단 프로세스는 그 Python을
 사용한다. 의존성이 없으면 `pip install -r requirements-robust.txt` 실행 방법을 안내한다.

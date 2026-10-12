@@ -64,7 +64,7 @@ class Engine:
         self.bundle, self.models = load_model_bundle(self.model_path, model_kind)
         self.model_sha256 = hashlib.sha256(self.model_path.read_bytes()).hexdigest()
         self.window = self.bundle["window_frames"]
-        self.stream = CsiStream(self.dir, model_kind=model_kind)
+        self.stream = CsiStream(self.dir, model_kind=spec.get('input_kind', model_kind))
         self.sm = StateMachine(conf=conf, immediate=True, window_s=self.window/100)
         self.follow = True
         self.running = True
@@ -118,7 +118,7 @@ class Engine:
         if win is None:
             self._last_reason = "warmup" if self.stream.available_frames < self.window else "common_window_missing"
             return None
-        values = win.phase if self.model_kind == "phase60" else win.amp
+        values = win.amp if self.model_kind == "amplitude" else win.phase
         if not np.isfinite(values).all():
             self._last_reason = "unfilled_gap"
             return None
@@ -232,7 +232,7 @@ def main() -> int:
     ap.add_argument("--stride", type=int, default=30, help="판단 간격 (frame, 100Hz)")
     ap.add_argument("--conf", type=float, default=0.7)
     ap.add_argument("--model", type=Path)
-    ap.add_argument("--model-kind", choices=("amplitude", "phase60"), default="amplitude")
+    ap.add_argument("--model-kind", choices=("amplitude", "phase60", "phase60_room"), default="amplitude")
     ap.add_argument("--output-dir", type=Path)
     args = ap.parse_args()
     torch.set_num_threads(2)

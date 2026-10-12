@@ -148,7 +148,7 @@ def main() -> int:
     ap.add_argument("--port", required=True, help="SINK USB 포트")
     ap.add_argument("--output-dir", type=Path)
     ap.add_argument("--model", type=Path)
-    ap.add_argument("--model-kind", choices=("amplitude", "phase60"), default="amplitude")
+    ap.add_argument("--model-kind", choices=("amplitude", "phase60", "phase60_room"), default="amplitude")
     ap.add_argument("--stride", type=int, default=30)
     ap.add_argument("--plain", action="store_true")
     ap.add_argument("--duration", type=float, default=0, help="0=정지할 때까지, 양수=검증용 제한 초")

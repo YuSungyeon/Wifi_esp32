@@ -22,6 +22,10 @@
 
 | 문서 | 알 수 있는 내용 |
 |---|---|
+| [10월 6일 자료의 파인튜닝 전후 비교](model-training/20261013-room-finetuning-oct6-evaluation.md) | 정지 60초 이후 0.75%·정지 34창 전부 빈 방 오판, 걷기 하락과 전환 지연 |
+| [이번 방 자료로 위상 모델 추가 학습·실시간 연결](model-training/20261013-phase60-room-finetuning.md) | 기존 3분류 모델 파인튜닝 완료, 학습 자료 105/105 재판정, 새 실시간 시험 방법 |
+| [10월 12일 새 방 학습용 첫 측정 확인](model-training/20261012-room-adaptation-capture.md) | 침대 앉기·걷기·빈 방 원본 품질, 잠정 정답 구간, 정지 구간 뒤 RX103 재부팅 확인 |
+| [위상 60초 모델의 2단계 분류 설계](model-training/phase60-two-stage-design.md) | PLANNED — 후속 후보. 현재는 기존 3분류 파인튜닝·실시간 시험을 우선 진행 |
 | [새 방 위상 모델 추가 학습 작업 목록](../../doc/plans/2026-10-12-phase60-room-finetuning.md) | PLANNED — 소량 수집, 자료 분리, 일부 가중치 학습, 채택 기준 |
 | [위상 60초 모델 도입 작업 목록](../../doc/plans/2026-10-08-phase60-introduction.md) | 다음 평가·재생·실시간 연결·전환 시험을 1~4번 순서로 체크하며 진행하는 계획 |
 | [9월 16·17일 위상 60초 모델 재평가](model-training/20260916-17-phase60-evaluation.md) | 14/15 재현 결과, 기존 진폭과 세션별 비교, 남은 정지 오분류 |

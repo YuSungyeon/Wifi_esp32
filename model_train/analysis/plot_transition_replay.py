@@ -19,20 +19,24 @@ def plot(folder, destination):
     truth=json.loads((folder/"truth.json").read_text())["segments"]
     begin,end=truth[0]["start_wall"],truth[-1]["end_wall"]
     tracks=[[(r["start_wall"],r["end_wall"],r["label"]) for r in truth]]
-    for model in ("amplitude","phase"):
+    models=list(json.loads((folder/'summary.json').read_text())['models'])
+    for model in models:
         events=json.loads((folder/f"{model}-prefix-events.json").read_text())
         tracks.append([(r["wall"],events[i+1]["wall"] if i+1<len(events) else end,r["state"])
                        for i,r in enumerate(events)])
     fig,ax=plt.subplots(figsize=(12,3.4))
-    for y,track in zip((2,1,0),tracks):
+    positions=list(range(len(tracks)-1,-1,-1))
+    for y,track in zip(positions,tracks):
         for a,b,state in track:
             lo,hi=max(begin,a),min(end,b)
             if hi>lo:
                 ax.broken_barh([(lo-begin,hi-lo)],(y-.24,.48),facecolors=COLORS[state])
-    ax.set_yticks([2,1,0],["Reported activity","Amplitude 30 s","Phase 60 s"])
+    labels={'amplitude':'Amplitude 30 s','phase':'Phase 60 s',
+            'phase_original':'Original phase 60 s','phase_room':'Fine-tuned phase 60 s'}
+    ax.set_yticks(positions,["Reported activity"]+[labels.get(model,model) for model in models])
     ticks=[r["start_wall"] for r in truth]+[end]
     ax.set_xticks([t-begin for t in ticks],[datetime.fromtimestamp(t,ZoneInfo("Asia/Seoul")).strftime("%H:%M:%S") for t in ticks])
-    ax.set_xlim(0,end-begin);ax.set_ylim(-.55,2.55)
+    ax.set_xlim(0,end-begin);ax.set_ylim(-.55,len(tracks)-.45)
     ax.set_xlabel("6 Oct 2026, KST (replay clock alignment is approximate)")
     ax.set_title("Same raw CSI, 0.3 s replay polls, immediate class display",loc="left",fontweight="bold")
     ax.grid(axis="x",alpha=.2)

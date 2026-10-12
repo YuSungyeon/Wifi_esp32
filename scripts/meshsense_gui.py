@@ -590,6 +590,7 @@ function renderRealtimeControls(){
     <select id="rt-model" ${j.running?'disabled':''} onchange="rtModel=this.value;delete sig.realtime;render()">${modelOpts}</select>
     <p class="sub">${esc(selected.model)} · 모델 3개의 예측 평균 · ${selected.window_s}초 입력 · 0.3초 판단 간격</p>
     ${rtModel==='phase60'?'<p class="note">위상은 시험 후보입니다. 기존 앉기 시험에서 정지 오판이 있어 성능 확인이 필요합니다.</p>':''}
+    ${rtModel==='phase60_room'?'<p class="note">10/12 내 방 녹화로 추가 학습한 모델입니다. 새 실시간 측정에서 성능을 확인하세요.</p>':''}
     <p class="sub">매번 최대 확률 클래스를 즉시 표시합니다. 확신 기준·유지 시간 대기 없음.</p>
     ${selected.model_exists ? '' : '<p class="note">선택한 모델 파일이 없습니다.</p>'}
     <div class="bar" style="margin-top:.8rem">

@@ -10,9 +10,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MODEL = ROOT / "model_train" / "robust" / "model.pt"
 PHASE_MODEL = ROOT / "model_train" / "phase60" / "model_60sessions.pt"
+ROOM_MODEL = ROOT / "model_train" / "phase60" / "model_room_20261012.pt"
 MODEL_SPECS = {
     "amplitude": {"label": "진폭 30초", "path": MODEL, "window_s": 30},
     "phase60": {"label": "위상 60초 (시험 후보)", "path": PHASE_MODEL, "window_s": 60},
+    "phase60_room": {"label": "위상 60초 · 내 방 추가 학습", "path": ROOM_MODEL,
+                     "window_s": 60, "input_kind": "phase60"},
 }
 UI = ROOT / "realtime" / "ui.py"
 LIVE = ROOT / "scripts" / "realtime_live.py"
@@ -30,7 +33,7 @@ def setup_hint() -> str:
 
 def model_spec(model_kind: str = "amplitude") -> dict:
     if not isinstance(model_kind, str) or model_kind not in MODEL_SPECS:
-        raise ValueError("모델 종류는 amplitude 또는 phase60이어야 합니다")
+        raise ValueError("모델 종류는 amplitude, phase60, phase60_room 중 하나여야 합니다")
     return MODEL_SPECS[model_kind]
 
 

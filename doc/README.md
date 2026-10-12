@@ -19,6 +19,10 @@
 새 방 자료로 파인튜닝하는 후속 작업은 [새 방 위상 모델 추가 학습 작업 목록](plans/2026-10-12-phase60-room-finetuning.md)에 있습니다.
 **PLANNED** 상태이며 수집·자료 분리·일부 가중치 학습·다른 날 시험 순서로 진행합니다.
 
+2026-10-13에는 요청에 따라 **기존 위상 3분류 모델을 이번 방 자료로 추가 학습하고 GUI·CLI에 연결했습니다.**
+현재 다음 작업은 [새 가중치로 실시간 시험](../model_train/docs/model-training/20261013-phase60-room-finetuning.md)입니다.
+[2단계 구조 설계](../model_train/docs/model-training/phase60-two-stage-design.md)는 후속 후보로 보존합니다.
+
 현재 학습한 모델을 확인하려면 [모델 학습 문서 안내](../model_train/docs/README.md)에서
 [쉬운 결과 설명](../model_train/docs/model-training/robust-three-class-report-easy.md)부터 읽습니다.
 최근 자료 구성과 결과는 [9월 16·17일 데이터 확인·최종 모델 평가](../model_train/docs/model-training/20260916-17-model-evaluation.md)에 있습니다.

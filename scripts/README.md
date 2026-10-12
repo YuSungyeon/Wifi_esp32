@@ -30,6 +30,8 @@ GUI **실시간** 탭에서 **사용할 모델**을 고르고 **실시간 시작
 
 기본 모델은 `model_train/robust/model.pt`(진폭 30초)다. `--model-kind phase60`은
 `model_train/phase60/model_60sessions.pt`(위상 60초 시험 후보)를 선택한다. 두 경로의 기본 이동은 0.3초다.
+`--model-kind phase60_room`은 `model_train/phase60/model_room_20261012.pt`(위상 60초 · 내 방 추가 학습)를 선택한다.
+기존과 같은 위상 입력이며, 10/12 녹화로 파인튜닝한 실시간 시험 후보다.
 각 창의 최대 확률 클래스를 바로 표시한다. 확신 70%·클래스 유지 시간은 쓰지 않는다.
 최초 30초/60초 준비와 신호 누락 때의 판단 정지는 유지한다. GUI 판단 화면 갱신은 300ms다.
 원본 대신 `mac_collector_output/realtime/`에 실행 기록을 남긴다. 현재 보드 모드의

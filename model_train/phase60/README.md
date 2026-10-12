@@ -3,6 +3,11 @@
 > 상태: **EXPERIMENTAL** — 실행 코드와 체크포인트가 있으나 공식 pipeline 이 아니다.
 > 실시간 경로(`realtime/`)에서 시험 후보로 선택할 수 있다(2026-10-10). 기본값은 기존 진폭 모델이다.
 
+2026-10-13 **위상 60초 · 내 방 추가 학습** 후보를 추가했다. `model_room_20261012.pt`는
+기존 모델의 CNN을 고정하고 10/12 방 자료로 head를 파인튜닝한 3클래스 모델이다.
+GUI에서 별도로 선택하거나 CLI에 `--model-kind phase60_room`을 넣는다.
+[학습 결과·실시간 시험 방법](../docs/model-training/20261013-phase60-room-finetuning.md)을 따른다.
+
 60초 창의 **위상 잔차**로 `empty` / `static` / `motion` 을 가리는 3-class 모델이다. 배포
 모델이 **진폭 30초**를 쓰는 것과 대비되는 구성이다. 선택 연결 자체는 기본값 교체나 성능 개선을 뜻하지 않는다.
 근거 비교는 [1D-CNN 파일럿 교차검증 보고서](../docs/model-training/archive/cnn1d-pilot-cv-report.md)와

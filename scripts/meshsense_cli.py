@@ -96,10 +96,11 @@ def _run_model(session: Optional[Path], *, follow: bool = False, plain: bool = F
 
 
 def _model_menu() -> None:
-    choice = _choose("사용할 모델", ["진폭 30초 (기본)", "위상 60초 (시험 후보)", "취소"])
-    if choice == 2:
+    choice = _choose("사용할 모델", ["진폭 30초 (기본)", "위상 60초 (시험 후보)",
+                                  "위상 60초 · 내 방 추가 학습", "취소"])
+    if choice == 3:
         return
-    model_kind = ("amplitude", "phase60")[choice]
+    model_kind = ("amplitude", "phase60", "phase60_room")[choice]
     mode = _choose("판단 방식", ["현재 보드 실시간 (수집+판단)", "녹화 재생 (보드 불필요)",
                                 "수집 파일 따라 읽기 (다른 터미널/GUI에서 수집 중)", "취소"])
     if mode == 3:
@@ -1121,8 +1122,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--follow", action="store_true", help="수집 중인 세션을 따라 읽기")
     parser.add_argument("--plain", action="store_true", help="판단을 한 줄로 출력")
     parser.add_argument("--model", type=Path, help="선택한 모델 종류의 체크포인트 경로")
-    parser.add_argument("--model-kind", choices=("amplitude", "phase60"), default="amplitude",
-                        help="진폭 30초(기본) 또는 위상 60초")
+    parser.add_argument("--model-kind", choices=("amplitude", "phase60", "phase60_room"), default="amplitude",
+                        help="진폭 30초(기본), 기존 위상 60초 또는 내 방 추가 학습 위상")
     parser.add_argument("--stride", type=int, default=30, help="판단 간격 프레임 (100Hz, 기본 30=0.3초)")
     parser.add_argument("--output-dir", type=Path, help="원본과 분리한 판단 결과 폴더")
     return parser.parse_args()

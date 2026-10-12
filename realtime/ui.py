@@ -152,7 +152,7 @@ def main() -> int:
     ap.add_argument("--stride", type=int, default=30, help="판단 간격 (frame, 100Hz)")
     ap.add_argument("--conf", type=float, default=0.7)
     ap.add_argument("--model", type=Path)
-    ap.add_argument("--model-kind", choices=("amplitude", "phase60"), default="amplitude")
+    ap.add_argument("--model-kind", choices=("amplitude", "phase60", "phase60_room"), default="amplitude")
     ap.add_argument("--output-dir", type=Path)
     ap.add_argument("--speed", type=float, default=0.0,
                     help="재생 속도 (0=최대한 빨리, 1=실제 속도)")

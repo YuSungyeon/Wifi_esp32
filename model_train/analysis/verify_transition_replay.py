@@ -19,7 +19,7 @@ def verify(folder):
     for name,expected in hashes.items():
         assert hashlib.sha256((ROOT/name).read_bytes()).hexdigest()==expected,name
     comparisons=0;inferences=0
-    for model in ("amplitude","phase"):
+    for model in summary["models"]:
         for kind in ("prefix","whole_file"):
             rows=[json.loads(line) for line in (folder/f"{model}-{kind}.jsonl").read_text().splitlines()]
             t=np.array([r["wall"] for r in rows]);states=np.array([r["state"] for r in rows])

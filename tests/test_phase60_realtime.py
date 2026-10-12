@@ -316,11 +316,11 @@ class PhaseLaunchTests(Fixture):
                 self.assertEqual(cmd[cmd.index('--model')+1],str(path))
                 self.assertEqual(cmd[cmd.index('--stride')+1],'30')
 
-    def test_unknown_kinds_rejected_and_runtime_lists_both_models(self):
+    def test_unknown_kinds_rejected_and_runtime_lists_model_choices(self):
         for kind in ('unknown',None,{}):
             with self.assertRaises(ValueError):launch.resolve_model(kind)
         self.assertEqual([(m['kind'],m['window_s']) for m in launch.runtime_info()['models']],
-                         [('amplitude',30),('phase60',60)])
+                         [('amplitude',30),('phase60',60),('phase60_room',60)])
 
     def test_gui_replay_follow_and_live_pass_kind_without_touching_other_job(self):
         rt=gui.Job()

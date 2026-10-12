@@ -1,0 +1,338 @@
+{
+  "schema": 1,
+  "status": "PROVISIONAL_ADAPTATION_TRAIN_CANDIDATE",
+  "recorded_date": "2026-10-12",
+  "audit_date": "2026-10-13",
+  "capture": "mac_collector_output/realtime/20261012-232822-9c59121a",
+  "annotation_source": "/Users/jaehyeog/Desktop/10.12 실시간 측정/info.txt",
+  "model_kind": [
+    "phase60"
+  ],
+  "model_sha256": [
+    "1232d156dc9c1c6dd07a3dbf29384200d0848abd319cd3c7a77f30bd2f5b4c42"
+  ],
+  "capture_started_at": "2026-10-12T23:28:22.864+09:00",
+  "capture_ended_at": "2026-10-12T23:38:10.698+09:00",
+  "conditions": {
+    "static_posture": "sitting_on_bed",
+    "motion": "walking_in_marked_area_carrying_phone",
+    "rx_tx_height_m_approx": 1,
+    "photo_names_to_device_id": {
+      "RX1.jpeg": 101,
+      "RX2.jpeg": 102,
+      "RX3.jpeg": 103
+    },
+    "photo_mapping_confirmed_by_user": true
+  },
+  "clock": {
+    "reported_clock": "phone",
+    "timezone": "Asia/Seoul",
+    "phone_minus_mac_seconds_assumed": 0,
+    "offset_measured": false,
+    "user_statement": "Both use Internet time; expected to agree, not directly measured",
+    "tx_to_wall_method": "nominal 100Hz; 5th percentile of prediction.wall - input_end_tx_seq_exclusive/100 over inferred rows",
+    "anchor_unix_seconds": 1791815202.693436,
+    "anchor_quantiles_seconds": {
+      "min": 1791815202.678865,
+      "p05": 1791815202.693436,
+      "median": 1791815202.7670271,
+      "p95": 1791815202.8429775,
+      "max": 1791815202.877393
+    },
+    "limitation": "Prediction wall time follows acquisition/processing; no exact per-frame host wall time; clock offset and action boundaries remain provisional"
+  },
+  "prediction_log": {
+    "rows": 1535,
+    "inferences": 1235,
+    "reasons": {
+      "rx_missing": 38,
+      "warmup": 194,
+      "inference": 1235,
+      "waiting_for_new_common_frames": 17,
+      "unfilled_gap": 48,
+      "error": 1,
+      "stopped": 1,
+      "supervisor_error": 1
+    }
+  },
+  "devices": [
+    {
+      "device_id": 101,
+      "header_rx_id": 1,
+      "frames": 56301,
+      "crc_header_identity_pass": true,
+      "rf": {
+        "channel": [
+          11
+        ],
+        "rate": [
+          11
+        ],
+        "sig_len": [
+          47
+        ]
+      },
+      "tx_decreases": 0,
+      "duplicates": 23,
+      "missing_tx_frames": 2436,
+      "max_gap_frames": 3,
+      "boot_changes": []
+    },
+    {
+      "device_id": 102,
+      "header_rx_id": 3,
+      "frames": 56524,
+      "crc_header_identity_pass": true,
+      "rf": {
+        "channel": [
+          11
+        ],
+        "rate": [
+          11
+        ],
+        "sig_len": [
+          47
+        ]
+      },
+      "tx_decreases": 0,
+      "duplicates": 34,
+      "missing_tx_frames": 2224,
+      "max_gap_frames": 2,
+      "boot_changes": []
+    },
+    {
+      "device_id": 103,
+      "header_rx_id": 2,
+      "frames": 51446,
+      "crc_header_identity_pass": true,
+      "rf": {
+        "channel": [
+          11
+        ],
+        "rate": [
+          11
+        ],
+        "sig_len": [
+          47
+        ]
+      },
+      "tx_decreases": 0,
+      "duplicates": 31,
+      "missing_tx_frames": 7297,
+      "max_gap_frames": 1431,
+      "boot_changes": [
+        {
+          "before_boot_id": 29805,
+          "after_boot_id": 24152,
+          "last_before_tx_seq": 67340,
+          "first_after_tx_seq": 68772,
+          "last_before_wall_approx": "2026-10-12T23:37:56.093+09:00",
+          "first_after_wall_approx": "2026-10-12T23:38:10.413+09:00"
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "label": "empty",
+      "reported_boundary_start": "2026-10-12T23:28:32.000+09:00",
+      "reported_boundary_end": "2026-10-12T23:31:38.000+09:00",
+      "boundary_duration_seconds": 186,
+      "boundary_note": "entry time not recorded separately; end is walking start",
+      "guard_seconds_each_side": 10,
+      "candidate_start_wall": "2026-10-12T23:28:42.000+09:00",
+      "candidate_end_wall": "2026-10-12T23:31:28.000+09:00",
+      "candidate_start_tx_seq_approx": 11931,
+      "candidate_end_tx_seq_exclusive_approx": 28530,
+      "observed_ratio_by_device": {
+        "101": 0.952286282306163,
+        "102": 0.9621663955659979,
+        "103": 0.8808361949515031
+      },
+      "candidate_60s_windows_stride3s": 36,
+      "finite_feature_windows": 36,
+      "valid_start_tx_seq_approx": [
+        11931,
+        12231,
+        12531,
+        12831,
+        13131,
+        13431,
+        13731,
+        14031,
+        14331,
+        14631,
+        14931,
+        15231,
+        15531,
+        15831,
+        16131,
+        16431,
+        16731,
+        17031,
+        17331,
+        17631,
+        17931,
+        18231,
+        18531,
+        18831,
+        19131,
+        19431,
+        19731,
+        20031,
+        20331,
+        20631,
+        20931,
+        21231,
+        21531,
+        21831,
+        22131,
+        22431
+      ],
+      "label_status": "provisional; guard is not a measured clock-error bound"
+    },
+    {
+      "label": "motion",
+      "reported_boundary_start": "2026-10-12T23:31:38.000+09:00",
+      "reported_boundary_end": "2026-10-12T23:34:41.000+09:00",
+      "boundary_duration_seconds": 183,
+      "boundary_note": "sitting start not recorded separately; end is fully settled on bed",
+      "guard_seconds_each_side": 10,
+      "candidate_start_wall": "2026-10-12T23:31:48.000+09:00",
+      "candidate_end_wall": "2026-10-12T23:34:31.000+09:00",
+      "candidate_start_tx_seq_approx": 30531,
+      "candidate_end_tx_seq_exclusive_approx": 46830,
+      "observed_ratio_by_device": {
+        "101": 0.9755199705503406,
+        "102": 0.9609792011779864,
+        "103": 0.8877231732008098
+      },
+      "candidate_60s_windows_stride3s": 35,
+      "finite_feature_windows": 35,
+      "valid_start_tx_seq_approx": [
+        30531,
+        30831,
+        31131,
+        31431,
+        31731,
+        32031,
+        32331,
+        32631,
+        32931,
+        33231,
+        33531,
+        33831,
+        34131,
+        34431,
+        34731,
+        35031,
+        35331,
+        35631,
+        35931,
+        36231,
+        36531,
+        36831,
+        37131,
+        37431,
+        37731,
+        38031,
+        38331,
+        38631,
+        38931,
+        39231,
+        39531,
+        39831,
+        40131,
+        40431,
+        40731
+      ],
+      "label_status": "provisional; guard is not a measured clock-error bound"
+    },
+    {
+      "label": "static",
+      "reported_boundary_start": "2026-10-12T23:34:41.000+09:00",
+      "reported_boundary_end": "2026-10-12T23:37:43.000+09:00",
+      "boundary_duration_seconds": 182,
+      "boundary_note": "start is fully settled on bed; end is before standing up",
+      "guard_seconds_each_side": 10,
+      "candidate_start_wall": "2026-10-12T23:34:51.000+09:00",
+      "candidate_end_wall": "2026-10-12T23:37:33.000+09:00",
+      "candidate_start_tx_seq_approx": 48831,
+      "candidate_end_tx_seq_exclusive_approx": 65030,
+      "observed_ratio_by_device": {
+        "101": 0.9463547132539045,
+        "102": 0.9641953206988085,
+        "103": 0.923945922587814
+      },
+      "candidate_60s_windows_stride3s": 34,
+      "finite_feature_windows": 34,
+      "valid_start_tx_seq_approx": [
+        48831,
+        49131,
+        49431,
+        49731,
+        50031,
+        50331,
+        50631,
+        50931,
+        51231,
+        51531,
+        51831,
+        52131,
+        52431,
+        52731,
+        53031,
+        53331,
+        53631,
+        53931,
+        54231,
+        54531,
+        54831,
+        55131,
+        55431,
+        55731,
+        56031,
+        56331,
+        56631,
+        56931,
+        57231,
+        57531,
+        57831,
+        58131,
+        58431,
+        58731
+      ],
+      "label_status": "provisional; guard is not a measured clock-error bound"
+    }
+  ],
+  "hashes": {
+    "mac_collector_output/realtime/20261012-232822-9c59121a/capture/device_101.csi": "f167d824e0b5b6cc6acaa3e4b28bf55f5517278dea2a9b69bc08573f7e62fae2",
+    "mac_collector_output/realtime/20261012-232822-9c59121a/capture/device_102.csi": "56e38370efad91a96af460b6b0fdec542d036b074488b33c093d8a05296c5f7b",
+    "mac_collector_output/realtime/20261012-232822-9c59121a/capture/device_103.csi": "53f24f1542f19193af44b3115aa44feda23f6f6ef5b5deac314dd6d81b05eb7c",
+    "mac_collector_output/realtime/20261012-232822-9c59121a/capture/device_registry_snapshot.csv": "db8f80269d13add479ba2c95de989e08d3b21ce008d27bfd503e0f606108c67f",
+    "mac_collector_output/realtime/20261012-232822-9c59121a/capture/session.json": "f0a64c33a59a9689b82dc6c771698d70d87229fb508b8a497316bd31d23ba02c",
+    "mac_collector_output/realtime/20261012-232822-9c59121a/prediction/realtime_events.jsonl": "4321202f51bccb4fd166f445e1c53a6c00298da94487200d9e6ee3b5bcb7ef3f",
+    "mac_collector_output/realtime/20261012-232822-9c59121a/prediction/realtime_predictions.jsonl": "0292d939d600452e53af89eee90e46dc5fc7a9793a8a8a39421c39e46c2b39a0",
+    "mac_collector_output/realtime/20261012-232822-9c59121a/prediction/realtime_status.json": "2a13afe3bd616d05b8155625c48765f839c87e2fdf6853f4cc40335d37885c56",
+    "/Users/jaehyeog/Desktop/10.12 실시간 측정/RX1.jpeg": "d810d2d545db9d3cbab1d062207e80f4cdb1294e5c29d4b4eb0cebb76226d898",
+    "/Users/jaehyeog/Desktop/10.12 실시간 측정/RX2.jpeg": "9a47e380e4f2d56e8b6e0dfc798db16d1e69579b11ae84efee766cad64cc3972",
+    "/Users/jaehyeog/Desktop/10.12 실시간 측정/RX3.jpeg": "a8185525a21545d47557bc8ae9e173778122f52f7e66a4098ca820c8f5a645f6",
+    "/Users/jaehyeog/Desktop/10.12 실시간 측정/TX.jpeg": "69068686ce83b82f5f3046c2191ee6191c9e03734c6f0d1327bb5d392af70ac2",
+    "/Users/jaehyeog/Desktop/10.12 실시간 측정/info.txt": "0bb19e330397fd73b098c1eac4c6ef47016d5e714587c548e7e060724436efaf",
+    "/Users/jaehyeog/Desktop/10.12 실시간 측정/배치.jpeg": "5c2ec969333e0490e56bece07cc37c904c32b9d54989a51dccb768cda3074952"
+  },
+  "total_frames": 164271,
+  "error_events": [
+    {
+      "wall": "2026-10-12T23:38:10.535+09:00",
+      "reason": "error",
+      "note": "판단 오류로 중지: RX 103: 재부팅 경계 — 새 세션으로 시작하세요"
+    },
+    {
+      "wall": "2026-10-12T23:38:10.698+09:00",
+      "reason": "supervisor_error",
+      "note": "실시간 수집/판단 오류: 판단 프로세스 종료 (코드 1)"
+    }
+  ],
+  "source_hashes_unchanged": true
+}
