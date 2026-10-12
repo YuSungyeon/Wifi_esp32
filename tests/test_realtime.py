@@ -283,3 +283,31 @@ class ModelChoiceTest(unittest.TestCase):
             torch.save({"mode": "X", "state_dicts": []}, p)
             with self.assertRaises(ValueError):
                 load_any(p)
+
+
+class LiveWindowTest(unittest.TestCase):
+    """실시간(따라가기)에서 RX 파일은 서로 조금씩 늦는다. 창은 **모든 RX 가 도달한 지점**에서 끝나야
+    한다 — 가장 새 프레임까지 잡으면 늦은 RX 의 꼬리가 NaN 이라 판단이 한 번도 나지 않는다."""
+
+    SESSION = ROOT / "mac_collector_output" / "raw" / "20260919" / "181915_static_s10"
+
+    def test_window_ends_where_the_slowest_rx_is(self):
+        if not (self.SESSION / "session.json").is_file():
+            raise unittest.SkipTest("수집 세션이 없다")
+        import numpy as np
+
+        import csi_store as cs
+        from realtime.stream import CsiStream
+
+        frames = cs.read_session(self.SESSION)
+        s = CsiStream(self.SESSION)
+        lag = {101: 0, 102: 7, 103: 40}                 # RX103 이 0.4초 늦게 flush 됐다
+        for ri, rx in enumerate((101, 102, 103)):
+            s._ingest(ri, frames[rx][3000:3000 + 2000 - lag[rx]])
+        win = s.latest(300)
+        self.assertIsNotNone(win)
+        self.assertTrue(np.isfinite(win.amp).all())      # 꼬리에 NaN 이 없어야 모델이 돈다
+        # 프레임 수가 아니라 tx_seq 기준으로 가장 뒤처진 RX 가 창 끝을 정한다
+        slowest_end = min(int(frames[rx]["hdr"]["tx_seq"][3000 + 2000 - lag[rx] - 1]) + 1
+                          for rx in lag)
+        self.assertEqual(win.tx_seq0 + 300, slowest_end)

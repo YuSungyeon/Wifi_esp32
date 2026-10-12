@@ -121,6 +121,15 @@ class CsiStream:
     def latest(self, width: int) -> Window | None:
         """최근 width frame. 아직 덜 찼으면 None. 짧은 공백은 공식 규칙대로 보간한다."""
         end = self._end if self._cursor is None else self._cursor
+        if self._cursor is None:
+            # 실시간: RX 파일은 서로 조금씩 늦는다(버퍼 flush·USB 타이밍). 가장 새 프레임까지 창을
+            # 잡으면 늦은 RX 의 꼬리가 비어 창마다 NaN 이 생겨 판단이 한 번도 안 난다. **모든 RX 가
+            # 도달한 지점**을 창 끝으로 한다. 한 RX 가 멈추면 창도 멈춘다 — 그 편이 그 RX 를 빼고
+            # 영원히 판단 못 하는 것보다 낫고, 끊김 자체는 rx_alive()(파일 갱신 시각)가 드러낸다.
+            ends = [int(nz[-1]) + 1 for ri in range(len(self.rx_order))
+                    if len(nz := np.flatnonzero(self._present[ri, :self._end]))]
+            if ends:
+                end = min(ends)
         if self._base is None or end < width:
             return None
         s = end - width
