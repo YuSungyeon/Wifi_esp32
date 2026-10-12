@@ -25,8 +25,10 @@ from torch import nn
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from model_train.phase60.train import session_key  # noqa: E402
+from train_sessions import is_excluded  # noqa: E402
 from model_train.robust.predict import load_raw_amplitude  # noqa: E402
 from model_train.robust.shared_temporal import SharedEncoder, amplitude_input  # noqa: E402
 
@@ -59,6 +61,9 @@ def load_sessions(dates: tuple, window: int, stride: int, only: set | None = Non
                 continue
             key = session_key(date, d.name)
             if only is not None and key not in only:
+                continue
+            if is_excluded(key):
+                print(f"  제외 {key}: 라벨 정의 위반 (train_sessions.EXCLUDED_SESSIONS)", flush=True)
                 continue
             npz = CACHE / f"{key}.npz"
             if npz.exists():

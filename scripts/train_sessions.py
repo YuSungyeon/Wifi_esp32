@@ -18,6 +18,17 @@ from csi_store import LABELS  # noqa: E402
 RAW_ROOT = ROOT / "mac_collector_output" / "raw"
 MIN_PER_CLASS = 2      # 클래스마다 최소 세션 수 — 한 세션만으로는 학습도 평가도 의미가 없다
 
+# 라벨 정의를 벗어난 세션 — 학습·평가 목록에서 뺀다. 데이터·session.json 은 건드리지 않는다.
+# 근거는 doc/troubleshooting/04-session-labels.md 의 해당 날짜 항목. 새 항목은 평가 전에 넣는다.
+EXCLUDED_SESSIONS = {
+    "20260919_12": "static 라벨이지만 1단계 모델로 300초 내내 산발적 움직임(0.7 초과 창 5.1%) — "
+                   "프로토콜 §2 'static = 호흡 외 움직임 없음' 위반 (2026-10-12 ② 채택)",
+}
+
+
+def is_excluded(key: str) -> bool:
+    return key in EXCLUDED_SESSIONS
+
 
 def session_key(date: str, dir_name: str) -> str:
     return f"{date}_{dir_name.rsplit('_s', 1)[1]}"
@@ -30,7 +41,7 @@ def list_sessions(raw_root: Path = RAW_ROOT) -> list[dict]:
         if not (d / "session.json").is_file():
             continue
         label = d.name.split("_")[1]
-        if label not in LABELS:
+        if label not in LABELS or is_excluded(session_key(d.parent.name, d.name)):
             continue
         try:
             m = read_manifest(d)

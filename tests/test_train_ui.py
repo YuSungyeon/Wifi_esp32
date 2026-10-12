@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from _train_run import PRESETS, estimate_seconds, hms  # noqa: E402
 from train_sessions import (  # noqa: E402
-    available_eval_dates, check_selection, group_by_date, session_key,
+    EXCLUDED_SESSIONS, available_eval_dates, check_selection, group_by_date, is_excluded, session_key,
 )
 
 SESSIONS = [
@@ -82,6 +82,15 @@ class PresetTest(unittest.TestCase):
         for name, p in PRESETS.items():
             with self.subTest(name):
                 self.assertFalse(set(p["args"]) & set(banned))
+
+
+class ExclusionTest(unittest.TestCase):
+    def test_protocol_violating_session_is_excluded_with_a_reason(self):
+        self.assertTrue(is_excluded("20260919_12"))
+        self.assertFalse(is_excluded("20260919_11"))
+        for key, why in EXCLUDED_SESSIONS.items():
+            self.assertRegex(key, r"^\d{8}_\d+$")
+            self.assertTrue(why.strip())
 
 
 class EstimateTest(unittest.TestCase):

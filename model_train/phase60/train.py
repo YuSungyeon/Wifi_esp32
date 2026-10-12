@@ -21,9 +21,11 @@ from torch import nn
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from model_train.cnn1d.shared_cnn import RX_ORDER, SharedTemporalCNN  # noqa: E402
 from model_train.phase60 import features as F  # noqa: E402
+from train_sessions import is_excluded  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 RAW = ROOT / "mac_collector_output" / "raw"
@@ -54,6 +56,9 @@ def load_dates(dates: tuple, window: int, stride: int, only: set | None = None) 
                 continue
             key = session_key(date, d.name)
             if only is not None and key not in only:
+                continue
+            if is_excluded(key):
+                print(f"  제외 {key}: 라벨 정의 위반 (train_sessions.EXCLUDED_SESSIONS)", flush=True)
                 continue
             npz = CACHE / f"{key}.npz"
             if npz.exists():

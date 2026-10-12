@@ -27,9 +27,11 @@ import torch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from model_train.phase60 import features as F  # noqa: E402
 from model_train.phase60.train import CLASS_NAMES, session_key  # noqa: E402
+from train_sessions import is_excluded  # noqa: E402
 
 RAW = ROOT / "mac_collector_output" / "raw"
 PHASE_CACHE = ROOT / "model_train" / "phase60" / "cache"
@@ -109,6 +111,9 @@ def main() -> int:
             if not (d / "session.json").is_file() or d.name.split("_")[1] not in CLASS_NAMES:
                 continue
             key = session_key(date, d.name)
+            if is_excluded(key):
+                print(f"  제외 {key}: 라벨 정의 위반 (train_sessions.EXCLUDED_SESSIONS)", flush=True)
+                continue
             got = {n: session_scores(d, key, b, m, k, device) for n, b, m, k in loaded}
             if any(v is None for v in got.values()):
                 continue
