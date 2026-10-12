@@ -58,7 +58,9 @@ class CheckpointTest(unittest.TestCase):
                 bundle, models = load_bundle(path)
                 self.assertEqual(bundle["feature_version"], F.FEATURE_VERSION)
                 self.assertEqual(bundle["mode"], "P")
-                self.assertIn(bundle["window_frames"], (6000, 9000))
+                # 창 길이는 모델마다 다르다. 값을 박아 두면 모델이 늘 때마다 깨진다 —
+                # 계약의 일관성(다운샘플로 나누어떨어지는가)만 본다.
+                self.assertGreaterEqual(bundle["window_frames"], 1000)
                 self.assertEqual(bundle["window_frames"] % bundle["downsample"], 0)
                 self.assertEqual(bundle["rx_order"], list(F.RX_ORDER))
                 self.assertEqual(len(models), 3)

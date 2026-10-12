@@ -166,7 +166,7 @@ class ModelChoiceTest(unittest.TestCase):
         self.assertTrue(phase)
         for m in phase:
             with self.subTest(m["name"]):
-                self.assertIn(m["window_s"], (60.0, 90.0))
+                self.assertGreater(m["window_s"], 0)        # 창 길이가 화면에 나와야 고를 수 있다
 
     def test_every_listed_model_opens_and_reports_its_kind(self):
         for m in self.models:
