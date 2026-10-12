@@ -34,11 +34,19 @@ HERE = Path(__file__).resolve().parent
 RAW = ROOT / "mac_collector_output" / "raw"
 CACHE = HERE / "cache"
 CLASS_NAMES = ("empty", "static", "motion")
+#: 과제. `cv_pilot.py` 의 TASKS 와 같은 어휘다 — 라벨 매핑이 두 곳에서 어긋나면 안 된다.
+#: motion(움직임 여부)은 짧은 창에서 잘 되고, 빈 방/정지는 긴 창이 필요하다. 그래서 과제를 나눈다.
+#: 전용 empty/static 모델은 파일럿에서 3-class 보다 나빴으므로(0.852 < 0.877) 두지 않는다.
+TASKS = {
+    "3class": (("empty", "static", "motion"), {0: 0, 1: 1, 2: 2}),
+    "motion": (("rest", "motion"), {0: 0, 1: 0, 2: 1}),
+}
 FEATURE_VERSION = "shared-window-local-v1"   # 담당자 입력 변환과 같은 규격
 N_COLS = 153
 
 
-def load_sessions(dates: tuple, window: int, stride: int, only: set | None = None) -> dict:
+def load_sessions(dates: tuple, window: int, stride: int, only: set | None = None,
+                  remap: dict | None = None) -> dict:
     """{키: {amp, label, starts}}. 진폭 정렬이 느려 세션별로 캐시한다."""
     CACHE.mkdir(parents=True, exist_ok=True)
     out = {}
@@ -66,7 +74,8 @@ def load_sessions(dates: tuple, window: int, stride: int, only: set | None = Non
             if len(starts) == 0:
                 print(f"  제외 {key}: 유효한 창 없음", flush=True)
                 continue
-            out[key] = {"amp": amp, "label": CLASS_NAMES.index(label), "starts": starts}
+            y = CLASS_NAMES.index(label)
+            out[key] = {"amp": amp, "label": remap[y] if remap else y, "starts": starts}
     return out
 
 
@@ -81,10 +90,18 @@ def batch_input(amp: np.ndarray, starts: np.ndarray, window: int) -> np.ndarray:
     return np.stack([amplitude_input(amp[s:s + window]) for s in starts])
 
 
+def build(n_classes: int) -> nn.Module:
+    """담당자 구조는 3-class 고정이다. 마지막 층만 바꿔 끼운다 — 나머지는 그대로 쓴다."""
+    model = SharedEncoder(mode="A")
+    if n_classes != 3:
+        model.head[-1] = nn.Linear(model.head[-1].in_features, n_classes)
+    return model
+
+
 def train_one(train: dict, seed: int, args, device) -> nn.Module:
     torch.manual_seed(seed)
     np.random.seed(seed)
-    model = SharedEncoder(mode="A").to(device)
+    model = build(len(TASKS[args.task][0])).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
     loss_fn = nn.CrossEntropyLoss(label_smoothing=0.1)
     index = [(k, int(s)) for k, v in train.items() for s in v["starts"]]
@@ -105,10 +122,9 @@ def train_one(train: dict, seed: int, args, device) -> nn.Module:
     return model.eval()
 
 
-def evaluate(models: list, sessions: dict, window: int, device) -> dict:
-    from model_train.phase60.train import CLASS_NAMES as _names  # 같은 순서를 쓴다
-
-    rows, cm = [], np.zeros((3, 3), int)
+def evaluate(models: list, sessions: dict, window: int, device, names=CLASS_NAMES) -> dict:
+    _names, n = names, len(names)
+    rows, cm = [], np.zeros((n, n), int)
     with torch.no_grad():
         for key, v in sessions.items():
             probs = []
@@ -123,14 +139,19 @@ def evaluate(models: list, sessions: dict, window: int, device) -> dict:
                          "scores": {c: round(float(s), 4) for c, s in zip(_names, mean)},
                          "window_acc": round(float((probs.argmax(1) == v["label"]).mean()), 4)})
     ok = sum(r["true"] == r["pred"] for r in rows)
-    presence = sum((r["pred"] != "empty") == (r["true"] != "empty") for r in rows)
-    es = [r for r in rows if r["true"] in ("empty", "static")]
-    es_ok = sum((r["scores"]["empty"] >= r["scores"]["static"]) == (r["true"] == "empty")
-                for r in es)
-    return {"sessions": f"{ok}/{len(rows)}", "presence": f"{presence}/{len(rows)}",
-            "empty_vs_static": f"{es_ok}/{len(es)}",
-            "window_accuracy": round(float(np.mean([r["window_acc"] for r in rows])), 4),
-            "confusion_matrix": cm.tolist(), "per_session": rows}
+    out = {"sessions": f"{ok}/{len(rows)}",
+           "window_accuracy": round(float(np.mean([r["window_acc"] for r in rows])), 4),
+           "confusion_matrix": cm.tolist(), "per_session": rows}
+    if "static" in _names:                      # 3-class 일 때만 뜻이 있는 지표
+        out["presence"] = f"{sum((r['pred'] != 'empty') == (r['true'] != 'empty') for r in rows)}/{len(rows)}"
+        es = [r for r in rows if r["true"] in ("empty", "static")]
+        out["empty_vs_static"] = (
+            f"{sum((r['scores']['empty'] >= r['scores']['static']) == (r['true'] == 'empty') for r in es)}"
+            f"/{len(es)}")
+    else:
+        rec = [cm[i, i] / max(cm[i].sum(), 1) for i in range(n)]
+        out["recall"] = {c: round(float(v), 4) for c, v in zip(_names, rec)}
+    return out
 
 
 def main() -> int:
@@ -139,6 +160,8 @@ def main() -> int:
     ap.add_argument("--train", nargs="+", default=None, help="학습에 쓸 날짜 폴더")
     ap.add_argument("--sessions", nargs="+", default=None, help="학습에 쓸 세션 키")
     ap.add_argument("--eval", nargs="+", default=[], help="평가 날짜 (학습 날짜와 겹치면 거부)")
+    ap.add_argument("--task", choices=tuple(TASKS), default="3class",
+                    help="motion: 움직임 여부만 (짧은 창용 1단계)")
     ap.add_argument("--window", type=int, default=3000, help="배포 모델과 같은 30초")
     ap.add_argument("--train-stride", type=int, default=150)
     ap.add_argument("--eval-stride", type=int, default=300)
@@ -158,16 +181,19 @@ def main() -> int:
         print(f"[중단] 학습에 쓴 날짜를 평가에도 쓸 수 없다: {sorted(overlap)}")
         return 1
 
+    names, remap = TASKS[args.task]
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-    print(f"[데이터] 학습 {train_dates} / 평가 {args.eval or '없음'} · device={device}", flush=True)
-    train = load_sessions(tuple(train_dates), args.window, args.train_stride, only)
+    print(f"[데이터] 과제 {args.task}{list(names)} · 창 {args.window / 100:.0f}초 · "
+          f"학습 {train_dates} / 평가 {args.eval or '없음'} · device={device}", flush=True)
+    train = load_sessions(tuple(train_dates), args.window, args.train_stride, only, remap)
     if only and (missing := only - set(train)):
         print(f"[중단] 읽지 못한 세션: {sorted(missing)}")
         return 1
-    if len({v["label"] for v in train.values()}) < 3:
-        print("[중단] 세 클래스가 모두 필요하다")
+    if len({v["label"] for v in train.values()}) < len(names):
+        print(f"[중단] {len(names)} 클래스가 모두 필요하다")
         return 1
-    test = load_sessions(tuple(args.eval), args.window, args.eval_stride) if args.eval else {}
+    test = (load_sessions(tuple(args.eval), args.window, args.eval_stride, None, remap)
+            if args.eval else {})
     print(f"  학습 {len(train)}세션 (창 {sum(len(v['starts']) for v in train.values())}개) → "
           f"평가 {len(test)}세션", flush=True)
 
@@ -178,20 +204,24 @@ def main() -> int:
         print(f"  seed {seed} 완료 ({time.time() - s0:.0f}s)", flush=True)
 
     if test:
-        metrics = evaluate(models, test, args.window, device)
-        print(f"  세션 {metrics['sessions']} · 사람 있음/없음 {metrics['presence']} · "
-              f"빈방vs정지 {metrics['empty_vs_static']} · 창 정답률 {metrics['window_accuracy']}",
-              flush=True)
+        metrics = evaluate(models, test, args.window, device, names)
+        extra = (f"사람 있음/없음 {metrics['presence']} · 빈방vs정지 {metrics['empty_vs_static']}"
+                 if "presence" in metrics else f"재현율 {metrics['recall']}")
+        print(f"  세션 {metrics['sessions']} · {extra} · "
+              f"창 정답률 {metrics['window_accuracy']}", flush=True)
     else:
         metrics = {"note": "평가 없이 학습만 했다"}
 
     out = HERE / f"model_{args.name}.pt"
     torch.save({
         "format_version": 1, "feature_version": FEATURE_VERSION,
-        "mode": "A-ours",                      # 배포 체크포인트("A")와 구분한다
+        # 배포 체크포인트("A")와 구분한다. 이진 모델은 "A-motion" — 3-class 상태 모델 자리에
+        # 잘못 끼우면 엔진이 거부한다(realtime/engine.py load_any).
+        "mode": "A-ours" if args.task == "3class" else "A-motion",
+        "task": args.task,
         "window_frames": args.window, "stride_frames": args.eval_stride,
         "sample_rate_hz": 100, "rx_order": [101, 102, 103],
-        "class_names": list(CLASS_NAMES),
+        "class_names": list(names),
         "state_dicts": [m.cpu().state_dict() for m in models],
         "training_sessions": sorted(train), "training_dates": train_dates,
         "evaluation_dates": list(args.eval), "metrics": metrics,

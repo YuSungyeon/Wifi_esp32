@@ -47,8 +47,33 @@ BASES = {"motion": "static", "static": "empty", "empty": "static"}
 
 
 def load_model(path: Path, device: str = "cpu"):
-    """진폭(robust)과 위상(phase60) 체크포인트를 모두 받는다. (판단 함수, 창, 이름) 반환."""
+    """진폭·위상·1단계 체크포인트를 모두 받는다. (특징, 판단, 창, 이름, 클래스) 반환."""
     bundle = torch.load(path, map_location="cpu", weights_only=False)
+    if bundle.get("mode") == "A-motion":        # 1단계 — 움직임 여부만 내는 짧은 창 모델
+        from model_train.amp60.train import build
+        from model_train.robust.predict import load_raw_amplitude
+        from model_train.robust.shared_temporal import amplitude_input
+
+        classes = tuple(bundle["class_names"])
+        models = []
+        for state in bundle["state_dicts"]:
+            m = build(len(classes))
+            m.load_state_dict(state)
+            models.append(m.to(device).eval())
+        window = bundle["window_frames"]
+
+        def features(session_dir):
+            return load_raw_amplitude(session_dir)[0]
+
+        def judge(w):
+            x = torch.from_numpy(amplitude_input(w)).unsqueeze(0).to(device)
+            with torch.no_grad():
+                return torch.stack([m(x).softmax(1) for m in models]).mean(0)[0].cpu().numpy()
+
+        print("[주의] 짧은 창에서는 아래 '최대값' 방식이 꼬리를 잰다 — 1단계 모델의 오경보와\n"
+              "       최소 감지 시간은 model_train/amp60/stage1_eval.py 로 본다.", flush=True)
+        return features, judge, window, "진폭 1단계", classes
+
     if bundle.get("mode") == "A":
         from model_train.robust.predict import load_bundle, load_raw_amplitude
         from model_train.robust.shared_temporal import amplitude_input
@@ -65,7 +90,7 @@ def load_model(path: Path, device: str = "cpu"):
             with torch.no_grad():
                 return torch.stack([m(x).softmax(1) for m in models]).mean(0)[0].cpu().numpy()
 
-        return features, judge, window, "진폭"
+        return features, judge, window, "진폭", CLASSES
 
     from model_train.phase60 import features as F
     from model_train.phase60.predict import load_bundle
@@ -82,11 +107,11 @@ def load_model(path: Path, device: str = "cpu"):
         with torch.no_grad():
             return torch.stack([m(x).softmax(1) for m in models]).mean(0)[0].cpu().numpy()
 
-    return features, judge, window, "위상"
+    return features, judge, window, "위상", CLASSES
 
 
-def sweep(series: np.ndarray, judge, window: int, stride: int, starts=None):
-    """((n, 3) 확률, (n,) 창 시작 위치). starts 를 주면 그 창만 본다 (필요한 구간만 재려고)."""
+def sweep(series: np.ndarray, judge, window: int, stride: int, starts=None, n_classes: int = 3):
+    """((n, c) 확률, (n,) 창 시작 위치). starts 를 주면 그 창만 본다 (필요한 구간만 재려고)."""
     if starts is None:
         starts = range(0, len(series) - window + 1, stride)
     out, used = [], []
@@ -94,20 +119,21 @@ def sweep(series: np.ndarray, judge, window: int, stride: int, starts=None):
         if s < 0 or s + window > len(series):
             continue
         w = series[s:s + window]
-        out.append(judge(w) if np.isfinite(w).all() else np.full(3, np.nan))
+        out.append(judge(w) if np.isfinite(w).all() else np.full(n_classes, np.nan))
         used.append(s)
     return np.asarray(out), np.asarray(used)
 
 
 def hold_test(feats: dict, judge, window: int, stride: int, lengths: list,
-              target: str, base: str) -> list:
+              target: str, base: str, classes: tuple = CLASSES) -> list:
     """`base` 상태 한가운데 `target` 을 길이를 바꿔가며 끼우고, 판단이 바뀌는 최소 길이를 찾는다.
 
     **끼운 구간과 겹치는 창만** 본다. 전체에서 최대를 찾으면 모델이 원래 내던 오답까지 섞인다.
     같은 위치의 '끼우지 않은' 확률과 비교해, 기준을 넘고 **동시에** 뚜렷이 올라야 감지로 센다.
     """
     base_series, donor = feats[base], feats[target]
-    ti = CLASSES.index(target)
+    #: 1단계는 빈 방·정지를 가르지 않는다 — 둘 다 "rest" 다
+    ti = classes.index(target if target in classes else "rest")
     at = min(12000, len(base_series) - window - 1)
     rows = []
     for sec in lengths:
@@ -115,8 +141,8 @@ def hold_test(feats: dict, judge, window: int, stride: int, lengths: list,
         starts = range(max(0, at - window + stride), at + n, stride)   # 끼운 구간과 겹치는 창만
         mixed = base_series.copy()
         mixed[at:at + n] = donor[5000:5000 + n]
-        probs, used = sweep(mixed, judge, window, stride, starts)
-        base_probs, _ = sweep(base_series, judge, window, stride, starts)
+        probs, used = sweep(mixed, judge, window, stride, starts, len(classes))
+        base_probs, _ = sweep(base_series, judge, window, stride, starts, len(classes))
         if not len(probs):
             continue
         here = float(np.nanmax(probs[:, ti]))
@@ -170,7 +196,7 @@ def main() -> int:
     ap.add_argument("--stride", type=int, default=300, help="판단 간격 (frame)")
     ap.add_argument("--device", default="mps", help="mps 또는 cpu")
     ap.add_argument("--burst", type=float, nargs="+",
-                    default=[5, 10, 15, 20, 30, 45, 60, 90, 120])
+                    default=[1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120])
     ap.add_argument("--targets", nargs="+", default=["motion", "static", "empty"],
                     choices=("motion", "static", "empty"))
     ap.add_argument("--hold", type=float, default=60.0, help="시퀀스 각 구간 길이 (초)")
@@ -178,20 +204,22 @@ def main() -> int:
     args = ap.parse_args()
     torch.set_num_threads(2)
 
-    features, judge, window, kind = load_model(args.model, args.device)
-    print(f"[모델] {args.model.name} · {kind} · 창 {window / 100:.0f}초")
+    features, judge, window, kind, classes = load_model(args.model, args.device)
+    print(f"[모델] {args.model.name} · {kind} · 창 {window / 100:.0f}초 · {list(classes)}")
     feats = {k: features(v) for k, v in SOURCES.items()}
-
-    lengths = [x for x in args.burst if x * 100 <= window * 1.5]
+    if len(classes) == 2:                       # 1단계는 빈 방·정지를 가르지 않는다
+        args.targets = ["motion"]
+    # 창보다 훨씬 긴 사건은 잴 필요가 없다. 다만 짧은 창 모델도 30초까지는 보게 둔다.
+    lengths = [x for x in args.burst if x * 100 <= max(window * 1.5, 3000)]
     print("[유지 시간] 각 상태가 몇 초 이어져야 판단이 바뀌는가 "
           "(괄호는 같은 클래스를 끼운 대조군)")
     holds = {}
     for target in args.targets:
         base = BASES[target]
-        rows = hold_test(feats, judge, window, args.stride, lengths, target, base)
+        rows = hold_test(feats, judge, window, args.stride, lengths, target, base, classes)
         # 같은 바탕에 **바탕과 같은 클래스**를 끼운 대조군 — 경계 불연속만 들어 있다
         ctrl_feats = {**feats, target: feats[f"{base}2"]}
-        ctrl = hold_test(ctrl_feats, judge, window, args.stride, lengths, target, base)
+        ctrl = hold_test(ctrl_feats, judge, window, args.stride, lengths, target, base, classes)
         fired = next((r["seconds"] for r in ctrl if r["detected"]), None)
         got = next((r["seconds"] for r in rows if r["detected"]), None)
         holds[target] = {"rows": rows, "control": ctrl, "min_s": got,
@@ -202,8 +230,11 @@ def main() -> int:
               flush=True)
     false_fire = any(h["control_fired_s"] is not None for h in holds.values())
 
-    print(f"[sequence] 빈 방 → 움직임 → 정지 → 움직임 → 빈 방 (구간 {args.hold:.0f}초)")
-    transitions = sequence_test(feats, judge, window, args.stride, args.hold)
+    if len(classes) == 3:
+        print(f"[sequence] 빈 방 → 움직임 → 정지 → 움직임 → 빈 방 (구간 {args.hold:.0f}초)")
+        transitions = sequence_test(feats, judge, window, args.stride, args.hold)
+    else:
+        transitions = []                        # 3상태 대본은 1단계로 채점할 수 없다
 
     result = {"model": args.model.name, "window_s": window / 100, "kind": kind,
               "holds": holds, "any_control_fired": bool(false_fire),

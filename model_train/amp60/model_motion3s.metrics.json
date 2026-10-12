@@ -1,0 +1,320 @@
+{
+  "sessions": "30/30",
+  "window_accuracy": 0.9661,
+  "confusion_matrix": [
+    [
+      20,
+      0
+    ],
+    [
+      0,
+      10
+    ]
+  ],
+  "per_session": [
+    {
+      "session": "20260920_31",
+      "true": "motion",
+      "pred": "motion",
+      "scores": {
+        "rest": 0.1903,
+        "motion": 0.8097
+      },
+      "window_acc": 0.87
+    },
+    {
+      "session": "20260920_32",
+      "true": "motion",
+      "pred": "motion",
+      "scores": {
+        "rest": 0.1351,
+        "motion": 0.8649
+      },
+      "window_acc": 0.9293
+    },
+    {
+      "session": "20260920_33",
+      "true": "motion",
+      "pred": "motion",
+      "scores": {
+        "rest": 0.2266,
+        "motion": 0.7734
+      },
+      "window_acc": 0.86
+    },
+    {
+      "session": "20260920_34",
+      "true": "motion",
+      "pred": "motion",
+      "scores": {
+        "rest": 0.1742,
+        "motion": 0.8258
+      },
+      "window_acc": 0.92
+    },
+    {
+      "session": "20260920_35",
+      "true": "motion",
+      "pred": "motion",
+      "scores": {
+        "rest": 0.1625,
+        "motion": 0.8375
+      },
+      "window_acc": 0.91
+    },
+    {
+      "session": "20260920_36",
+      "true": "motion",
+      "pred": "motion",
+      "scores": {
+        "rest": 0.141,
+        "motion": 0.859
+      },
+      "window_acc": 0.96
+    },
+    {
+      "session": "20260920_37",
+      "true": "motion",
+      "pred": "motion",
+      "scores": {
+        "rest": 0.2107,
+        "motion": 0.7893
+      },
+      "window_acc": 0.86
+    },
+    {
+      "session": "20260920_38",
+      "true": "motion",
+      "pred": "motion",
+      "scores": {
+        "rest": 0.1172,
+        "motion": 0.8828
+      },
+      "window_acc": 0.96
+    },
+    {
+      "session": "20260920_39",
+      "true": "motion",
+      "pred": "motion",
+      "scores": {
+        "rest": 0.1141,
+        "motion": 0.8859
+      },
+      "window_acc": 0.97
+    },
+    {
+      "session": "20260920_40",
+      "true": "motion",
+      "pred": "motion",
+      "scores": {
+        "rest": 0.2043,
+        "motion": 0.7957
+      },
+      "window_acc": 0.88
+    },
+    {
+      "session": "20260920_41",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.939,
+        "motion": 0.061
+      },
+      "window_acc": 0.98
+    },
+    {
+      "session": "20260920_42",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9485,
+        "motion": 0.0515
+      },
+      "window_acc": 0.98
+    },
+    {
+      "session": "20260920_43",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9593,
+        "motion": 0.0407
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_44",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9625,
+        "motion": 0.0375
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_45",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.964,
+        "motion": 0.036
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_46",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9577,
+        "motion": 0.0423
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_47",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9507,
+        "motion": 0.0493
+      },
+      "window_acc": 0.99
+    },
+    {
+      "session": "20260920_48",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9484,
+        "motion": 0.0516
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_49",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.953,
+        "motion": 0.047
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_50",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9518,
+        "motion": 0.0482
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_51",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.8938,
+        "motion": 0.1062
+      },
+      "window_acc": 0.9341
+    },
+    {
+      "session": "20260920_52",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9515,
+        "motion": 0.0485
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_53",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.945,
+        "motion": 0.055
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_54",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9565,
+        "motion": 0.0435
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_55",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.926,
+        "motion": 0.074
+      },
+      "window_acc": 0.9796
+    },
+    {
+      "session": "20260920_56",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.954,
+        "motion": 0.046
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_57",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9535,
+        "motion": 0.0465
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_58",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9584,
+        "motion": 0.0416
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_59",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9493,
+        "motion": 0.0507
+      },
+      "window_acc": 1.0
+    },
+    {
+      "session": "20260920_60",
+      "true": "rest",
+      "pred": "rest",
+      "scores": {
+        "rest": 0.9491,
+        "motion": 0.0509
+      },
+      "window_acc": 1.0
+    }
+  ],
+  "recall": {
+    "rest": 1.0,
+    "motion": 1.0
+  }
+}
