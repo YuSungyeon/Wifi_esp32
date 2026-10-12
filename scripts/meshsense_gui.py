@@ -389,6 +389,12 @@ img.wf{width:100%;border:1px solid var(--line);border-radius:10px;margin-top:.6r
 .meter .num{font-variant-numeric:tabular-nums;font-weight:700;min-width:3rem;text-align:right}
 .note{margin:1rem 0 0;font-size:.88rem;color:var(--warn);background:var(--warnbg);
  border:1px solid var(--warn);border-radius:8px;padding:.45rem .7rem;display:inline-block}
+.act{display:flex;align-items:flex-end;gap:1px;height:36px;max-width:30rem;
+ margin:.9rem 0 .25rem;background:var(--bg);border-radius:5px;padding:2px}
+.act i{display:block;flex:1;min-height:2px;border-radius:1px;background:var(--st-motion);opacity:.85}
+.act i.gap{background:var(--line);opacity:.5;height:2px}
+.act-lab{display:flex;justify-content:space-between;max-width:30rem;color:var(--muted);
+ font-size:.75rem}
 .tl{display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--bg)}
 .tl i{display:block;min-width:2px}
 .tl .empty{background:var(--st-empty)} .tl .static{background:var(--st-static)}
@@ -661,6 +667,20 @@ function renderRealtimeStart(S, busy){
       ${busy ? '<span class="hint">다른 작업이 실행 중입니다</span>' : ''}
     </div></div>`;
 }
+function actBars(r){
+  const raw = r.activity || [], step = r.activity_step_s || 0.3;
+  if (!raw.length) return '';
+  const cells = 120, per = Math.max(1, Math.round(180 / step / cells));   // 최근 3분
+  const need = cells * per;
+  const v = Array(Math.max(0, need - raw.length)).fill(null).concat(raw.slice(-need));
+  let out = '';
+  for (let i = 0; i < cells; i++){
+    const c = v.slice(i * per, (i + 1) * per).filter(x => x !== null && x !== undefined);
+    out += c.length ? `<i style="height:${Math.max(4, Math.round(Math.max(...c) * 100))}%"></i>`
+                    : '<i class="gap"></i>';
+  }
+  return out;
+}
 function renderRealtime(r){
   if (!r) return `<div class="card"><h2>실시간 판단이 실행 중이 아닙니다</h2>
     <p class="sub">아래에서 모델과 세션을 고르면 시작합니다.</p></div>`;
@@ -680,6 +700,10 @@ function renderRealtime(r){
         <span class="track"><span class="fill" style="width:${pct}%"></span>
           ${deciding ? '' : `<span class="mark" style="left:${Math.round(r.threshold*100)}%"></span>`}</span>
         <span class="num">${deciding ? Math.round(r.remaining_s) + '초' : pct + '%'}</span></div>
+      ${r.activity && r.activity.length ? `<div class="act">${actBars(r)}</div>
+        <div class="act-lab"><span>3분 전</span>
+          <span>활동 — 창 ${r.activity_window_s}초 · 상태 판단에는 쓰지 않습니다</span>
+          <span>지금</span></div>` : ''}
       ${r.note ? `<p class="note">${esc(r.note)}</p>` : ''}
       ${r.synthetic ? `<p class="note">합성 세션 — 녹화를 이어 붙인 것이라 실제 전환이 아닙니다</p>` : ''}
     </div>

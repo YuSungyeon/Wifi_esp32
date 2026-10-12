@@ -35,6 +35,24 @@ def hms(seconds: float) -> str:
     return f"{s // 60}분 {s % 60:02d}초" if s >= 60 else f"{s}초"
 
 
+SPARK = " ▁▂▃▄▅▆▇█"
+
+
+def spark(values: list, step_s: float, cells: int = 24, span_s: float = 60.0) -> str:
+    """최근 span_s 초를 cells 칸으로. 칸마다 **최대값**을 쓴다 — 짧은 움직임이 평균에 묻히면
+    띠를 넣은 뜻이 없다. 값이 낮으면 공백이라 아무 일 없을 때 화면이 조용하다."""
+    if not values or not step_s:
+        return ""
+    per = max(1, round(span_s / step_s / cells))
+    need = per * cells
+    tail = ([None] * max(0, need - len(values)) + list(values))[-need:]
+    out = []
+    for i in range(cells):
+        chunk = [v for v in tail[i * per:(i + 1) * per] if v is not None]
+        out.append(SPARK[round(min(1.0, max(0.0, max(chunk))) * 8)] if chunk else " ")
+    return "".join(out)
+
+
 def bar(fraction: float, width: int = 24) -> str:
     filled = int(round(max(0.0, min(1.0, fraction)) * width))
     return "█" * filled + "░" * (width - filled)
@@ -47,7 +65,9 @@ def _pad(text: str, width: int, visible: int | None = None) -> str:
 
 
 def _cells(text: str) -> int:
-    return sum(2 if ord(ch) > 0x2500 else 1 for ch in text)
+    """터미널 표시 폭. 한글은 두 칸, **괘선·블록 문자(U+2500~U+259F)는 한 칸**이다 —
+    이 둘을 같이 묶으면 막대가 들어간 줄만 테두리가 어긋난다."""
+    return sum(1 if ord(ch) <= 0x259F else 2 for ch in text)
 
 
 def state_block(view: dict, color: bool) -> list[str]:
@@ -75,6 +95,12 @@ def state_block(view: dict, color: bool) -> list[str]:
         conf = f"     확신  {bar(view['confidence'])}  {view['confidence']:.0%}"
         rows.append(conf)
         visible.append(_cells(conf))
+        # 활동량 — 1단계(창 3초)가 본 움직임 세기. 상태와 시간 축이 달라 따로 보인다.
+        act = spark(view.get("activity") or [], view.get("activity_step_s") or 0)
+        if act:
+            line = f"     활동  {act}  최근 60초"
+            rows.append(line)
+            visible.append(_cells(line))
 
     if view.get("note") and state != "suspended":
         rows += ["", f"     {view['note']}"]
@@ -116,9 +142,11 @@ def render_plain(view: dict) -> str:
     extra = ""
     if view["state"] == "deciding" and view.get("candidate"):
         extra = f" ({LABEL.get(view['candidate'])} 확인 중 {int(view['remaining_s'])}초)"
+    act = (view.get("activity") or [None])[-1]
+    now = f" 활동 {act:.0%}" if act is not None else ""
     return (f"[{time.strftime('%H:%M:%S')}] {LABEL.get(view['state'], view['state']):5s} "
             f"{view['confidence']:>4.0%}  {hms(view['held_s']):>8}  "
-            f"{view['hz']:.1f}Hz RX{view['n_rx']}{extra}")
+            f"{view['hz']:.1f}Hz RX{view['n_rx']}{now}{extra}")
 
 
 def read_key() -> str | None:

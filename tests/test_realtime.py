@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import meshsense_gui as gui  # noqa: E402
 from realtime.engine import available_models, load_any  # noqa: E402
 from realtime.state import Reading, StateMachine  # noqa: E402
-from realtime.ui import hms, render, render_plain  # noqa: E402
+from realtime.ui import _cells, hms, render, render_plain, spark  # noqa: E402
 
 
 def feed(sm, t0, n, probs, n_rx=3, step=0.3):
@@ -90,6 +90,8 @@ class RenderTest(unittest.TestCase):
             "candidate": None, "remaining_s": 0.0, "threshold": 0.7, "t": 200.0,
             "probs": {"empty": .05, "static": .08, "motion": .87}, "n_rx": 3,
             "hz": 99.8, "session": "213039_motion_s41", "window_s": 30.0,
+            "activity": [0.05] * 180 + [0.95] * 20, "activity_step_s": 0.3,
+            "activity_window_s": 3.0, "activity_model": "motion3s",
             "events": [{"t": 66.0, "from": "deciding", "to": "motion", "confidence": .9}]}
 
     def test_screen_has_the_requested_height_and_leads_with_the_state(self):
@@ -122,6 +124,44 @@ class RenderTest(unittest.TestCase):
     def test_hms_switches_to_minutes(self):
         self.assertEqual(hms(45), "45초")
         self.assertEqual(hms(134), "2분 14초")
+
+    def test_every_row_is_the_same_width_on_screen(self):
+        """막대·띠가 들어간 줄만 테두리가 어긋나던 적이 있다 — 표시 폭으로 고정한다."""
+        for view in (self.VIEW, dict(self.VIEW, state="deciding", candidate="static",
+                                     remaining_s=9.0)):
+            widths = {_cells(line) for line in render(view, width=62, height=24).splitlines()}
+            self.assertEqual(widths, {62})
+
+    def test_activity_row_appears_and_shows_the_burst(self):
+        out = render(self.VIEW, height=24)
+        self.assertIn("활동", out)
+        self.assertIn("█", out.split("활동")[1].splitlines()[0])
+
+    def test_screen_without_activity_still_renders(self):
+        view = {k: v for k, v in self.VIEW.items() if not k.startswith("activity")}
+        self.assertEqual(len(render(view, height=24).splitlines()), 24)
+
+
+class SparkTest(unittest.TestCase):
+    def test_quiet_input_stays_low(self):
+        out = spark([0.04] * 200, 0.3)
+        self.assertTrue(set(out) <= {" ", "▁"}, out)
+
+    def test_a_short_burst_survives_downsampling(self):
+        """칸 하나가 여러 창을 덮는다. 평균을 쓰면 3초 움직임이 사라진다 — 최대를 써야 한다."""
+        values = [0.04] * 200
+        values[100] = 0.95                       # 0.3초짜리 한 창
+        self.assertIn("█", spark(values, 0.3))
+
+    def test_missing_values_leave_a_gap(self):
+        self.assertEqual(spark([None] * 200, 0.3).strip(), "")
+
+    def test_requested_cell_count_is_exact(self):
+        self.assertEqual(len(spark([0.5] * 500, 0.3, cells=24)), 24)
+
+    def test_no_data_is_empty_not_a_crash(self):
+        self.assertEqual(spark([], 0.3), "")
+        self.assertEqual(spark([0.5], 0.0), "")
 
 
 class StreamInputTest(unittest.TestCase):
@@ -218,6 +258,19 @@ class ModelChoiceTest(unittest.TestCase):
                 self.assertIn(kind, ("amp", "phase"))
                 self.assertTrue(nets)
                 self.assertEqual(bundle["window_frames"], int(m["window_s"] * 100))
+
+    def test_stage1_checkpoint_is_binary_and_short(self):
+        from realtime.engine import STAGE1, load_stage1
+        if not STAGE1.is_file():
+            self.skipTest("1단계 체크포인트가 없다")
+        s1 = load_stage1(STAGE1)
+        self.assertEqual(s1["window"], 300)              # 3초 — 상태 모델보다 훨씬 짧다
+        self.assertEqual(s1["i_motion"], 1)
+        self.assertEqual(len(s1["models"]), 3)
+
+    def test_stage1_is_not_offered_as_a_state_model(self):
+        """이진 모델을 상태 모델 자리에 끼우면 화면이 조용히 틀린다 — 목록에서 뺀다."""
+        self.assertNotIn("motion3s", [m["name"] for m in self.models])
 
     def test_unknown_checkpoint_is_refused(self):
         import tempfile

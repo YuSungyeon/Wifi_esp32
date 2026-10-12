@@ -27,6 +27,11 @@ from realtime.state import Event, Reading, StateMachine  # noqa: E402
 from realtime.stream import CsiStream  # noqa: E402
 
 MODEL = ROOT / "model_train" / "robust" / "model.pt"
+#: 1단계 — 움직임 여부만 내는 짧은 창 모델. 상태 판단에는 **쓰지 않는다**: 화면에 활동량을
+#: 그리는 용도다. 기준값을 정하려면 전환 세션이 필요한데 아직 없다
+#: (doc/realtime-inference.md §6-②). 없으면 활동량 줄만 빠지고 나머지는 그대로 돈다.
+STAGE1 = ROOT / "model_train" / "amp60" / "model_motion3s.pt"
+ACTIVITY_KEEP = 600                  # 0.3초 간격이면 3분치
 MODEL_DIRS = (ROOT / "model_train" / "robust", ROOT / "model_train" / "phase60",
               ROOT / "model_train" / "amp60")
 
@@ -40,6 +45,8 @@ def available_models() -> list[dict]:
                 b = torch.load(p, map_location="cpu", weights_only=False)
             except Exception:
                 continue
+            if len(b.get("class_names", [0, 0, 0])) != 3:
+                continue        # 이진 1단계 모델은 상태 모델 자리에 올리지 않는다
             m = b.get("metrics", {})
             out.append({"path": str(p.relative_to(ROOT)), "name": p.stem.replace("model_", ""),
                         "mode": b.get("mode", "?"), "window_s": b.get("window_frames", 0) / 100,
@@ -47,6 +54,25 @@ def available_models() -> list[dict]:
                         "trained_at": b.get("trained_at", ""),
                         "is_deployed": p.parent.name == "robust"})
     return out
+
+
+def load_stage1(path: Path = STAGE1, device: str = "cpu") -> dict | None:
+    """1단계 체크포인트. 파일이 없으면 None — 1단계는 선택 사항이다."""
+    if not Path(path).is_file():
+        return None
+    head = torch.load(path, map_location="cpu", weights_only=False)
+    if head.get("mode") != "A-motion":
+        raise ValueError(f"1단계 체크포인트가 아니다: {path} (mode={head.get('mode')})")
+    from model_train.amp60.train import build
+
+    models = []
+    for state in head["state_dicts"]:
+        m = build(len(head["class_names"]))
+        m.load_state_dict(state)
+        models.append(m.to(device).eval())
+    return {"window": head["window_frames"], "models": models,
+            "i_motion": head["class_names"].index("motion"),
+            "name": Path(path).stem.replace("model_", "")}
 
 
 def load_any(path: Path, device: str = "cpu"):
@@ -87,7 +113,7 @@ def write_status(path: Path, view: dict) -> None:
 
 class Engine:
     def __init__(self, session_dir: Path, model_path: Path = MODEL, stride: int = 30,
-                 conf: float = 0.7, device: str = "cpu") -> None:
+                 conf: float = 0.7, device: str = "cpu", stage1: Path | None = STAGE1) -> None:
         self.dir = Path(session_dir)
         self.stream = CsiStream(self.dir)
         self.sm = StateMachine(conf=conf)
@@ -103,6 +129,8 @@ class Engine:
         self._frames = 0
         self._hz, self._rx = 0.0, ()
         self._window_probs: list[tuple] = []     # (t, probs) — 화면 타임라인용
+        self.stage1 = load_stage1(stage1, device) if stage1 else None
+        self._activity: list[float] = []          # 최근 p_motion — 화면 활동량 띠용
 
     # ── 판단 한 번 ──────────────────────────────────────────────────────────
     def _window_input(self, win) -> np.ndarray:
@@ -126,9 +154,27 @@ class Engine:
         self._hz, self._rx = win.hz, win.rx_alive
         return tuple(probs[0].tolist()), win.rx_alive
 
+    def activity(self) -> float | None:
+        """지금 이 순간의 움직임 세기 — 1단계의 p_motion. 창이 덜 찼으면 None.
+
+        상태 기계에는 넣지 않는다. 창이 3초라 상태 모델(30~90초)과 시간 축이 달라, 둘을
+        섞으려면 기준값과 유지 시간을 전환 세션으로 다시 잡아야 한다.
+        """
+        if not self.stage1:
+            return None
+        win = self.stream.latest(self.stage1["window"])
+        if win is None or not np.isfinite(win.amp).all():
+            return None
+        x = torch.from_numpy(amplitude_input(win.amp)[None, ...]).to(self.device)
+        with torch.no_grad():
+            p = torch.stack([m(x).softmax(1) for m in self.stage1["models"]]).mean(0)
+        return float(p[0, self.stage1["i_motion"]])
+
     def step(self, now: float | None = None) -> Event | None:
         self._frames += self.stream.poll()
         t = now if now is not None else time.monotonic() - self._t0
+        self._activity.append(self.activity())
+        del self._activity[:-ACTIVITY_KEEP]
         got = self.predict()
         if got is None:
             alive = self.stream.rx_alive() if now is None else ()
@@ -172,6 +218,10 @@ class Engine:
                 "threshold": self.sm.threshold, "t": round(self.sm._t, 2),
                 "probs": {c: round(p, 4) for c, p in
                           zip(("empty", "static", "motion"), self.sm.probs)},
+                "activity": [None if a is None else round(a, 3) for a in self._activity],
+                "activity_step_s": round(self.stride / 100.0, 2),
+                "activity_window_s": self.stage1["window"] / 100 if self.stage1 else None,
+                "activity_model": self.stage1["name"] if self.stage1 else None,
                 "n_rx": len(self._rx) if self._rx else len(self.stream.rx_alive()),
                 "hz": round(self._hz, 1),
                 "session": self.dir.name, "window_s": self.window / 100,
