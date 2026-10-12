@@ -41,8 +41,9 @@ class Event:
 class StateMachine:
     def __init__(self, conf: float = 0.7, degraded_conf: float = 0.85,
                  motion_hold_s: float = 1.0, rest_hold_s: float = 15.0,
-                 direct_switch_s: float = 60.0, immediate: bool = False) -> None:
+                 direct_switch_s: float = 60.0, immediate: bool = False, window_s: float = 30) -> None:
         self.immediate = immediate
+        self.window_s = window_s
         self.conf, self.degraded_conf = conf, degraded_conf
         self.motion_hold_s, self.rest_hold_s = motion_hold_s, rest_hold_s
         self.direct_switch_s = direct_switch_s
@@ -94,7 +95,7 @@ class StateMachine:
             return self._to(r.t, SUSPENDED, 0.0) if self.state != SUSPENDED else None
         if not r.valid:
             self._cand = None
-            self.note = f"유효한 3-RX 30초 입력 없음 — 판단 정지. 마지막 판단 {self._last_decided or '없음'}"
+            self.note = f"유효한 3-RX {self.window_s:g}초 입력 없음 — 판단 정지. 마지막 판단 {self._last_decided or '없음'}"
             return self._to(r.t, SUSPENDED, 0.0) if self.state != SUSPENDED else None
         if self.immediate:
             self._cand = None

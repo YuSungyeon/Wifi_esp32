@@ -1,0 +1,1386 @@
+{
+  "completed_at_utc": "2026-10-07T16:14:15.682102+00:00",
+  "models": {
+    "amplitude": {
+      "window_frames": 3000,
+      "unique_inferred_windows": 3187,
+      "timing": {
+        "batch_size": 8,
+        "median_batch_amortized_seconds_per_window": 0.00892395825000003
+      },
+      "prefix": {
+        "metrics": {
+          "segments": [
+            {
+              "start_wall": 1791212705.0,
+              "end_wall": 1791212829.0,
+              "label": "empty",
+              "name": "첫 빈 방",
+              "evaluation_start_wall": 1791212705.0,
+              "duration_s": 124.0,
+              "correct_s": 22.50000023841858,
+              "incorrect_s": 101.49999976158142,
+              "unavailable_s": 0.0,
+              "valid_s": 124.0,
+              "match_among_valid": 0.1814516148259563,
+              "match_among_all": 0.1814516148259563,
+              "first_correct_delay_s": 3.8123719692230225,
+              "first_10s_stable_start_delay_s": 18.51237201690674,
+              "durations_by_state_s": {
+                "empty": 22.50000023841858,
+                "static": 101.49999976158142,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212829.0,
+              "end_wall": 1791212893.0,
+              "label": "motion",
+              "name": "첫 걷기",
+              "evaluation_start_wall": 1791212829.0,
+              "duration_s": 64.0,
+              "correct_s": 47.98762798309326,
+              "incorrect_s": 16.01237201690674,
+              "unavailable_s": 0.0,
+              "valid_s": 64.0,
+              "match_among_valid": 0.7498066872358322,
+              "match_among_all": 0.7498066872358322,
+              "first_correct_delay_s": 15.712372064590454,
+              "first_10s_stable_start_delay_s": 16.312371969223022,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 16.01237201690674,
+                "motion": 47.98762798309326,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212893.0,
+              "end_wall": 1791213074.0,
+              "label": "static",
+              "name": "앉아서 정지(근사)",
+              "evaluation_start_wall": 1791212893.0,
+              "duration_s": 181.0,
+              "correct_s": 158.78762793540955,
+              "incorrect_s": 22.212372064590454,
+              "unavailable_s": 0.0,
+              "valid_s": 181.0,
+              "match_among_valid": 0.877279712350329,
+              "match_among_all": 0.877279712350329,
+              "first_correct_delay_s": 6.91237211227417,
+              "first_10s_stable_start_delay_s": 6.91237211227417,
+              "durations_by_state_s": {
+                "empty": 15.299999952316284,
+                "static": 158.78762793540955,
+                "motion": 6.91237211227417,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213074.0,
+              "end_wall": 1791213142.0,
+              "label": "motion",
+              "name": "두 번째 걷기",
+              "evaluation_start_wall": 1791213074.0,
+              "duration_s": 68.0,
+              "correct_s": 44.387627840042114,
+              "incorrect_s": 23.612372159957886,
+              "unavailable_s": 0.0,
+              "valid_s": 68.0,
+              "match_among_valid": 0.6527592329417958,
+              "match_among_all": 0.6527592329417958,
+              "first_correct_delay_s": 23.312371969223022,
+              "first_10s_stable_start_delay_s": 23.91237211227417,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 23.612372159957886,
+                "motion": 44.387627840042114,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213142.0,
+              "end_wall": 1791213325.0,
+              "label": "empty",
+              "name": "마지막 빈 방",
+              "evaluation_start_wall": 1791213142.0,
+              "duration_s": 183.0,
+              "correct_s": 21.0,
+              "incorrect_s": 132.0,
+              "unavailable_s": 30.0,
+              "valid_s": 153.0,
+              "match_among_valid": 0.13725490196078433,
+              "match_among_all": 0.11475409836065574,
+              "first_correct_delay_s": 84.91237211227417,
+              "first_10s_stable_start_delay_s": 84.91237211227417,
+              "durations_by_state_s": {
+                "empty": 21.0,
+                "static": 123.28762817382812,
+                "motion": 8.712371826171875,
+                "suspended": 30.0,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 620.0,
+            "correct_s": 294.6628839969635,
+            "incorrect_s": 295.3371160030365,
+            "unavailable_s": 30.0,
+            "valid_s": 590.0,
+            "match_among_valid": 0.4994286169440059,
+            "match_among_all": 0.4752627161241347
+          },
+          "excluded_seconds_after_each_action": 0,
+          "time_axis_shift_s": 0
+        },
+        "after60s": {
+          "segments": [
+            {
+              "start_wall": 1791212705.0,
+              "end_wall": 1791212829.0,
+              "label": "empty",
+              "name": "첫 빈 방",
+              "evaluation_start_wall": 1791212765.0,
+              "duration_s": 64.0,
+              "correct_s": 0.2999999523162842,
+              "incorrect_s": 63.700000047683716,
+              "unavailable_s": 0.0,
+              "valid_s": 64.0,
+              "match_among_valid": 0.00468749925494194,
+              "match_among_all": 0.00468749925494194,
+              "first_correct_delay_s": 8.312371969223022,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 0.2999999523162842,
+                "static": 63.700000047683716,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212829.0,
+              "end_wall": 1791212893.0,
+              "label": "motion",
+              "name": "첫 걷기",
+              "evaluation_start_wall": 1791212889.0,
+              "duration_s": 4.0,
+              "correct_s": 4.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 4.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 0.0,
+                "motion": 4.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212893.0,
+              "end_wall": 1791213074.0,
+              "label": "static",
+              "name": "앉아서 정지(근사)",
+              "evaluation_start_wall": 1791212953.0,
+              "duration_s": 121.0,
+              "correct_s": 105.70000004768372,
+              "incorrect_s": 15.299999952316284,
+              "unavailable_s": 0.0,
+              "valid_s": 121.0,
+              "match_among_valid": 0.8735537194023447,
+              "match_among_all": 0.8735537194023447,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": 16.51237201690674,
+              "durations_by_state_s": {
+                "empty": 15.299999952316284,
+                "static": 105.70000004768372,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213074.0,
+              "end_wall": 1791213142.0,
+              "label": "motion",
+              "name": "두 번째 걷기",
+              "evaluation_start_wall": 1791213134.0,
+              "duration_s": 8.0,
+              "correct_s": 8.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 8.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 0.0,
+                "motion": 8.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213142.0,
+              "end_wall": 1791213325.0,
+              "label": "empty",
+              "name": "마지막 빈 방",
+              "evaluation_start_wall": 1791213202.0,
+              "duration_s": 123.0,
+              "correct_s": 21.0,
+              "incorrect_s": 102.0,
+              "unavailable_s": 0.0,
+              "valid_s": 123.0,
+              "match_among_valid": 0.17073170731707318,
+              "match_among_all": 0.17073170731707318,
+              "first_correct_delay_s": 24.91237211227417,
+              "first_10s_stable_start_delay_s": 24.91237211227417,
+              "durations_by_state_s": {
+                "empty": 21.0,
+                "static": 102.0,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 320.0,
+            "correct_s": 139.0,
+            "incorrect_s": 181.0,
+            "unavailable_s": 0.0,
+            "valid_s": 320.0,
+            "match_among_valid": 0.434375,
+            "match_among_all": 0.434375
+          },
+          "excluded_seconds_after_each_action": 60,
+          "time_axis_shift_s": 0
+        },
+        "time_shift_sensitivity": {
+          "-1": {
+            "duration_s": 620.0,
+            "correct_s": 297.6628839969635,
+            "incorrect_s": 292.3371160030365,
+            "unavailable_s": 30.0,
+            "valid_s": 590.0,
+            "match_among_valid": 0.5045133627067178,
+            "match_among_all": 0.480101425801554
+          },
+          "1": {
+            "duration_s": 620.0,
+            "correct_s": 291.6628839969635,
+            "incorrect_s": 298.3371160030365,
+            "unavailable_s": 30.0,
+            "valid_s": 590.0,
+            "match_among_valid": 0.4943438711812941,
+            "match_among_all": 0.47042400644671534
+          }
+        },
+        "inferences": 2802,
+        "holds": 336,
+        "suspended_polls": 100,
+        "reason_counts": {
+          "unfilled_gap": 100,
+          "boundary_interpolation_not_observed": 0,
+          "waiting_for_30_new_common_frames": 336,
+          "warmup": 100
+        }
+      },
+      "whole_file": {
+        "metrics": {
+          "segments": [
+            {
+              "start_wall": 1791212705.0,
+              "end_wall": 1791212829.0,
+              "label": "empty",
+              "name": "첫 빈 방",
+              "evaluation_start_wall": 1791212705.0,
+              "duration_s": 124.0,
+              "correct_s": 22.800000190734863,
+              "incorrect_s": 101.19999980926514,
+              "unavailable_s": 0.0,
+              "valid_s": 124.0,
+              "match_among_valid": 0.18387096928011987,
+              "match_among_all": 0.18387096928011987,
+              "first_correct_delay_s": 3.8123719692230225,
+              "first_10s_stable_start_delay_s": 18.51237201690674,
+              "durations_by_state_s": {
+                "empty": 22.800000190734863,
+                "static": 101.19999980926514,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212829.0,
+              "end_wall": 1791212893.0,
+              "label": "motion",
+              "name": "첫 걷기",
+              "evaluation_start_wall": 1791212829.0,
+              "duration_s": 64.0,
+              "correct_s": 47.98762798309326,
+              "incorrect_s": 16.01237201690674,
+              "unavailable_s": 0.0,
+              "valid_s": 64.0,
+              "match_among_valid": 0.7498066872358322,
+              "match_among_all": 0.7498066872358322,
+              "first_correct_delay_s": 15.712372064590454,
+              "first_10s_stable_start_delay_s": 16.312371969223022,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 16.01237201690674,
+                "motion": 47.98762798309326,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212893.0,
+              "end_wall": 1791213074.0,
+              "label": "static",
+              "name": "앉아서 정지(근사)",
+              "evaluation_start_wall": 1791212893.0,
+              "duration_s": 181.0,
+              "correct_s": 159.38762784004211,
+              "incorrect_s": 21.612372159957886,
+              "unavailable_s": 0.0,
+              "valid_s": 181.0,
+              "match_among_valid": 0.8805946289505089,
+              "match_among_all": 0.8805946289505089,
+              "first_correct_delay_s": 6.91237211227417,
+              "first_10s_stable_start_delay_s": 6.91237211227417,
+              "durations_by_state_s": {
+                "empty": 14.700000047683716,
+                "static": 159.38762784004211,
+                "motion": 6.91237211227417,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213074.0,
+              "end_wall": 1791213142.0,
+              "label": "motion",
+              "name": "두 번째 걷기",
+              "evaluation_start_wall": 1791213074.0,
+              "duration_s": 68.0,
+              "correct_s": 44.387627840042114,
+              "incorrect_s": 23.612372159957886,
+              "unavailable_s": 0.0,
+              "valid_s": 68.0,
+              "match_among_valid": 0.6527592329417958,
+              "match_among_all": 0.6527592329417958,
+              "first_correct_delay_s": 23.312371969223022,
+              "first_10s_stable_start_delay_s": 23.91237211227417,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 23.612372159957886,
+                "motion": 44.387627840042114,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213142.0,
+              "end_wall": 1791213325.0,
+              "label": "empty",
+              "name": "마지막 빈 방",
+              "evaluation_start_wall": 1791213142.0,
+              "duration_s": 183.0,
+              "correct_s": 21.0,
+              "incorrect_s": 132.0,
+              "unavailable_s": 30.0,
+              "valid_s": 153.0,
+              "match_among_valid": 0.13725490196078433,
+              "match_among_all": 0.11475409836065574,
+              "first_correct_delay_s": 84.91237211227417,
+              "first_10s_stable_start_delay_s": 84.91237211227417,
+              "durations_by_state_s": {
+                "empty": 21.0,
+                "static": 123.58762812614441,
+                "motion": 8.41237187385559,
+                "suspended": 30.0,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 620.0,
+            "correct_s": 295.56288385391235,
+            "incorrect_s": 294.43711614608765,
+            "unavailable_s": 30.0,
+            "valid_s": 590.0,
+            "match_among_valid": 0.50095404043036,
+            "match_among_all": 0.47671432879663284
+          },
+          "excluded_seconds_after_each_action": 0,
+          "time_axis_shift_s": 0
+        },
+        "after60s": {
+          "segments": [
+            {
+              "start_wall": 1791212705.0,
+              "end_wall": 1791212829.0,
+              "label": "empty",
+              "name": "첫 빈 방",
+              "evaluation_start_wall": 1791212765.0,
+              "duration_s": 64.0,
+              "correct_s": 0.5999999046325684,
+              "incorrect_s": 63.40000009536743,
+              "unavailable_s": 0.0,
+              "valid_s": 64.0,
+              "match_among_valid": 0.00937499850988388,
+              "match_among_all": 0.00937499850988388,
+              "first_correct_delay_s": 8.312371969223022,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 0.5999999046325684,
+                "static": 63.40000009536743,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212829.0,
+              "end_wall": 1791212893.0,
+              "label": "motion",
+              "name": "첫 걷기",
+              "evaluation_start_wall": 1791212889.0,
+              "duration_s": 4.0,
+              "correct_s": 4.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 4.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 0.0,
+                "motion": 4.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212893.0,
+              "end_wall": 1791213074.0,
+              "label": "static",
+              "name": "앉아서 정지(근사)",
+              "evaluation_start_wall": 1791212953.0,
+              "duration_s": 121.0,
+              "correct_s": 106.29999995231628,
+              "incorrect_s": 14.700000047683716,
+              "unavailable_s": 0.0,
+              "valid_s": 121.0,
+              "match_among_valid": 0.8785123963001346,
+              "match_among_all": 0.8785123963001346,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": 16.51237201690674,
+              "durations_by_state_s": {
+                "empty": 14.700000047683716,
+                "static": 106.29999995231628,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213074.0,
+              "end_wall": 1791213142.0,
+              "label": "motion",
+              "name": "두 번째 걷기",
+              "evaluation_start_wall": 1791213134.0,
+              "duration_s": 8.0,
+              "correct_s": 8.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 8.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 0.0,
+                "motion": 8.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213142.0,
+              "end_wall": 1791213325.0,
+              "label": "empty",
+              "name": "마지막 빈 방",
+              "evaluation_start_wall": 1791213202.0,
+              "duration_s": 123.0,
+              "correct_s": 21.0,
+              "incorrect_s": 102.0,
+              "unavailable_s": 0.0,
+              "valid_s": 123.0,
+              "match_among_valid": 0.17073170731707318,
+              "match_among_all": 0.17073170731707318,
+              "first_correct_delay_s": 24.91237211227417,
+              "first_10s_stable_start_delay_s": 24.91237211227417,
+              "durations_by_state_s": {
+                "empty": 21.0,
+                "static": 102.0,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 320.0,
+            "correct_s": 139.89999985694885,
+            "incorrect_s": 180.10000014305115,
+            "unavailable_s": 0.0,
+            "valid_s": 320.0,
+            "match_among_valid": 0.43718749955296515,
+            "match_among_all": 0.43718749955296515
+          },
+          "excluded_seconds_after_each_action": 60,
+          "time_axis_shift_s": 0
+        },
+        "time_shift_sensitivity": {
+          "-1": {
+            "duration_s": 620.0,
+            "correct_s": 298.56288385391235,
+            "incorrect_s": 291.43711614608765,
+            "unavailable_s": 30.0,
+            "valid_s": 590.0,
+            "match_among_valid": 0.5060387861930717,
+            "match_among_all": 0.4815530384740522
+          },
+          "1": {
+            "duration_s": 620.0,
+            "correct_s": 292.56288385391235,
+            "incorrect_s": 297.43711614608765,
+            "unavailable_s": 30.0,
+            "valid_s": 590.0,
+            "match_among_valid": 0.49586929466764806,
+            "match_among_all": 0.4718756191192135
+          }
+        },
+        "inferences": 3138,
+        "holds": 0,
+        "suspended_polls": 100,
+        "reason_counts": {
+          "unfilled_gap": 100,
+          "boundary_interpolation_not_observed": 0,
+          "waiting_for_30_new_common_frames": 0,
+          "warmup": 100
+        }
+      }
+    },
+    "phase": {
+      "window_frames": 6000,
+      "unique_inferred_windows": 2986,
+      "timing": {
+        "batch_size": 8,
+        "median_batch_amortized_seconds_per_window": 0.07300902606250137
+      },
+      "prefix": {
+        "metrics": {
+          "segments": [
+            {
+              "start_wall": 1791212705.0,
+              "end_wall": 1791212829.0,
+              "label": "empty",
+              "name": "첫 빈 방",
+              "evaluation_start_wall": 1791212705.0,
+              "duration_s": 124.0,
+              "correct_s": 124.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 124.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": 0.0,
+              "durations_by_state_s": {
+                "empty": 124.0,
+                "static": 0.0,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212829.0,
+              "end_wall": 1791212893.0,
+              "label": "motion",
+              "name": "첫 걷기",
+              "evaluation_start_wall": 1791212829.0,
+              "duration_s": 64.0,
+              "correct_s": 22.787627935409546,
+              "incorrect_s": 41.212372064590454,
+              "unavailable_s": 0.0,
+              "valid_s": 64.0,
+              "match_among_valid": 0.35605668649077415,
+              "match_among_all": 0.35605668649077415,
+              "first_correct_delay_s": 40.91237211227417,
+              "first_10s_stable_start_delay_s": 42.11237192153931,
+              "durations_by_state_s": {
+                "empty": 41.212372064590454,
+                "static": 0.0,
+                "motion": 22.787627935409546,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212893.0,
+              "end_wall": 1791213074.0,
+              "label": "static",
+              "name": "앉아서 정지(근사)",
+              "evaluation_start_wall": 1791212893.0,
+              "duration_s": 181.0,
+              "correct_s": 0.0,
+              "incorrect_s": 181.0,
+              "unavailable_s": 0.0,
+              "valid_s": 181.0,
+              "match_among_valid": 0.0,
+              "match_among_all": 0.0,
+              "first_correct_delay_s": null,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 152.18762803077698,
+                "static": 0.0,
+                "motion": 28.812371969223022,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213074.0,
+              "end_wall": 1791213142.0,
+              "label": "motion",
+              "name": "두 번째 걷기",
+              "evaluation_start_wall": 1791213074.0,
+              "duration_s": 68.0,
+              "correct_s": 30.287627935409546,
+              "incorrect_s": 37.712372064590454,
+              "unavailable_s": 0.0,
+              "valid_s": 68.0,
+              "match_among_valid": 0.44540629316778746,
+              "match_among_all": 0.44540629316778746,
+              "first_correct_delay_s": 35.01237201690674,
+              "first_10s_stable_start_delay_s": 41.61237192153931,
+              "durations_by_state_s": {
+                "empty": 29.3123722076416,
+                "static": 8.399999856948853,
+                "motion": 30.287627935409546,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213142.0,
+              "end_wall": 1791213325.0,
+              "label": "empty",
+              "name": "마지막 빈 방",
+              "evaluation_start_wall": 1791213142.0,
+              "duration_s": 183.0,
+              "correct_s": 113.68762803077698,
+              "incorrect_s": 9.312371969223022,
+              "unavailable_s": 60.0,
+              "valid_s": 123.0,
+              "match_among_valid": 0.9242896587868047,
+              "match_among_all": 0.6212438690206392,
+              "first_correct_delay_s": 6.91237211227417,
+              "first_10s_stable_start_delay_s": 10.512372016906738,
+              "durations_by_state_s": {
+                "empty": 113.68762803077698,
+                "static": 0.0,
+                "motion": 9.312371969223022,
+                "suspended": 60.0,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 620.0,
+            "correct_s": 290.76288390159607,
+            "incorrect_s": 269.23711609840393,
+            "unavailable_s": 60.0,
+            "valid_s": 560.0,
+            "match_among_valid": 0.5192194355385644,
+            "match_among_all": 0.46897239338967106
+          },
+          "excluded_seconds_after_each_action": 0,
+          "time_axis_shift_s": 0
+        },
+        "after60s": {
+          "segments": [
+            {
+              "start_wall": 1791212705.0,
+              "end_wall": 1791212829.0,
+              "label": "empty",
+              "name": "첫 빈 방",
+              "evaluation_start_wall": 1791212765.0,
+              "duration_s": 64.0,
+              "correct_s": 64.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 64.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": 0.0,
+              "durations_by_state_s": {
+                "empty": 64.0,
+                "static": 0.0,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212829.0,
+              "end_wall": 1791212893.0,
+              "label": "motion",
+              "name": "첫 걷기",
+              "evaluation_start_wall": 1791212889.0,
+              "duration_s": 4.0,
+              "correct_s": 4.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 4.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 0.0,
+                "motion": 4.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212893.0,
+              "end_wall": 1791213074.0,
+              "label": "static",
+              "name": "앉아서 정지(근사)",
+              "evaluation_start_wall": 1791212953.0,
+              "duration_s": 121.0,
+              "correct_s": 0.0,
+              "incorrect_s": 121.0,
+              "unavailable_s": 0.0,
+              "valid_s": 121.0,
+              "match_among_valid": 0.0,
+              "match_among_all": 0.0,
+              "first_correct_delay_s": null,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 121.0,
+                "static": 0.0,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213074.0,
+              "end_wall": 1791213142.0,
+              "label": "motion",
+              "name": "두 번째 걷기",
+              "evaluation_start_wall": 1791213134.0,
+              "duration_s": 8.0,
+              "correct_s": 8.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 8.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 0.0,
+                "motion": 8.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213142.0,
+              "end_wall": 1791213325.0,
+              "label": "empty",
+              "name": "마지막 빈 방",
+              "evaluation_start_wall": 1791213202.0,
+              "duration_s": 123.0,
+              "correct_s": 101.98762798309326,
+              "incorrect_s": 0.0,
+              "unavailable_s": 21.01237201690674,
+              "valid_s": 101.98762798309326,
+              "match_among_valid": 1.0,
+              "match_among_all": 0.82916770717962,
+              "first_correct_delay_s": 21.01237201690674,
+              "first_10s_stable_start_delay_s": 21.01237201690674,
+              "durations_by_state_s": {
+                "empty": 101.98762798309326,
+                "static": 0.0,
+                "motion": 0.0,
+                "suspended": 21.01237201690674,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 320.0,
+            "correct_s": 177.98762798309326,
+            "incorrect_s": 121.0,
+            "unavailable_s": 21.01237201690674,
+            "valid_s": 298.98762798309326,
+            "match_among_valid": 0.5953009801233576,
+            "match_among_all": 0.5562113374471664
+          },
+          "excluded_seconds_after_each_action": 60,
+          "time_axis_shift_s": 0
+        },
+        "time_shift_sensitivity": {
+          "-1": {
+            "duration_s": 620.0,
+            "correct_s": 293.76288390159607,
+            "incorrect_s": 266.23711609840393,
+            "unavailable_s": 60.0,
+            "valid_s": 560.0,
+            "match_among_valid": 0.5245765783957073,
+            "match_among_all": 0.47381110306709046
+          },
+          "1": {
+            "duration_s": 620.0,
+            "correct_s": 287.76288390159607,
+            "incorrect_s": 272.23711609840393,
+            "unavailable_s": 60.0,
+            "valid_s": 560.0,
+            "match_among_valid": 0.5138622926814216,
+            "match_among_all": 0.4641336837122517
+          }
+        },
+        "inferences": 2621,
+        "holds": 317,
+        "suspended_polls": 200,
+        "reason_counts": {
+          "unfilled_gap": 200,
+          "boundary_interpolation_not_observed": 0,
+          "waiting_for_30_new_common_frames": 317,
+          "warmup": 200
+        }
+      },
+      "whole_file": {
+        "metrics": {
+          "segments": [
+            {
+              "start_wall": 1791212705.0,
+              "end_wall": 1791212829.0,
+              "label": "empty",
+              "name": "첫 빈 방",
+              "evaluation_start_wall": 1791212705.0,
+              "duration_s": 124.0,
+              "correct_s": 124.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 124.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": 0.0,
+              "durations_by_state_s": {
+                "empty": 124.0,
+                "static": 0.0,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212829.0,
+              "end_wall": 1791212893.0,
+              "label": "motion",
+              "name": "첫 걷기",
+              "evaluation_start_wall": 1791212829.0,
+              "duration_s": 64.0,
+              "correct_s": 22.187628030776978,
+              "incorrect_s": 41.81237196922302,
+              "unavailable_s": 0.0,
+              "valid_s": 64.0,
+              "match_among_valid": 0.3466816879808903,
+              "match_among_all": 0.3466816879808903,
+              "first_correct_delay_s": 40.91237211227417,
+              "first_10s_stable_start_delay_s": 42.712372064590454,
+              "durations_by_state_s": {
+                "empty": 41.81237196922302,
+                "static": 0.0,
+                "motion": 22.187628030776978,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212893.0,
+              "end_wall": 1791213074.0,
+              "label": "static",
+              "name": "앉아서 정지(근사)",
+              "evaluation_start_wall": 1791212893.0,
+              "duration_s": 181.0,
+              "correct_s": 0.0,
+              "incorrect_s": 181.0,
+              "unavailable_s": 0.0,
+              "valid_s": 181.0,
+              "match_among_valid": 0.0,
+              "match_among_all": 0.0,
+              "first_correct_delay_s": null,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 151.88762784004211,
+                "static": 0.0,
+                "motion": 29.112372159957886,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213074.0,
+              "end_wall": 1791213142.0,
+              "label": "motion",
+              "name": "두 번째 걷기",
+              "evaluation_start_wall": 1791213074.0,
+              "duration_s": 68.0,
+              "correct_s": 29.687628030776978,
+              "incorrect_s": 38.31237196922302,
+              "unavailable_s": 0.0,
+              "valid_s": 68.0,
+              "match_among_valid": 0.436582765158485,
+              "match_among_all": 0.436582765158485,
+              "first_correct_delay_s": 35.01237201690674,
+              "first_10s_stable_start_delay_s": 41.61237192153931,
+              "durations_by_state_s": {
+                "empty": 30.51237201690674,
+                "static": 7.799999952316284,
+                "motion": 29.687628030776978,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213142.0,
+              "end_wall": 1791213325.0,
+              "label": "empty",
+              "name": "마지막 빈 방",
+              "evaluation_start_wall": 1791213142.0,
+              "duration_s": 183.0,
+              "correct_s": 113.98762798309326,
+              "incorrect_s": 9.012372016906738,
+              "unavailable_s": 60.0,
+              "valid_s": 123.0,
+              "match_among_valid": 0.9267286827893761,
+              "match_among_all": 0.6228832130223676,
+              "first_correct_delay_s": 6.91237211227417,
+              "first_10s_stable_start_delay_s": 10.512372016906738,
+              "durations_by_state_s": {
+                "empty": 113.98762798309326,
+                "static": 0.0,
+                "motion": 9.012372016906738,
+                "suspended": 60.0,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 620.0,
+            "correct_s": 289.8628840446472,
+            "incorrect_s": 270.1371159553528,
+            "unavailable_s": 60.0,
+            "valid_s": 560.0,
+            "match_among_valid": 0.51761229293687,
+            "match_among_all": 0.46752078071717296
+          },
+          "excluded_seconds_after_each_action": 0,
+          "time_axis_shift_s": 0
+        },
+        "after60s": {
+          "segments": [
+            {
+              "start_wall": 1791212705.0,
+              "end_wall": 1791212829.0,
+              "label": "empty",
+              "name": "첫 빈 방",
+              "evaluation_start_wall": 1791212765.0,
+              "duration_s": 64.0,
+              "correct_s": 64.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 64.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": 0.0,
+              "durations_by_state_s": {
+                "empty": 64.0,
+                "static": 0.0,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212829.0,
+              "end_wall": 1791212893.0,
+              "label": "motion",
+              "name": "첫 걷기",
+              "evaluation_start_wall": 1791212889.0,
+              "duration_s": 4.0,
+              "correct_s": 4.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 4.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 0.0,
+                "motion": 4.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791212893.0,
+              "end_wall": 1791213074.0,
+              "label": "static",
+              "name": "앉아서 정지(근사)",
+              "evaluation_start_wall": 1791212953.0,
+              "duration_s": 121.0,
+              "correct_s": 0.0,
+              "incorrect_s": 121.0,
+              "unavailable_s": 0.0,
+              "valid_s": 121.0,
+              "match_among_valid": 0.0,
+              "match_among_all": 0.0,
+              "first_correct_delay_s": null,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 121.0,
+                "static": 0.0,
+                "motion": 0.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213074.0,
+              "end_wall": 1791213142.0,
+              "label": "motion",
+              "name": "두 번째 걷기",
+              "evaluation_start_wall": 1791213134.0,
+              "duration_s": 8.0,
+              "correct_s": 8.0,
+              "incorrect_s": 0.0,
+              "unavailable_s": 0.0,
+              "valid_s": 8.0,
+              "match_among_valid": 1.0,
+              "match_among_all": 1.0,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": null,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 0.0,
+                "motion": 8.0,
+                "suspended": 0.0,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791213142.0,
+              "end_wall": 1791213325.0,
+              "label": "empty",
+              "name": "마지막 빈 방",
+              "evaluation_start_wall": 1791213202.0,
+              "duration_s": 123.0,
+              "correct_s": 101.98762798309326,
+              "incorrect_s": 0.0,
+              "unavailable_s": 21.01237201690674,
+              "valid_s": 101.98762798309326,
+              "match_among_valid": 1.0,
+              "match_among_all": 0.82916770717962,
+              "first_correct_delay_s": 21.01237201690674,
+              "first_10s_stable_start_delay_s": 21.01237201690674,
+              "durations_by_state_s": {
+                "empty": 101.98762798309326,
+                "static": 0.0,
+                "motion": 0.0,
+                "suspended": 21.01237201690674,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 320.0,
+            "correct_s": 177.98762798309326,
+            "incorrect_s": 121.0,
+            "unavailable_s": 21.01237201690674,
+            "valid_s": 298.98762798309326,
+            "match_among_valid": 0.5953009801233576,
+            "match_among_all": 0.5562113374471664
+          },
+          "excluded_seconds_after_each_action": 60,
+          "time_axis_shift_s": 0
+        },
+        "time_shift_sensitivity": {
+          "-1": {
+            "duration_s": 620.0,
+            "correct_s": 292.8628840446472,
+            "incorrect_s": 267.1371159553528,
+            "unavailable_s": 60.0,
+            "valid_s": 560.0,
+            "match_among_valid": 0.5229694357940129,
+            "match_among_all": 0.4723594903945923
+          },
+          "1": {
+            "duration_s": 620.0,
+            "correct_s": 286.8628840446472,
+            "incorrect_s": 273.1371159553528,
+            "unavailable_s": 60.0,
+            "valid_s": 560.0,
+            "match_among_valid": 0.5122551500797272,
+            "match_among_all": 0.46268207103975356
+          }
+        },
+        "inferences": 2938,
+        "holds": 0,
+        "suspended_polls": 200,
+        "reason_counts": {
+          "unfilled_gap": 200,
+          "boundary_interpolation_not_observed": 0,
+          "waiting_for_30_new_common_frames": 0,
+          "warmup": 200
+        }
+      }
+    }
+  },
+  "original_live_amplitude": {
+    "segments": [
+      {
+        "start_wall": 1791212705.0,
+        "end_wall": 1791212829.0,
+        "label": "empty",
+        "name": "첫 빈 방",
+        "evaluation_start_wall": 1791212705.0,
+        "duration_s": 124.0,
+        "correct_s": 24.036274194717407,
+        "incorrect_s": 94.98312163352966,
+        "unavailable_s": 4.98060417175293,
+        "valid_s": 119.01939582824707,
+        "match_among_valid": 0.20195258115243128,
+        "match_among_all": 0.19384092092514038,
+        "first_correct_delay_s": 4.476835012435913,
+        "first_10s_stable_start_delay_s": 26.090683937072754,
+        "durations_by_state_s": {
+          "empty": 24.036274194717407,
+          "static": 94.98312163352966,
+          "motion": 0.0,
+          "suspended": 4.98060417175293,
+          "deciding": 0.0
+        }
+      },
+      {
+        "start_wall": 1791212829.0,
+        "end_wall": 1791212893.0,
+        "label": "motion",
+        "name": "첫 걷기",
+        "evaluation_start_wall": 1791212829.0,
+        "duration_s": 64.0,
+        "correct_s": 45.358235359191895,
+        "incorrect_s": 15.61793065071106,
+        "unavailable_s": 3.023833990097046,
+        "valid_s": 60.976166009902954,
+        "match_among_valid": 0.7438682739059947,
+        "match_among_all": 0.7087224274873734,
+        "first_correct_delay_s": 15.98838186264038,
+        "first_10s_stable_start_delay_s": 28.73354196548462,
+        "durations_by_state_s": {
+          "empty": 0.0,
+          "static": 15.61793065071106,
+          "motion": 45.358235359191895,
+          "suspended": 3.023833990097046,
+          "deciding": 0.0
+        }
+      },
+      {
+        "start_wall": 1791212893.0,
+        "end_wall": 1791213074.0,
+        "label": "static",
+        "name": "앉아서 정지(근사)",
+        "evaluation_start_wall": 1791212893.0,
+        "duration_s": 181.0,
+        "correct_s": 149.09853410720825,
+        "incorrect_s": 23.632262468338013,
+        "unavailable_s": 8.269203424453735,
+        "valid_s": 172.73079657554626,
+        "match_among_valid": 0.86318442954669,
+        "match_among_all": 0.823748807222145,
+        "first_correct_delay_s": 8.03878903388977,
+        "first_10s_stable_start_delay_s": 25.59946298599243,
+        "durations_by_state_s": {
+          "empty": 15.627958297729492,
+          "static": 149.09853410720825,
+          "motion": 8.00430417060852,
+          "suspended": 8.269203424453735,
+          "deciding": 0.0
+        }
+      },
+      {
+        "start_wall": 1791213074.0,
+        "end_wall": 1791213142.0,
+        "label": "motion",
+        "name": "두 번째 걷기",
+        "evaluation_start_wall": 1791213074.0,
+        "duration_s": 68.0,
+        "correct_s": 42.328564167022705,
+        "incorrect_s": 23.05309271812439,
+        "unavailable_s": 2.6183431148529053,
+        "valid_s": 65.3816568851471,
+        "match_among_valid": 0.6474073338548045,
+        "match_among_all": 0.6224788848091575,
+        "first_correct_delay_s": 23.690377950668335,
+        "first_10s_stable_start_delay_s": 24.70789408683777,
+        "durations_by_state_s": {
+          "empty": 0.0,
+          "static": 23.05309271812439,
+          "motion": 42.328564167022705,
+          "suspended": 2.6183431148529053,
+          "deciding": 0.0
+        }
+      },
+      {
+        "start_wall": 1791213142.0,
+        "end_wall": 1791213325.0,
+        "label": "empty",
+        "name": "마지막 빈 방",
+        "evaluation_start_wall": 1791213142.0,
+        "duration_s": 183.0,
+        "correct_s": 18.885802268981934,
+        "incorrect_s": 126.32411789894104,
+        "unavailable_s": 37.790079832077026,
+        "valid_s": 145.20992016792297,
+        "match_among_valid": 0.13005862304133287,
+        "match_among_all": 0.10320110529498325,
+        "first_correct_delay_s": 86.05788493156433,
+        "first_10s_stable_start_delay_s": null,
+        "durations_by_state_s": {
+          "empty": 18.885802268981934,
+          "static": 114.84617328643799,
+          "motion": 11.477944612503052,
+          "suspended": 37.790079832077026,
+          "deciding": 0.0
+        }
+      }
+    ],
+    "overall": {
+      "duration_s": 620.0,
+      "correct_s": 279.7074100971222,
+      "incorrect_s": 283.61052536964417,
+      "unavailable_s": 56.68206453323364,
+      "valid_s": 563.3179354667664,
+      "match_among_valid": 0.49653560180958217,
+      "match_among_all": 0.45114098402761643
+    },
+    "excluded_seconds_after_each_action": 0,
+    "time_axis_shift_s": 0
+  },
+  "quality": [
+    {
+      "rx": 101,
+      "frames": 96194,
+      "duplicates": 34,
+      "max_gap_frames": 4,
+      "long_gaps": []
+    },
+    {
+      "rx": 102,
+      "frames": 97016,
+      "duplicates": 10,
+      "max_gap_frames": 2,
+      "long_gaps": []
+    },
+    {
+      "rx": 103,
+      "frames": 93183,
+      "duplicates": 212,
+      "max_gap_frames": 6,
+      "long_gaps": [
+        {
+          "left_tx_seq": 120768,
+          "right_tx_seq": 120775,
+          "missing_frames": 6
+        }
+      ]
+    }
+  ],
+  "checks": {
+    "hashes_unchanged": true,
+    "verified_files": 25,
+    "model_state_unchanged": true,
+    "complete_file_inputs_match_official_paths": true,
+    "batch_matches_single_window": true,
+    "amplitude": {
+      "prefix_direct_input_checks": 12
+    },
+    "phase": {
+      "prefix_direct_input_checks": 12
+    }
+  },
+  "time_mapping": "manifest start + (exclusive TX cutoff - first common TX) / 100; approximate, no per-frame host arrival clock",
+  "input_hashes": {
+    "mac_collector_output/realtime/20261005-235852-cba933f4/capture/session.json": "3f1ac3d7461fb0c7ec1abdbef62c7cc3b90510431cf535aef901d3c4ad2dbc99",
+    "mac_collector_output/realtime/20261005-235852-cba933f4/capture/device_102.csi": "1cf246e16500643c837539d421773a5c5726fc30ace9bf20661b0ad13c552fb0",
+    "model_train/phase60/features.py": "cc4c14b1a881b51372c569d143425f0f80294bf61519775853224d7d799ddcbf",
+    "mac_collector/session_meta.yaml": "e97e625d1c7f3b9e358c86c24525f0e879cfa026d36e806c690b495a5255c3db",
+    "model_train/robust/nested_validation.py": "b71d36db36c440648f7c5a98185d56a75d06790fe514a23ae75e3b01f5c3b8b8",
+    "model_train/robust/shared_temporal.py": "6d45eeacfc4f89d134077875b9b9480e9ad1aa9029a16686274fd2ce563f066a",
+    "model_train/robust/model.pt": "a33570a40bc3f54964bc108ba538d5e862189c4e7a29e9070c700b5e23e2ac5c",
+    "model_train/analysis/prepare_phase_experiment.py": "21b22e28ca677440d174859c24b2691dbdc8e036ad1a132acd4e66c80e8001e3",
+    "model_train/robust/features.py": "897a5dbae6a9a0622361ce4bb0c595e8f453b1e5122a6f7d326652f19bceaefe",
+    "scripts/csi_store.py": "c1f2384dffbc3dbd34613b90d1dbe53cb8697f6bd61942249786983d5aef6a79",
+    "model_train/preprocessing/preprocess_3rx.py": "5b3cb442292cb54f72d092b5e752b7ca7fd8c70cfb8888b553abbc323a8a1afb",
+    "mac_collector_output/realtime/20261005-235852-cba933f4/capture/device_registry_snapshot.csv": "db8f80269d13add479ba2c95de989e08d3b21ce008d27bfd503e0f606108c67f",
+    "model_train/robust/predict.py": "2cc6ce38225be47d03cca970644164e59db968b90b501cde1208bdacba1c721c",
+    "model_train/phase60/evaluate_raw.py": "18ed1fc1867d1949f18911bd41cb6dec21aab6a5e600b9ac7f7f4a6869fd0c42",
+    "mac_collector_output/realtime/20261005-235852-cba933f4/capture/device_101.csi": "acf0485824ad87c2f694caf2606bdea26be45e67e532d7a7754133ce009bc381",
+    "model_train/cnn1d/shared_cnn.py": "ae451045dec43a2c4eff12cedcc1736e8ef032d05f91972720e2afeb01dd2ff9",
+    "mac_collector_output/realtime/20261005-235852-cba933f4/prediction/realtime_status.json": "7252bd4381071eebd15c937bd27cc92591517d663fc2e07bfebb627d3fdaee93",
+    "model_train/phase60/model_60sessions.pt": "1232d156dc9c1c6dd07a3dbf29384200d0848abd319cd3c7a77f30bd2f5b4c42",
+    "model_train/robust/run_experiment.py": "af69e6dfdc52da0ee861898022002232e2258d2a7220c72fa5852051fc814f3f",
+    "mac_collector_output/realtime/20261005-235852-cba933f4/capture/device_103.csi": "6cb0747b2524fb24da882cf256d483f2f9becbdf090f80ae87f6bf565e993d72",
+    "model_train/robust/verify_results.py": "b4989d44efca2f085294b967346b187cc067fbd26ee6d4b401c47b6841f29235",
+    "model_train/robust/evaluate_raw.py": "7b7440ce653b5bbd7f3b6f6704d9539a878e502100dd30025908617fc9c2c8f6",
+    "mac_collector_output/realtime/20261005-235852-cba933f4/prediction/realtime_events.jsonl": "954f9ae557fd324d8aeddd433075901dd438d9635cf6096fce0ed043acdf7fee",
+    "model_train/analysis/replay_transition.py": "a0087353bf8a1dfda663f17aca6d7e564b9a65fd8898c719edaefc823d27c877",
+    "model_train/robust/audit_raw.py": "c89f3f84c51f49669da75607679fcb679d90c930d31490e795ecdd4e294593db"
+  },
+  "local_full_results": "model_train/analysis/output/20261008-transition-model-comparison"
+}

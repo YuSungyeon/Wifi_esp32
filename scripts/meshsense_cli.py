@@ -54,20 +54,21 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from csi_session import create_session, finalize_session, next_session_id, set_session_note, summarize  # noqa: E402
 from csi_store import LABELS  # noqa: E402
 from session_meta import read_label_target, read_session_id  # noqa: E402
-from realtime_launch import MODEL, build_command, build_live_command, check_runtime, new_output_dir  # noqa: E402
+from realtime_launch import MODEL, build_command, build_live_command, check_runtime, new_output_dir, resolve_model  # noqa: E402
 
 
 def _run_model(session: Optional[Path], *, follow: bool = False, plain: bool = False,
-               model: Path = MODEL, stride: int = 30, output_dir: Optional[Path] = None,
-               live_port: Optional[str] = None) -> int:
+               model: Optional[Path] = None, stride: int = 30, output_dir: Optional[Path] = None,
+               live_port: Optional[str] = None, model_kind: str = "amplitude") -> int:
     child = None
     old_term = None
     try:
+        model = resolve_model(model_kind, model)
         cmd = (build_live_command(live_port, output_dir=output_dir or new_output_dir(),
-                                  model=model, stride=stride, plain=plain) if live_port else
+                                  model=model, model_kind=model_kind, stride=stride, plain=plain) if live_port else
                build_command(session, follow=follow, plain=plain, model=model,
-                             stride=stride, output_dir=output_dir))
-        check_runtime(model)
+                             model_kind=model_kind, stride=stride, output_dir=output_dir))
+        check_runtime(model, model_kind=model_kind)
         print("\n[판단 실행]", " ".join(cmd), flush=True)
         print("현재 SINK 수집·판단을 함께 실행합니다. Ctrl+C로 함께 종료합니다." if live_port else
               "수집은 별도 터미널/GUI에서 실행합니다. 판단은 원본 파일을 읽기만 합니다.", flush=True)
@@ -95,6 +96,10 @@ def _run_model(session: Optional[Path], *, follow: bool = False, plain: bool = F
 
 
 def _model_menu() -> None:
+    choice = _choose("사용할 모델", ["진폭 30초 (기본)", "위상 60초 (시험 후보)", "취소"])
+    if choice == 2:
+        return
+    model_kind = ("amplitude", "phase60")[choice]
     mode = _choose("판단 방식", ["현재 보드 실시간 (수집+판단)", "녹화 재생 (보드 불필요)",
                                 "수집 파일 따라 읽기 (다른 터미널/GUI에서 수집 중)", "취소"])
     if mode == 3:
@@ -102,7 +107,7 @@ def _model_menu() -> None:
     if mode == 0:
         port = input("SINK USB 포트 (예: /dev/cu.usbmodem101): ").strip()
         if port:
-            _run_model(None, live_port=port)
+            _run_model(None, live_port=port, model_kind=model_kind)
         return
     sessions = sorted((OUTPUT_DIR / "raw").glob("*/*/session.json"), reverse=True)
     if not sessions:
@@ -112,7 +117,7 @@ def _model_menu() -> None:
     choice = _choose("판단할 세션", options + ["취소"])
     if choice == len(options):
         return
-    _run_model(REPO_ROOT / options[choice], follow=mode == 2)
+    _run_model(REPO_ROOT / options[choice], follow=mode == 2, model_kind=model_kind)
 
 
 def _pause(msg: str = "계속하려면 Enter…") -> None:
@@ -1115,7 +1120,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--port", help="--live의 SINK USB 포트")
     parser.add_argument("--follow", action="store_true", help="수집 중인 세션을 따라 읽기")
     parser.add_argument("--plain", action="store_true", help="판단을 한 줄로 출력")
-    parser.add_argument("--model", type=Path, default=MODEL)
+    parser.add_argument("--model", type=Path, help="선택한 모델 종류의 체크포인트 경로")
+    parser.add_argument("--model-kind", choices=("amplitude", "phase60"), default="amplitude",
+                        help="진폭 30초(기본) 또는 위상 60초")
     parser.add_argument("--stride", type=int, default=30, help="판단 간격 프레임 (100Hz, 기본 30=0.3초)")
     parser.add_argument("--output-dir", type=Path, help="원본과 분리한 판단 결과 폴더")
     return parser.parse_args()
@@ -1132,10 +1139,10 @@ def main() -> int:
             print("--live에는 --port <SINK USB 포트>가 필요합니다.", file=sys.stderr)
             return 1
         return _run_model(None, live_port=args.port, plain=args.plain,
-                          model=args.model, stride=args.stride, output_dir=args.output_dir)
+                          model=args.model, stride=args.stride, output_dir=args.output_dir, model_kind=args.model_kind)
     if args.realtime:
         return _run_model(args.realtime, follow=args.follow, plain=args.plain,
-                          model=args.model, stride=args.stride, output_dir=args.output_dir)
+                          model=args.model, stride=args.stride, output_dir=args.output_dir, model_kind=args.model_kind)
     try:
         _main_menu(quick=args.quick)
     except KeyboardInterrupt:

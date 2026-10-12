@@ -32,7 +32,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from csi_session import next_session_id, read_manifest, repo_provenance, set_session_note  # noqa: E402
 from csi_store import LABELS  # noqa: E402
-from realtime_launch import build_command, build_live_command, check_runtime, new_output_dir, runtime_info  # noqa: E402
+from realtime_launch import build_command, build_live_command, check_runtime, new_output_dir, runtime_info, resolve_model  # noqa: E402
 from realtime_live import ensure_port_free  # noqa: E402
 from session_form import (  # noqa: E402
     DEVICE_REGISTRY, FIELDS, SESSION_META, known_devices, read_meta, write_meta,
@@ -64,13 +64,14 @@ class Job:
         self.session_dir: Optional[Path] = None
         self.output_dir: Optional[Path] = None
         self.mode = ""
+        self.model_kind = "amplitude"
 
     @property
     def running(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
     def start(self, name: str, cmd: list[str], on_done=None, *,
-              session_dir=None, output_dir=None, mode="") -> Optional[str]:
+              session_dir=None, output_dir=None, mode="", model_kind="amplitude") -> Optional[str]:
         with self.lock:
             if self.running:
                 return f"이미 실행 중입니다: {self.name}"
@@ -78,6 +79,7 @@ class Job:
             self.log.clear()
             self.log.append(f"$ {' '.join(cmd)}")
             self.session_dir, self.output_dir, self.mode = session_dir, output_dir, mode
+            self.model_kind = model_kind
             self.proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1, cwd=str(REPO_ROOT),
@@ -87,9 +89,10 @@ class Job:
 
     def _pump(self, proc, on_done) -> None:
         assert proc.stdout
-        for line in proc.stdout:
-            if self.proc is proc:
-                self.log.append(line.rstrip())
+        with proc.stdout:
+            for line in proc.stdout:
+                if self.proc is proc:
+                    self.log.append(line.rstrip())
         rc = proc.wait()
         if self.proc is not proc:
             return
@@ -115,7 +118,7 @@ class Job:
         return {"running": self.running, "name": self.name,
                 "rc": self.rc, "log": list(self.log), "note": self.done_note,
                 "session_path": str(self.session_dir) if self.session_dir else None,
-                "mode": self.mode}
+                "mode": self.mode, "model_kind": self.model_kind}
 
 
 JOB = Job()
@@ -405,7 +408,7 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <script>__JS__</script></body></html>"""
 
 JS = r"""
-let S = null, tab = 'realtime', shownPng = null, rtSelected = '';
+let S = null, tab = 'realtime', shownPng = null, rtSelected = '', rtModel = 'amplitude';
 let order = null;  // 이번 블록의 무작위 클래스 순서
 try { order = JSON.parse(localStorage.getItem('blockOrder')); } catch (e) {}
 // 섹션별 데이터 지문. 바뀐 섹션만 다시 그린다 —
@@ -573,26 +576,34 @@ function spanLabel(spans){
 }
 function renderRealtimeControls(){
   const j = S.realtime_job, rt = S.realtime_runtime;
+  const models = rt.models || [{kind:'amplitude', label:'진폭 30초', ...rt}];
+  if (j.running) rtModel = j.model_kind || (S.realtime && S.realtime.model_kind) || rtModel;
+  const selected = models.find(m => m.kind === rtModel) || models[0];
+  rtModel = selected.kind;
+  const modelOpts = models.map(m => `<option value="${esc(m.kind)}" ${m.kind===rtModel?'selected':''}>${esc(m.label)}</option>`).join('');
   if (!rtSelected && S.sessions.length) rtSelected = S.sessions[0].path;
   const opts = S.sessions.map(s => `<option value="${esc(s.path)}" ${s.path===rtSelected?'selected':''}>${esc(s.date + ' / ' + s.name)}</option>`).join('');
   const external = S.realtime && S.realtime.active && !j.running;
   const ended = external ? '외부 CLI 판단 실행 중 (종료는 해당 터미널에서 Ctrl+C)' : j.name && !j.running ? (j.rc===0 ? '완료/중지' : '중지/오류 · 로그 확인') : '';
   return `<div class="card"><h2>현재 보드로 실시간 판단</h2>
-    <p class="sub">${esc(rt.model)} · 모델 3개의 예측 평균 · 30초 입력 · 0.3초 판단 간격</p>
+    <label for="rt-model">사용할 모델</label>
+    <select id="rt-model" ${j.running?'disabled':''} onchange="rtModel=this.value;delete sig.realtime;render()">${modelOpts}</select>
+    <p class="sub">${esc(selected.model)} · 모델 3개의 예측 평균 · ${selected.window_s}초 입력 · 0.3초 판단 간격</p>
+    ${rtModel==='phase60'?'<p class="note">위상은 시험 후보입니다. 기존 앉기 시험에서 정지 오판이 있어 성능 확인이 필요합니다.</p>':''}
     <p class="sub">매번 최대 확률 클래스를 즉시 표시합니다. 확신 기준·유지 시간 대기 없음.</p>
-    ${rt.model_exists ? '' : '<p class="note">배포 모델 파일이 없습니다.</p>'}
+    ${selected.model_exists ? '' : '<p class="note">선택한 모델 파일이 없습니다.</p>'}
     <div class="bar" style="margin-top:.8rem">
-      <button class="act primary" ${j.running||S.job.running||!rt.model_exists?'disabled':''} onclick="post('/api/realtime/live')">실시간 시작</button>
+      <button class="act primary" ${j.running||S.job.running||!selected.model_exists?'disabled':''} onclick="post('/api/realtime/live',{model_kind:rtModel})">실시간 시작</button>
       <button class="act danger" ${j.running?'':'disabled'} onclick="post('/api/realtime/stop')">판단 정지</button>
       <span class="hint">${j.running ? (j.mode==='live'?'현재 보드 수집·판단 실행 중':j.mode==='follow'?'수집 파일 따라 읽는 중':'녹화 재생 중') : ended}</span></div>
-    <p class="sub">세션 선택 없이 현재 SINK 신호를 수집하고 판단합니다. 처음 30초는 준비 시간입니다. 판단 정지는 이 버튼으로 시작한 수집도 함께 종료합니다. 학습용 데이터에는 넣지 않습니다.</p>
+    <p class="sub">세션 선택 없이 현재 SINK 신호를 수집하고 판단합니다. 처음 ${selected.window_s}초는 준비 시간입니다. 모델 변경은 판단 정지 후 새 실행으로 시작하세요. 판단 정지는 이 버튼으로 시작한 수집도 함께 종료합니다. 학습용 데이터에는 넣지 않습니다.</p>
     ${S.job.running?'<p class="note">다른 수집/작업이 실행 중입니다. 해당 작업을 끝내거나 아래 수집 파일 따라 읽기를 사용하세요.</p>':''}
     <details><summary>저장 데이터 재생 / 수집 파일 따라 읽기</summary>
       <label for="rt-session">저장 세션 (현재 보드 신호와 별개)</label>
       <select id="rt-session" ${j.running?'disabled':''} onchange="rtSelected=this.value">${opts}</select>
       <div class="bar" style="margin-top:.8rem">
-        <button class="act" ${j.running||!opts||!rt.model_exists?'disabled':''} onclick="startRealtime(false)">녹화 재생</button>
-        <button class="act" ${j.running||!opts||!rt.model_exists?'disabled':''} onclick="startRealtime(true)">수집 파일 따라 읽기</button></div>
+        <button class="act" ${j.running||!opts||!selected.model_exists?'disabled':''} onclick="startRealtime(false)">녹화 재생</button>
+        <button class="act" ${j.running||!opts||!selected.model_exists?'disabled':''} onclick="startRealtime(true)">수집 파일 따라 읽기</button></div>
       <p class="sub">따라 읽기는 다른 수집 작업이 현재 저장 중인 동일 세션에만 사용하세요. 이 모드의 판단 정지는 외부 수집을 종료하지 않습니다.</p>
     </details>
     ${j.log.length ? `<details ${j.rc && !j.running?'open':''}><summary>판단 로그</summary><pre class="log">${esc(j.log.join('\n'))}</pre></details>` : ''}
@@ -600,7 +611,7 @@ function renderRealtimeControls(){
 }
 function startRealtime(follow){
   rtSelected = document.getElementById('rt-session').value;
-  post('/api/realtime/start', {path:rtSelected, follow});
+  post('/api/realtime/start', {path:rtSelected, follow, model_kind:rtModel});
 }
 function renderRealtime(r){
   if (!r) return `<div class="card"><h2>실시간 판단이 실행 중이 아닙니다</h2>
@@ -608,14 +619,15 @@ function renderRealtime(r){
   const deciding = r.state === 'deciding';
   const warming = r.warmup_remaining_s > 0;
   const pct = deciding
-    ? Math.round(100 * (1 - Math.min(1, warming ? r.warmup_remaining_s / 30 : r.remaining_s / 60)))
+    ? Math.round(100 * (1 - Math.min(1, warming ? r.warmup_remaining_s / (r.window_s || 30) : r.remaining_s / 60)))
     : Math.round(r.confidence * 100);
   const sub = deciding
     ? (r.candidate ? `${esc(RT_LABEL[r.candidate] || r.candidate)} 확인 중`
-                   : r.warmup_remaining_s > 0 ? `30초 입력 준비 · ${r.warmup_remaining_s.toFixed(1)}초 남음`
+                   : r.warmup_remaining_s > 0 ? `${r.window_s || 30}초 입력 준비 · ${r.warmup_remaining_s.toFixed(1)}초 남음`
                    : `확신이 기준(${Math.round(r.threshold*100)}%)에 못 미칩니다`)
     : `모델 확률 ${Math.round(r.confidence*100)}%`;
   return `<div class="card hero s-${esc(r.state)}">
+      <p class="sub">${esc(r.model_label || '진폭 30초')} · ${r.mode==='replay'?'녹화 재생':r.mode==='live'?'현재 보드 실시간':'수집 파일 따라 읽기'}${r.active?'':' · 종료된 기록'}</p>
       <p class="state">${esc(RT_LABEL[r.state] || r.state)}</p>
       <p class="sub-state"><b>${deciding ? sub : held(r.held_s) + '째'}</b>
         <span>${deciding ? '' : '· ' + esc(r.session)}</span></p>
@@ -790,7 +802,9 @@ def _dispatch(path: str, body: dict) -> dict:
                 return {"error": "판단이 이미 실행 중입니다. 먼저 판단 정지를 누르세요."}
             if JOB.running:
                 return {"error": "다른 수집/작업이 실행 중입니다. 먼저 종료하세요."}
-            check_runtime()
+            model_kind = body.get('model_kind', 'amplitude')
+            model = resolve_model(model_kind)
+            check_runtime(model, model_kind=model_kind)
             # 포트 번호는 재연결 때 바뀐다. 캐시 번호를 그대로 사용하지 않는다.
             result = rescan()
             if "error" in result:
@@ -799,9 +813,9 @@ def _dispatch(path: str, body: dict) -> dict:
             if len(sinks) != 1:
                 return {"error": "SINK 1대를 USB로 연결하세요. 자동 플래시나 리셋은 하지 않습니다."}
             output = new_output_dir()
-            cmd = build_live_command(sinks[0]["port"], output_dir=output)
+            cmd = build_live_command(sinks[0]["port"], output_dir=output, model=model, model_kind=model_kind)
             err = RT_JOB.start("현재 보드 실시간 판단", cmd, session_dir=output / "capture",
-                               output_dir=output / "prediction", mode="live")
+                               output_dir=output / "prediction", mode="live", model_kind=model_kind)
             return {"error": err} if err else {"ok": True, "output_dir": str(output)}
     if path == "/api/realtime/start":
         if RT_JOB.running:
@@ -814,11 +828,15 @@ def _dispatch(path: str, body: dict) -> dict:
         follow = body.get("follow", False)
         if not isinstance(follow, bool):
             return {"error": "follow는 true/false여야 합니다"}
-        check_runtime()
+        model_kind = body.get('model_kind', 'amplitude')
+        model = resolve_model(model_kind)
+        check_runtime(model, model_kind=model_kind)
         output = new_output_dir()
-        cmd = build_command(target, follow=follow, output_dir=output, speed=1 if not follow else 0)
+        cmd = build_command(target, follow=follow, output_dir=output, speed=1 if not follow else 0,
+                            model=model, model_kind=model_kind)
         err = RT_JOB.start("실시간 판단" if follow else "녹화 재생", cmd,
-                           session_dir=target, output_dir=output, mode="follow" if follow else "replay")
+                           session_dir=target, output_dir=output, mode="follow" if follow else "replay",
+                           model_kind=model_kind)
         return {"error": err} if err else {"ok": True, "output_dir": str(output)}
 
     if path == "/api/realtime/stop":

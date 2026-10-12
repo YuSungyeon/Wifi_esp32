@@ -67,7 +67,7 @@ def state_block(view: dict, color: bool) -> list[str]:
             line = f"     {LABEL.get(cand, cand)} 확인 중 — {int(view['remaining_s'])}초 남음"
         else:
             warmup = view.get("warmup_remaining_s", 0)
-            line = (f"     30초 입력 준비 중 — {warmup:.1f}초 남음" if warmup else
+            line = (f"     {view.get('window_s',30):g}초 입력 준비 중 — {warmup:.1f}초 남음" if warmup else
                     f"     확신 {view['confidence']:.0%} · 기준 {view['threshold']:.0%} 미만")
         rows.append(line)
         visible.append(_cells(line))
@@ -108,8 +108,16 @@ def render(view: dict, width: int = 62, height: int = 24, color: bool = False) -
 
     rows.append("├" + "─" * inner + "┤")
     quality = "정상" if view["n_rx"] >= 3 else ("저하" if view["n_rx"] == 2 else "이상")
-    foot = (f"  {view['hz']:.1f}Hz  RX{view['n_rx']}  {quality}  {view['session'][:18]}"
-            f"        [m]전환 [q]종료")
+    label = view.get('model_label', '진폭 30초').split(' (')[0]
+    foot = f"  {label}  {view['hz']:.1f}Hz RX{view['n_rx']} {quality}"
+    keys = " [m]전환 [q]종료"
+    room = max(0, inner - _cells(foot + keys) - 2)
+    session = ""
+    for char in view['session'][:18]:
+        if _cells(session + char) > room:
+            break
+        session += char
+    foot += (f"  {session}" if session else "") + keys
     rows.append(f"│{_pad(foot, inner)}│")
     rows.append("└" + "─" * inner + "┘")
     return "\n".join(rows[:height])
@@ -120,12 +128,12 @@ def render_plain(view: dict) -> str:
     if view["state"] == "deciding" and view.get("candidate"):
         extra = f" ({LABEL.get(view['candidate'])} 확인 중 {int(view['remaining_s'])}초)"
     elif view.get("warmup_remaining_s", 0):
-        extra = f" (30초 입력 준비 · {view['warmup_remaining_s']:.1f}초 남음)"
+        extra = f" ({view.get('window_s',30):g}초 입력 준비 · {view['warmup_remaining_s']:.1f}초 남음)"
     if view.get("note"):
         extra += f" · {view['note']}"
     return (f"[{time.strftime('%H:%M:%S')}] {LABEL.get(view['state'], view['state']):5s} "
             f"{view['confidence']:>4.0%}  {hms(view['held_s']):>8}  "
-            f"{view['hz']:.1f}Hz RX{view['n_rx']}{extra}")
+            f"{view['hz']:.1f}Hz RX{view['n_rx']} · {view.get('model_label','진폭 30초')}{extra}")
 
 
 def read_key() -> str | None:
@@ -143,7 +151,8 @@ def main() -> int:
     ap.add_argument("--plain", action="store_true", help="한 줄 갱신 모드")
     ap.add_argument("--stride", type=int, default=30, help="판단 간격 (frame, 100Hz)")
     ap.add_argument("--conf", type=float, default=0.7)
-    ap.add_argument("--model", type=Path, default=MODEL)
+    ap.add_argument("--model", type=Path)
+    ap.add_argument("--model-kind", choices=("amplitude", "phase60"), default="amplitude")
     ap.add_argument("--output-dir", type=Path)
     ap.add_argument("--speed", type=float, default=0.0,
                     help="재생 속도 (0=최대한 빨리, 1=실제 속도)")
@@ -157,7 +166,7 @@ def main() -> int:
     eng = None
     try:
         eng = Engine(args.session, model_path=args.model, stride=args.stride, conf=args.conf,
-                     output_dir=args.output_dir)
+                     output_dir=args.output_dir, model_kind=args.model_kind)
         if not args.follow:
             eng.prepare_replay()
     except (OSError, ValueError, KeyError) as exc:
@@ -165,7 +174,7 @@ def main() -> int:
             eng.record_failure(str(exc))
         print(f"[판단 오류] {exc}", file=sys.stderr)
         return 1
-    print(f"[모델] {eng.model_path} · 3-seed 평균 · 30초 입력 · {args.stride/100:g}초 간격", flush=True)
+    print(f"[모델] {eng.model_label} · {eng.model_path} · 3-seed 평균 · {eng.window/100:g}초 입력 · {args.stride/100:g}초 간격", flush=True)
     print(f"[기록] {eng.out} · {'실시간' if args.follow else '녹화 재생'}", flush=True)
     size = None
     try:

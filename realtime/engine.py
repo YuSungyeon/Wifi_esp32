@@ -4,8 +4,8 @@
     python realtime/engine.py --session <세션 디렉터리>            # 재생 (오프라인 확인)
     python realtime/engine.py --session <세션 디렉터리> --follow   # 실시간
 
-모델은 배포 체크포인트(`model_train/robust/model.pt`) 하나다. 3-class 를 바로 내며 seed 3개
-softmax 평균이다. 엔진은 창을 만들고 상태 기계에 넘기는 일만 한다.
+진폭 30초(기본) 또는 위상 60초(시험 후보)를 선택한다. 3-class 를 바로 내며
+seed 3개 softmax 평균이다. 엔진은 창을 만들고 상태 기계에 넘기는 일만 한다.
 """
 from __future__ import annotations
 
@@ -24,8 +24,8 @@ import torch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from model_train.robust.predict import load_bundle, predict_window  # noqa: E402
-from scripts.realtime_launch import new_output_dir  # noqa: E402
+from realtime.models import load_model_bundle, predict_model_window  # noqa: E402
+from scripts.realtime_launch import new_output_dir, resolve_model, model_spec  # noqa: E402
 from realtime.state import Event, Reading, StateMachine  # noqa: E402
 from realtime.stream import CsiStream  # noqa: E402
 
@@ -33,6 +33,7 @@ MODEL = ROOT / "model_train" / "robust" / "model.pt"
 STATUS_NAME = "realtime_status.json"
 EVENTS_NAME = "realtime_events.jsonl"
 MARKS_NAME = "realtime_marks.jsonl"
+PREDICTIONS_NAME = "realtime_predictions.jsonl"
 
 
 def write_status(path: Path, view: dict) -> None:
@@ -43,8 +44,9 @@ def write_status(path: Path, view: dict) -> None:
 
 
 class Engine:
-    def __init__(self, session_dir: Path, model_path: Path = MODEL, stride: int = 30,
-                 conf: float = 0.7, device: str = "cpu", output_dir: Path | None = None) -> None:
+    def __init__(self, session_dir: Path, model_path: Path | None = None, stride: int = 30,
+                 conf: float = 0.7, device: str = "cpu", output_dir: Path | None = None,
+                 model_kind: str = "amplitude") -> None:
         if stride <= 0 or not 0 <= conf <= 1 or device != "cpu":
             raise ValueError("stride > 0, 0 ≤ conf ≤ 1, device=cpu가 필요합니다")
         torch.set_num_threads(2)
@@ -52,15 +54,18 @@ class Engine:
         self.out = Path(output_dir or new_output_dir()).resolve()
         if self.out == self.dir or self.out in self.dir.parents or self.dir in self.out.parents:
             raise ValueError("판단 출력은 원본 세션 밖의 별도 폴더를 사용하세요")
-        self.stream = CsiStream(self.dir)
-        self.sm = StateMachine(conf=conf, immediate=True)
+        spec = model_spec(model_kind)
+        self.model_kind = model_kind
+        self.model_label = spec['label']
         self.stride = stride
         self.device = device
         self.events = deque(maxlen=1000)
-        self.model_path = Path(model_path).resolve()
-        self.bundle, self.models = load_bundle(self.model_path)
+        self.model_path = resolve_model(model_kind, model_path)
+        self.bundle, self.models = load_model_bundle(self.model_path, model_kind)
         self.model_sha256 = hashlib.sha256(self.model_path.read_bytes()).hexdigest()
         self.window = self.bundle["window_frames"]
+        self.stream = CsiStream(self.dir, model_kind=model_kind)
+        self.sm = StateMachine(conf=conf, immediate=True, window_s=self.window/100)
         self.follow = True
         self.running = True
         self.out.mkdir(parents=True, exist_ok=True)
@@ -70,12 +75,13 @@ class Engine:
         self._window_probs = deque(maxlen=12000)  # 장시간 실행 시 메모리 무한 증가 방지
         self.n_predictions = 0
         self._last_window_end = None
+        self._last_reason = "warmup"
 
     def prepare_replay(self) -> None:
         self.follow = False
         self.stream.load_replay()
         if self.stream.available_frames < self.window:
-            raise ValueError("재생할 공통 구간이 30초 미만입니다")
+            raise ValueError(f"재생할 공통 구간이 {self.window/100:g}초 미만입니다")
         self.stream.rewind(self.window)
 
     def record_failure(self, message: str) -> None:
@@ -84,20 +90,41 @@ class Engine:
         self.sm._to(self.sm._t, "suspended", 0.0)
         self.sm.probs = (0.0, 0.0, 0.0)
         self.sm.note = f"판단 오류로 중지: {message}"
+        self._log_decision("error")
         write_status(self.out / STATUS_NAME, self.view())
 
     def close(self) -> None:
         self.running = False
+        self._log_decision("stopped")
         write_status(self.out / STATUS_NAME, self.view())
+
+    def _log_decision(self, reason: str, *, inferred: bool = False) -> None:
+        end = ((self.stream._base or 0) +
+               (self.stream.common_end if self.follow else (self.stream._cursor or 0)))
+        row = {"t": self.sm._t, "wall": time.time(), "monotonic": time.monotonic(),
+               "reason": reason, "inferred": inferred, "state": self.sm.state,
+               "note": self.sm.note, "probs": list(self.sm.probs), "n_rx": len(self._rx),
+               "model_kind": self.model_kind, "model_sha256": self.model_sha256,
+               "mode": self.view()["mode"], "input_start_tx_seq": max(self.stream._base or 0, end-self.window),
+               "input_end_tx_seq_exclusive": end, "window_frames": self.window,
+               "stride_frames": self.stride}
+        with (self.out / PREDICTIONS_NAME).open("a", encoding="utf-8") as fp:
+            fp.write(json.dumps(row, ensure_ascii=False, allow_nan=False)+"\n")
 
     # ── 판단 한 번 ──────────────────────────────────────────────────────────
     def predict(self) -> tuple | None:
         """최근 창의 3-class 확률. 창이 덜 찼거나 누락이 있으면 None."""
         win = self.stream.latest(self.window)
-        if win is None or not np.isfinite(win.amp).all():
+        if win is None:
+            self._last_reason = "warmup" if self.stream.available_frames < self.window else "common_window_missing"
+            return None
+        values = win.phase if self.model_kind == "phase60" else win.amp
+        if not np.isfinite(values).all():
+            self._last_reason = "unfilled_gap"
             return None
         self._hz, self._rx = win.hz, win.rx_alive
-        return predict_window(win.amp, self.bundle, self.models), win.rx_alive
+        self._last_reason = "inference"
+        return predict_model_window(win, self.bundle, self.models, self.model_kind), win.rx_alive
 
     def step(self, now: float | None = None) -> Event | None:
         self._frames += self.stream.poll()
@@ -108,16 +135,20 @@ class Engine:
         if (self.follow and len(alive) == 3 and self._last_window_end is not None
                 and 0 <= end - self._last_window_end < self.stride):
             self.sm._t = t
+            self._log_decision("waiting_for_new_common_frames")
             write_status(self.out / STATUS_NAME, self.view())
             return None
         got = self.predict() if len(alive) == 3 else None
+        if len(alive) != 3:
+            self._last_reason = "rx_missing"
         if got is None:
             self._hz = 0.0
             reading = Reading(t=t, probs=(0.0, 0.0, 0.0), n_rx=len(alive), valid=False)
             if self.sm.state == "deciding" and self.stream.available_frames < self.window:
                 self.sm._t = t
                 self.sm._cand = None
-                self.sm.note = f"30초 입력 준비 중 · 수신 RX {len(alive)}/3"
+                self.sm.note = f"{self.window/100:g}초 입력 준비 중 · 수신 RX {len(alive)}/3"
+                self._log_decision(self._last_reason)
                 write_status(self.out / STATUS_NAME, self.view())
                 return None
         else:
@@ -132,7 +163,9 @@ class Engine:
             with (self.out / EVENTS_NAME).open("a", encoding="utf-8") as fp:
                 fp.write(json.dumps({"t": round(ev.t, 2), "from": ev.frm, "to": ev.to,
                                      "confidence": round(ev.confidence, 4),
-                                     "wall": time.time()}, ensure_ascii=False) + "\n")
+                                     "wall": time.time(), "monotonic": time.monotonic(),
+                                     "model_kind": self.model_kind}, ensure_ascii=False) + "\n")
+        self._log_decision(self._last_reason, inferred=got is not None)
         write_status(self.out / STATUS_NAME, self.view())
         return ev
 
@@ -142,7 +175,7 @@ class Engine:
         tx_seq 로 남겨야 나중에 프레임 위치로 환산된다 — 호스트 시각만으로는 맞출 수 없다.
         """
         win = self.stream.latest(1)
-        row = {"t": round(self.sm._t, 2), "wall": time.time(), "note": note,
+        row = {"t": round(self.sm._t, 2), "wall": time.time(), "monotonic": time.monotonic(), "note": note,
                "tx_seq": int(win.tx_seq0) if win else None, "state": self.sm.state}
         with (self.out / MARKS_NAME).open("a", encoding="utf-8") as fp:
             fp.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -165,6 +198,7 @@ class Engine:
                 "mode": ("live" if self.stream.input_kind == "realtime_monitor" else "follow")
                         if self.follow else "replay", "running": self.running,
                 "model": str(self.model_path),
+                "model_kind": self.model_kind, "model_label": self.model_label,
                 "model_sha256": self.model_sha256, "model_count": len(self.models),
                 "stride_s": self.stride / 100, "predictions": self.n_predictions,
                 "tx_seq": self._last_window_end - 1 if self._last_window_end is not None else None,
@@ -197,14 +231,15 @@ def main() -> int:
     ap.add_argument("--follow", action="store_true", help="실시간(파일 tail). 없으면 재생")
     ap.add_argument("--stride", type=int, default=30, help="판단 간격 (frame, 100Hz)")
     ap.add_argument("--conf", type=float, default=0.7)
-    ap.add_argument("--model", type=Path, default=MODEL)
+    ap.add_argument("--model", type=Path)
+    ap.add_argument("--model-kind", choices=("amplitude", "phase60"), default="amplitude")
     ap.add_argument("--output-dir", type=Path)
     args = ap.parse_args()
     torch.set_num_threads(2)
     eng = None
     try:
         eng = Engine(args.session, model_path=args.model, stride=args.stride, conf=args.conf,
-                     output_dir=args.output_dir)
+                     output_dir=args.output_dir, model_kind=args.model_kind)
         print(f"모델: {eng.model_path} · 기록: {eng.out}", flush=True)
         for ev in eng.run(args.follow):
             print(f"{ev.t:8.1f}s  {ev.frm} → {ev.to}  ({ev.confidence:.0%})", flush=True)

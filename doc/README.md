@@ -4,6 +4,21 @@
 
 현재 완료한 작업과 남은 문제는 [10월 6일까지 작업·결과 요약](work-summary-20261006.md)에 있습니다.
 
+다음 작업은 [위상 60초 모델 도입 작업 목록](plans/2026-10-08-phase60-introduction.md)에서
+1~4번 순서로 체크하며 진행합니다. **1번 완료: 위상 모델을 별도 경로에 가져와
+9/16·17의 14/15 결과를 재현했습니다.** [위상 모델 평가 결과](../model_train/docs/model-training/20260916-17-phase60-evaluation.md).
+**2번 재생 비교도 완료했습니다:** 위상은 빈 방 구분이 개선됐지만 앉기 구간의 정지 일치율은 0%였습니다.
+[진폭·위상 전환 재생 비교](../model_train/docs/model-training/20261006-phase60-transition-replay.md).
+
+[정지 오판 원인 분석](../model_train/docs/model-training/20261008-phase60-static-diagnosis.md)에서는
+이번 앉기 입력에 학습 정지의 느린 시간 패턴이 약하고, 모델이 그 패턴에 의존함을 확인했습니다.
+2026-10-10 **3번 선택 연결도 완료했습니다.** GUI·CLI에서 진폭 30초/위상 60초를 고를 수 있습니다.
+기본값은 진폭으로 유지했고, 위상으로 새 실제 전환 시험을 하는 **4번은 남아 있습니다.**
+사용 방법은 [실시간 상태 판단](realtime-inference.md)에 있습니다.
+
+새 방 자료로 파인튜닝하는 후속 작업은 [새 방 위상 모델 추가 학습 작업 목록](plans/2026-10-12-phase60-room-finetuning.md)에 있습니다.
+**PLANNED** 상태이며 수집·자료 분리·일부 가중치 학습·다른 날 시험 순서로 진행합니다.
+
 현재 학습한 모델을 확인하려면 [모델 학습 문서 안내](../model_train/docs/README.md)에서
 [쉬운 결과 설명](../model_train/docs/model-training/robust-three-class-report-easy.md)부터 읽습니다.
 최근 자료 구성과 결과는 [9월 16·17일 데이터 확인·최종 모델 평가](../model_train/docs/model-training/20260916-17-model-evaluation.md)에 있습니다.
@@ -19,7 +34,7 @@
 | 4 | [펌웨어](firmware.md) | **CURRENT** — TX/RX 동작과 상수 |
 | 5 | [바이너리·JSONL 데이터 규격](data-schema.md) | **CURRENT CONTRACT** — frame v4·`.csi` 저장소·JSONL 내보내기 |
 | 6 | [실시간 경로](realtime-uplink.md) | **CURRENT** — ESP-NOW 업링크 + USB 싱크 (무선 배치) |
-| 7 | [실시간 상태 판단](realtime-inference.md) | **CURRENT** — 배포된 30초 3분류 모델·0.3초 판단 간격·상태 기계·제어판 |
+| 7 | [실시간 상태 판단](realtime-inference.md) | **CURRENT** — 진폭 30초/위상 60초 선택·기본 0.3초 이동·상태 기계·제어판 |
 | 8 | [`seq`와 `tx_seq` 패턴](sequence-patterns.md) | **CURRENT** — 두 순번의 차이·이상 패턴·실데이터 집계 |
 | 9 | [공식 전처리 설계](../model_train/docs/preprocessing/design.md) | **CURRENT CONTRACT** — 기존 3초·192차원 기준 모델의 전처리 규칙 |
 | 10 | [후처리](postprocessing.md) | **CURRENT** — 수집률·시각화와 공식 3-RX 모델 pipeline 연결 |
@@ -32,6 +47,7 @@
 | 17 | [진폭·위상 입력 규격 결정](adr-csi-phase-experiment.md) | **ACCEPTED** — 이전 3초 비교 실험의 별도 입력 경로 |
 | 18 | [30초 3분류 입력 규격 결정](adr-robust-three-class-experiment.md) | **ACCEPTED** — 상대 진폭·긴 구간을 쓰는 후속 실험 |
 | 19 | [모델 실험·학습 작업 기록](sprint/2026-09-phase-classification.md) | **HISTORICAL** — 실험·검증·설명 문서의 작업 이력 |
+| 20 | [위상 실시간 모델 선택 결정](adr-phase60-realtime-selection.md) | **ACCEPTED** — 모델별 입력·실행 고정·판단 기록·검증 경계 |
 
 ## 문서 상태 규칙
 

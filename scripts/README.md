@@ -12,7 +12,7 @@ python scripts/meshsense_gui.py
 ## 학습 모델로 상태 판단
 
 `.venv/bin/python -m pip install -r requirements-robust.txt`로 판단 의존성을 준비한다.
-GUI **실시간** 탭의 **실시간 시작**은 현재 SINK 수집과 모델 판단을 함께 켠다.
+GUI **실시간** 탭에서 **사용할 모델**을 고르고 **실시간 시작**을 누르면 현재 SINK 수집과 모델 판단을 함께 켠다.
 세션 선택은 필요 없다. **판단 정지**는 그 실행의 수집·판단을 함께 끈다.
 과거 자료는 세션을 고르고 **녹화 재생**한다. **수집 파일 따라 읽기**는 외부에서
 저장 중인 세션을 읽는 별도 모드다. TX/RX/SINK 펌웨어를 자동으로 바꾸지 않는다.
@@ -24,15 +24,20 @@ GUI **실시간** 탭의 **실시간 시작**은 현재 SINK 수집과 모델 �
 .venv/bin/python scripts/meshsense_cli.py --realtime mac_collector_output/raw/<날짜>/<세션> --plain
 # 다른 터미널/GUI에서 수집 중인 동일 세션을 따라 읽기
 .venv/bin/python scripts/meshsense_cli.py --realtime mac_collector_output/raw/<날짜>/<세션> --follow
+# 위상 60초 시험 후보 선택 (실제 SINK 포트로 바꾼다)
+.venv/bin/python scripts/meshsense_cli.py --live --port <SINK포트> --model-kind phase60 --plain
 ```
 
-배포 모델 `model_train/robust/model.pt` 사용, 30초 입력·0.3초 판단 간격이다.
+기본 모델은 `model_train/robust/model.pt`(진폭 30초)다. `--model-kind phase60`은
+`model_train/phase60/model_60sessions.pt`(위상 60초 시험 후보)를 선택한다. 두 경로의 기본 이동은 0.3초다.
 각 창의 최대 확률 클래스를 바로 표시한다. 확신 70%·클래스 유지 시간은 쓰지 않는다.
-최초 30초 준비와 신호 누락 때의 판단 정지는 유지한다. GUI 판단 화면 갱신은 300ms다.
+최초 30초/60초 준비와 신호 누락 때의 판단 정지는 유지한다. GUI 판단 화면 갱신은 300ms다.
 원본 대신 `mac_collector_output/realtime/`에 실행 기록을 남긴다. 현재 보드 모드의
 raw I/Q는 실행 폴더의 `capture/`, 판단은 `prediction/`에 저장된다. 정답 라벨 없이
 학습 데이터와 분리하므로 기존 세션·라벨·registry를 수정하지 않는다.
 입력 품질·수신 중단 처리와 검증 한계는 [실시간 상태 판단](../doc/realtime-inference.md)을 따른다.
+매 판단 점수·입력 순번·모델 해시·정지 사유는 `realtime_predictions.jsonl`에도 저장된다.
+모델 변경은 판단 정지 후 새 실행으로 시작한다. 이미 실행 중인 GUI는 작업 종료 후 서버를 재실행해야 새 선택 화면이 적용된다.
 
 ## 권장 진입점
 
