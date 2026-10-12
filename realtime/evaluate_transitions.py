@@ -85,12 +85,22 @@ def main() -> int:
     ap.add_argument("--gate", type=float, nargs=2, default=(0.9, 3), metavar=("THR", "N"),
                     help="1단계 게이트: p_motion ≥ THR 가 N 번 연속이면 motion 후보. 끄려면 --no-gate")
     ap.add_argument("--no-gate", action="store_true")
+    ap.add_argument("--truth-plan", nargs="+", default=None, metavar="STATE:SEC",
+                    help="demo_truth.json 이 없는 실제 세션의 정답 — 세션 시작 기준 대본 (예: empty:120 motion:60 …)")
     ap.add_argument("--json", type=Path, default=None)
     args = ap.parse_args()
 
     results = []
     for session in args.session:
-        truth = json.loads((session / "demo_truth.json").read_text(encoding="utf-8"))
+        if args.truth_plan:
+            t0, segs = 0.0, []
+            for item in args.truth_plan:
+                state, _, sec = item.partition(":")
+                segs.append({"state": state, "from_s": t0, "to_s": t0 + float(sec)})
+                t0 += float(sec)
+            truth = {"segments": segs}
+        else:
+            truth = json.loads((session / "demo_truth.json").read_text(encoding="utf-8"))
         sm = StateMachine(conf=args.conf, rest_hold_s=args.rest_hold,
                           motion_hold_s=args.motion_hold, direct_switch_s=args.direct)
         trace = replay(session, args.model, args.stride, sm, args.stage1,
