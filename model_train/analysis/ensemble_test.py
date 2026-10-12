@@ -46,6 +46,15 @@ def load_model(path: Path, device: str):
         from model_train.robust.predict import load_bundle
         bundle, models = load_bundle(path)
         return bundle, models, "amp"      # predict_amplitude 는 CPU 텐서를 만든다 — 올리지 않는다
+    if head.get("mode") == "A-ours":      # 우리 학습기로 만든 진폭 모델 (창 길이가 자유롭다)
+        from model_train.amp60.train import build
+
+        models = []
+        for state in head["state_dicts"]:
+            m = build(len(head["class_names"]))
+            m.load_state_dict(state)
+            models.append(m.eval())
+        return head, models, "amp"
     raise ValueError(f"3-class 진폭/위상 체크포인트가 아니다: {path} (mode={head.get('mode')})")
 
 
