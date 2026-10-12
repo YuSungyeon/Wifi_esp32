@@ -1,0 +1,269 @@
+{
+  "model": "model.pt",
+  "window_s": 30.0,
+  "kind": "진폭",
+  "holds": {
+    "motion": {
+      "rows": [
+        {
+          "seconds": 5,
+          "prob": 0.035,
+          "baseline": 0.057,
+          "detected": false
+        },
+        {
+          "seconds": 10,
+          "prob": 0.031,
+          "baseline": 0.057,
+          "detected": false
+        },
+        {
+          "seconds": 15,
+          "prob": 0.031,
+          "baseline": 0.057,
+          "detected": false
+        },
+        {
+          "seconds": 20,
+          "prob": 0.031,
+          "baseline": 0.057,
+          "detected": false
+        },
+        {
+          "seconds": 30,
+          "prob": 0.946,
+          "baseline": 0.057,
+          "detected": true
+        },
+        {
+          "seconds": 45,
+          "prob": 0.958,
+          "baseline": 0.057,
+          "detected": true
+        }
+      ],
+      "control": [
+        {
+          "seconds": 5,
+          "prob": 0.034,
+          "baseline": 0.057,
+          "detected": false
+        },
+        {
+          "seconds": 10,
+          "prob": 0.034,
+          "baseline": 0.057,
+          "detected": false
+        },
+        {
+          "seconds": 15,
+          "prob": 0.034,
+          "baseline": 0.057,
+          "detected": false
+        },
+        {
+          "seconds": 20,
+          "prob": 0.034,
+          "baseline": 0.057,
+          "detected": false
+        },
+        {
+          "seconds": 30,
+          "prob": 0.034,
+          "baseline": 0.057,
+          "detected": false
+        },
+        {
+          "seconds": 45,
+          "prob": 0.034,
+          "baseline": 0.057,
+          "detected": false
+        }
+      ],
+      "min_s": 30,
+      "control_fired_s": null,
+      "trustworthy": true
+    },
+    "static": {
+      "rows": [
+        {
+          "seconds": 5,
+          "prob": 0.999,
+          "baseline": 0.032,
+          "detected": true
+        },
+        {
+          "seconds": 10,
+          "prob": 0.999,
+          "baseline": 0.033,
+          "detected": true
+        },
+        {
+          "seconds": 15,
+          "prob": 0.999,
+          "baseline": 0.033,
+          "detected": true
+        },
+        {
+          "seconds": 20,
+          "prob": 0.999,
+          "baseline": 0.036,
+          "detected": true
+        },
+        {
+          "seconds": 30,
+          "prob": 0.999,
+          "baseline": 0.036,
+          "detected": true
+        },
+        {
+          "seconds": 45,
+          "prob": 0.999,
+          "baseline": 0.037,
+          "detected": true
+        }
+      ],
+      "control": [
+        {
+          "seconds": 5,
+          "prob": 0.918,
+          "baseline": 0.032,
+          "detected": true
+        },
+        {
+          "seconds": 10,
+          "prob": 0.97,
+          "baseline": 0.033,
+          "detected": true
+        },
+        {
+          "seconds": 15,
+          "prob": 0.972,
+          "baseline": 0.033,
+          "detected": true
+        },
+        {
+          "seconds": 20,
+          "prob": 0.973,
+          "baseline": 0.036,
+          "detected": true
+        },
+        {
+          "seconds": 30,
+          "prob": 0.973,
+          "baseline": 0.036,
+          "detected": true
+        },
+        {
+          "seconds": 45,
+          "prob": 0.976,
+          "baseline": 0.037,
+          "detected": true
+        }
+      ],
+      "min_s": 5,
+      "control_fired_s": 5,
+      "trustworthy": false
+    },
+    "empty": {
+      "rows": [
+        {
+          "seconds": 5,
+          "prob": 0.003,
+          "baseline": 0.036,
+          "detected": false
+        },
+        {
+          "seconds": 10,
+          "prob": 0.007,
+          "baseline": 0.036,
+          "detected": false
+        },
+        {
+          "seconds": 15,
+          "prob": 0.002,
+          "baseline": 0.036,
+          "detected": false
+        },
+        {
+          "seconds": 20,
+          "prob": 0.004,
+          "baseline": 0.036,
+          "detected": false
+        },
+        {
+          "seconds": 30,
+          "prob": 0.925,
+          "baseline": 0.1,
+          "detected": true
+        },
+        {
+          "seconds": 45,
+          "prob": 0.925,
+          "baseline": 0.1,
+          "detected": true
+        }
+      ],
+      "control": [
+        {
+          "seconds": 5,
+          "prob": 0.019,
+          "baseline": 0.036,
+          "detected": false
+        },
+        {
+          "seconds": 10,
+          "prob": 0.019,
+          "baseline": 0.036,
+          "detected": false
+        },
+        {
+          "seconds": 15,
+          "prob": 0.019,
+          "baseline": 0.036,
+          "detected": false
+        },
+        {
+          "seconds": 20,
+          "prob": 0.019,
+          "baseline": 0.036,
+          "detected": false
+        },
+        {
+          "seconds": 30,
+          "prob": 0.852,
+          "baseline": 0.1,
+          "detected": true
+        },
+        {
+          "seconds": 45,
+          "prob": 0.919,
+          "baseline": 0.1,
+          "detected": true
+        }
+      ],
+      "min_s": 30,
+      "control_fired_s": 30,
+      "trustworthy": false
+    }
+  },
+  "any_control_fired": true,
+  "transitions": [
+    {
+      "from": "empty",
+      "to": "motion",
+      "delay_s": 27.0
+    },
+    {
+      "from": "motion",
+      "to": "static",
+      "delay_s": 3.0
+    },
+    {
+      "from": "static",
+      "to": "motion",
+      "delay_s": null
+    }
+  ],
+  "hold_s": 90.0
+}

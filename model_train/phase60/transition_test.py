@@ -30,17 +30,23 @@ sys.path.insert(0, str(ROOT))
 
 CLASSES = ("empty", "static", "motion")
 #: 같은 날·같은 배치에서 고른다 — 배치가 다르면 이어 붙인 경계가 배치 변화까지 섞는다
+RAW = ROOT / "mac_collector_output" / "raw"
+#: 같은 날·같은 배치에서 고른다 — 다른 배치를 섞으면 경계가 배치 변화까지 담는다
 SOURCES = {
-    "empty": ROOT / "mac_collector_output/raw/20260919/153454_empty_s1",
-    "static": ROOT / "mac_collector_output/raw/20260919/181915_static_s10",
-    "motion": ROOT / "mac_collector_output/raw/20260919/163507_motion_s5",
-    #: 대조군 — 같은 '정지' 클래스의 다른 세션. 이어 붙인 경계의 불연속만 들어 있고
-    #: 행동 변화는 없다. 여기서도 움직임으로 반응하면 그 수치는 불연속을 잰 것이다.
-    "control": ROOT / "mac_collector_output/raw/20260919/182726_static_s11",
+    "empty": RAW / "20260919" / "153454_empty_s1",
+    "static": RAW / "20260919" / "181915_static_s10",
+    "motion": RAW / "20260919" / "163507_motion_s5",
+    #: 대조군 — 같은 클래스의 **다른 세션**. 끼워도 행동은 그대로이고 경계 불연속만 생긴다.
+    #: 여기서 반응하면 그 수치는 행동이 아니라 이어 붙인 자국을 잰 것이다.
+    "empty2": RAW / "20260919" / "155631_empty_s2",
+    "static2": RAW / "20260919" / "182726_static_s11",
+    "motion2": RAW / "20260919" / "164241_motion_s6",
 }
+#: 어떤 상태 안에 무엇을 끼울지. 서로 다른 상태끼리 짝지어야 변화가 생긴다.
+BASES = {"motion": "static", "static": "empty", "empty": "static"}
 
 
-def load_model(path: Path):
+def load_model(path: Path, device: str = "cpu"):
     """진폭(robust)과 위상(phase60) 체크포인트를 모두 받는다. (판단 함수, 창, 이름) 반환."""
     bundle = torch.load(path, map_location="cpu", weights_only=False)
     if bundle.get("mode") == "A":
@@ -48,22 +54,23 @@ def load_model(path: Path):
         from model_train.robust.shared_temporal import amplitude_input
 
         bundle, models = load_bundle(path)
+        models = [m.to(device) for m in models]
         window = bundle["window_frames"]
 
         def features(session_dir):
             return load_raw_amplitude(session_dir)[0]
 
         def judge(w):
-            x = torch.from_numpy(amplitude_input(w)).unsqueeze(0)
+            x = torch.from_numpy(amplitude_input(w)).unsqueeze(0).to(device)
             with torch.no_grad():
-                return torch.stack([m(x).softmax(1) for m in models]).mean(0)[0].numpy()
+                return torch.stack([m(x).softmax(1) for m in models]).mean(0)[0].cpu().numpy()
 
         return features, judge, window, "진폭"
 
     from model_train.phase60 import features as F
     from model_train.phase60.predict import load_bundle
 
-    bundle, models = load_bundle(path)
+    bundle, models = load_bundle(path, device)
     window, ds = bundle["window_frames"], bundle["downsample"]
     diff = bundle.get("diff_channel", False)
 
@@ -71,54 +78,54 @@ def load_model(path: Path):
         return F.session_phase(session_dir)
 
     def judge(w):
-        x = torch.from_numpy(F.windows(w, np.array([0]), window, ds, diff))
+        x = torch.from_numpy(F.windows(w, np.array([0]), window, ds, diff)).to(device)
         with torch.no_grad():
-            return torch.stack([m(x).softmax(1) for m in models]).mean(0)[0].numpy()
+            return torch.stack([m(x).softmax(1) for m in models]).mean(0)[0].cpu().numpy()
 
     return features, judge, window, "위상"
 
 
-def sweep(series: np.ndarray, judge, window: int, stride: int):
-    """((n, 3) 확률, (n,) 창 시작 위치). 각 행은 그 창 하나에 대한 판단이다."""
-    out, starts = [], []
-    for s in range(0, len(series) - window + 1, stride):
+def sweep(series: np.ndarray, judge, window: int, stride: int, starts=None):
+    """((n, 3) 확률, (n,) 창 시작 위치). starts 를 주면 그 창만 본다 (필요한 구간만 재려고)."""
+    if starts is None:
+        starts = range(0, len(series) - window + 1, stride)
+    out, used = [], []
+    for s in starts:
+        if s < 0 or s + window > len(series):
+            continue
         w = series[s:s + window]
         out.append(judge(w) if np.isfinite(w).all() else np.full(3, np.nan))
-        starts.append(s)
-    return np.asarray(out), np.asarray(starts)
+        used.append(s)
+    return np.asarray(out), np.asarray(used)
 
 
-def burst_test(feats: dict, judge, window: int, stride: int, lengths: list,
-               source: str = "motion") -> list:
-    """정지 가운데 다른 구간을 끼워 넣고 뒤집히는 최소 길이를 찾는다.
+def hold_test(feats: dict, judge, window: int, stride: int, lengths: list,
+              target: str, base: str) -> list:
+    """`base` 상태 한가운데 `target` 을 길이를 바꿔가며 끼우고, 판단이 바뀌는 최소 길이를 찾는다.
 
-    **삽입 구간과 겹치는 창만** 본다. 창 전체에서 최대를 찾으면 모델이 원래 내던 오답까지
-    집계되어 "1초도 감지한다"는 잘못된 결론이 나온다. 삽입이 없을 때(baseline)와의 차이도
-    함께 보고, 확률이 기준을 넘고 **동시에** baseline 보다 뚜렷이 올라야 감지로 센다.
-
-    `source="control"` 이면 같은 정지 클래스를 끼운다 — 불연속만 있고 행동 변화는 없다.
+    **끼운 구간과 겹치는 창만** 본다. 전체에서 최대를 찾으면 모델이 원래 내던 오답까지 섞인다.
+    같은 위치의 '끼우지 않은' 확률과 비교해, 기준을 넘고 **동시에** 뚜렷이 올라야 감지로 센다.
     """
-    static, donor = feats["static"], feats[source]
-    at = min(12000, len(static) - window - 1)
-    base_probs, starts = sweep(static, judge, window, stride)
+    base_series, donor = feats[base], feats[target]
+    ti = CLASSES.index(target)
+    at = min(12000, len(base_series) - window - 1)
     rows = []
     for sec in lengths:
         n = int(sec * 100)
-        mixed = static.copy()
+        starts = range(max(0, at - window + stride), at + n, stride)   # 끼운 구간과 겹치는 창만
+        mixed = base_series.copy()
         mixed[at:at + n] = donor[5000:5000 + n]
-        probs, _ = sweep(mixed, judge, window, stride)
-        touching = (starts < at + n) & (starts + window > at)   # 삽입과 겹치는 창만
-        if not touching.any():
+        probs, used = sweep(mixed, judge, window, stride, starts)
+        base_probs, _ = sweep(base_series, judge, window, stride, starts)
+        if not len(probs):
             continue
-        here = np.nanmax(probs[touching, 2])
-        base = np.nanmax(base_probs[touching, 2])
-        rows.append({"burst_seconds": sec, "max_motion_prob": round(float(here), 3),
-                     "baseline_prob": round(float(base), 3),
-                     "rise": round(float(here - base), 3),
-                     "detected": bool(here >= 0.7 and here - base >= 0.2)})
-        mark = "  ← 감지" if rows[-1]["detected"] else ""
-        print(f"  {source} {sec:>4g}초 → 확률 {here:.3f} (삽입 없을 때 {base:.3f}, "
-              f"차이 {here - base:+.3f}){mark}", flush=True)
+        here = float(np.nanmax(probs[:, ti]))
+        was = float(np.nanmax(base_probs[:, ti]))
+        detected = here >= 0.7 and here - was >= 0.2
+        rows.append({"seconds": sec, "prob": round(here, 3), "baseline": round(was, 3),
+                     "detected": bool(detected)})
+        print(f"    {target:7s} {sec:>4g}초 → {here:.3f} (끼우지 않으면 {was:.3f})"
+              f"{'  ← 감지' if detected else ''}", flush=True)
     return rows
 
 
@@ -160,42 +167,47 @@ def sequence_test(feats: dict, judge, window: int, stride: int, hold: float) -> 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", type=Path, required=True)
-    ap.add_argument("--stride", type=int, default=100, help="판단 간격 (frame)")
+    ap.add_argument("--stride", type=int, default=300, help="판단 간격 (frame)")
+    ap.add_argument("--device", default="mps", help="mps 또는 cpu")
     ap.add_argument("--burst", type=float, nargs="+",
-                    default=[1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90])
+                    default=[5, 10, 15, 20, 30, 45, 60, 90, 120])
+    ap.add_argument("--targets", nargs="+", default=["motion", "static", "empty"],
+                    choices=("motion", "static", "empty"))
     ap.add_argument("--hold", type=float, default=60.0, help="시퀀스 각 구간 길이 (초)")
     ap.add_argument("--out", type=Path)
     args = ap.parse_args()
     torch.set_num_threads(2)
 
-    features, judge, window, kind = load_model(args.model)
+    features, judge, window, kind = load_model(args.model, args.device)
     print(f"[모델] {args.model.name} · {kind} · 창 {window / 100:.0f}초")
     feats = {k: features(v) for k, v in SOURCES.items()}
 
-    lengths = [s for s in args.burst if s * 100 <= window * 1.5]
-    print("[대조군] 정지 가운데 **다른 정지 세션**을 끼워 넣는다 (행동 변화 없음)")
-    control = burst_test(feats, judge, window, args.stride, lengths, source="control")
-    false_fire = next((r["burst_seconds"] for r in control if r["detected"]), None)
-    if false_fire is not None:
-        print(f"  ⚠ 대조군이 {false_fire}초에서 이미 '움직임'으로 반응한다 — 아래 burst 수치는 "
-              f"행동이 아니라 **이어 붙인 불연속**을 잰 것이다")
-    else:
-        print("  대조군은 전 구간 반응 없음 — burst 수치를 행동 변화로 읽어도 된다")
-
-    print("[burst] 정지 가운데 움직임을 끼워 넣는다")
-    bursts = burst_test(feats, judge, window, args.stride, lengths)
-    smallest = next((r["burst_seconds"] for r in bursts if r["detected"]), None)
-    print(f"  → 감지되는 최소 길이: "
-          f"{str(smallest) + '초' if smallest else '없음 (시험한 범위에서)'}"
-          f"{'  (대조군도 반응하므로 신뢰 불가)' if false_fire is not None else ''}")
+    lengths = [x for x in args.burst if x * 100 <= window * 1.5]
+    print("[유지 시간] 각 상태가 몇 초 이어져야 판단이 바뀌는가 "
+          "(괄호는 같은 클래스를 끼운 대조군)")
+    holds = {}
+    for target in args.targets:
+        base = BASES[target]
+        rows = hold_test(feats, judge, window, args.stride, lengths, target, base)
+        # 같은 바탕에 **바탕과 같은 클래스**를 끼운 대조군 — 경계 불연속만 들어 있다
+        ctrl_feats = {**feats, target: feats[f"{base}2"]}
+        ctrl = hold_test(ctrl_feats, judge, window, args.stride, lengths, target, base)
+        fired = next((r["seconds"] for r in ctrl if r["detected"]), None)
+        got = next((r["seconds"] for r in rows if r["detected"]), None)
+        holds[target] = {"rows": rows, "control": ctrl, "min_s": got,
+                         "control_fired_s": fired, "trustworthy": fired is None}
+        note = (f"대조군도 {fired}초에서 반응 — 불연속을 잰 값이라 믿을 수 없다"
+                if fired else "대조군 무반응")
+        print(f"  → {target}: {str(got) + '초' if got else '시험 범위에서 감지 안 됨'}  ({note})",
+              flush=True)
+    false_fire = any(h["control_fired_s"] is not None for h in holds.values())
 
     print(f"[sequence] 빈 방 → 움직임 → 정지 → 움직임 → 빈 방 (구간 {args.hold:.0f}초)")
     transitions = sequence_test(feats, judge, window, args.stride, args.hold)
 
     result = {"model": args.model.name, "window_s": window / 100, "kind": kind,
-              "control": control, "control_false_fire_s": false_fire,
-              "bursts": bursts, "min_detected_s": smallest, "transitions": transitions,
-              "hold_s": args.hold}
+              "holds": holds, "any_control_fired": bool(false_fire),
+              "transitions": transitions, "hold_s": args.hold}
     if args.out:
         args.out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[기록] {args.out}")
