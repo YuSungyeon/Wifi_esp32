@@ -124,6 +124,49 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(hms(134), "2분 14초")
 
 
+class StreamInputTest(unittest.TestCase):
+    """실시간이 모델에 넣는 진폭은 **학습 때와 같은 값**이어야 한다.
+
+    한 번 어긋난 적이 있다: 스트림이 공백을 I/Q 성분별로 보간해서, CFO 로 회전하는 성분이
+    상쇄돼 진폭이 0 으로 꺼졌다. 30초 창에서는 묻혔지만 3초 창에서는 그 한 줄이 움직임으로
+    보였다. 공식 진폭 경로는 **크기**를 보간한다.
+    """
+
+    SESSION = ROOT / "mac_collector_output" / "raw" / "20260919" / "181915_static_s10"
+
+    @classmethod
+    def setUpClass(cls):
+        if not (cls.SESSION / "session.json").is_file():
+            raise unittest.SkipTest("수집 세션이 없다")
+        import numpy as np
+
+        from model_train.robust.predict import load_raw_amplitude
+        from realtime.stream import CsiStream
+
+        cls.np = np
+        cls.amp, cls.meta = load_raw_amplitude(cls.SESSION)
+        cls.stream = CsiStream(cls.SESSION)
+        cls.stream.poll()
+        cls.stream.rewind(300)
+        for _ in range(200):                      # 세션 가운데 — 공백이 섞인 구간
+            cls.stream.advance(30)
+        cls.win = cls.stream.latest(300)
+
+    def test_stream_amplitude_matches_the_training_path(self):
+        np = self.np
+        off = self.win.tx_seq0 - self.meta["common_start_tx_seq"]
+        ref = self.amp[off:off + 300]
+        both = np.isfinite(ref) & np.isfinite(self.win.amp)
+        self.assertGreater(both.sum(), 0.9 * ref.size)
+        self.assertLess(float(np.abs(ref[both] - self.win.amp[both]).max()), 1e-4)
+
+    def test_interpolated_gaps_do_not_collapse_the_amplitude(self):
+        """I/Q 를 따로 보간하면 여기서 0 근처 값이 나온다 — 진폭에는 물리적 바닥이 있다."""
+        np = self.np
+        floor = float(np.nanmin(self.amp))
+        self.assertGreater(float(np.nanmin(self.win.amp)), 0.5 * floor)
+
+
 class TimelineTest(unittest.TestCase):
     def test_spans_fill_the_bar(self):
         events = [{"t": 100.0, "from": "deciding", "to": "empty"},

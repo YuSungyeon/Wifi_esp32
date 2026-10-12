@@ -120,15 +120,19 @@ class CsiStream:
             return None
         s = end - width
         present = self._present[:, s:end].copy()
-        # 보간은 복소 성분에 각각 건다 — 공식 전처리와 같은 함수, 같은 최대 공백(5)
         re = self._re[:, s:end].copy()
         im = self._im[:, s:end].copy()
+        # **진폭은 크기를 보간한다** — 공식 진폭 경로(robust/predict.load_raw_amplitude)와 같다.
+        # I/Q 를 따로 보간하면 CFO 로 프레임마다 회전하는 성분이 상쇄돼 진폭이 0 으로 꺼지고,
+        # 짧은 창에서는 그 한 줄이 움직임처럼 보인다 (공백 1칸에 |z| 0.0, 학습 경로 최소 1.4).
+        amp3 = np.abs(re[:, :, AMP_TONES] + 1j * im[:, :, AMP_TONES]).astype(np.float32)
+        pre.interpolate_short_gaps(amp3, present.copy(), pre.DEFAULT_CONFIG)
+        amp = amp3.transpose(1, 0, 2).reshape(width, len(self.rx_order) * len(AMP_TONES))
+        # 위상은 성분별 보간이 맞다 — 공식 위상 경로(phase60/features.session_phase)와 같다
         pre.interpolate_short_gaps(re, present.copy(), pre.DEFAULT_CONFIG)
         pre.interpolate_short_gaps(im, present.copy(), pre.DEFAULT_CONFIG)
-        z = re + 1j * im
-        amp = (np.abs(z[:, :, AMP_TONES]).astype(np.float32)
-               .transpose(1, 0, 2).reshape(width, len(self.rx_order) * len(AMP_TONES)))
-        residual = phase_features.phase_residual(z[:, :, PHASE_TONES])
+        residual = phase_features.phase_residual(
+            (re + 1j * im)[:, :, PHASE_TONES])
         phase = (residual.astype(np.float32)
                  .transpose(1, 0, 2).reshape(width, len(self.rx_order) * len(PHASE_TONES)))
         counts = present.sum(axis=1)
