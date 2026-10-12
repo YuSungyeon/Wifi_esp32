@@ -278,13 +278,25 @@ CLI 는 화면 공간 배분으로, GUI 는 글자 크기로 서열을 만든다
 | 6 | 전환 세션 수집 → 규칙 조정 → 고정 → 봉인 데이터 평가 | 대기 (보드 필요) |
 
 ```bash
-# 녹화 세션 재생 (보드 불필요)
-python realtime/ui.py --session mac_collector_output/raw/<날짜>/<세션> --speed 2
+# 쓸 수 있는 체크포인트 보기 (배포 진폭 · 위상 모델 모두)
+python realtime/ui.py --list-models
+# 녹화 세션 재생 (보드 불필요). --model 로 모델을 고른다
+python realtime/ui.py --session mac_collector_output/raw/<날짜>/<세션> --speed 2 \
+  --model model_train/phase60/model_15sessions_v3.pt
 # 수집 중 실시간
 python realtime/ui.py --session <수집 중인 세션> --follow
 # 제어판 — 실시간 탭이 가장 최근에 갱신된 상태 파일을 자동으로 찾는다
 python scripts/meshsense_gui.py
 ```
+
+**모델 선택**: 엔진은 체크포인트의 `mode` 를 보고 입력을 맞춘다 — `A`(배포 진폭),
+`A-ours`(우리가 학습한 진폭), `P`(위상). 스트림이 복소 I/Q 를 들고 있다가 창을 꺼낼 때
+진폭이든 위상이든 만들어 낸다. 제어판 실시간 탭에서도 모델과 세션을 골라 시작할 수 있다.
+
+**합성 세션**: `scripts/make_demo_session.py` 가 녹화를 이어 붙여 상태가 N초마다 바뀌는
+세션을 만든다(`mac_collector_output/demo/`, 실험 데이터는 건드리지 않는다). 제어판은 정답
+구간을 판단 띠 아래에 함께 그려 어긋남을 보여준다. 30초 대본에서는 5구간 중 2개만 맞았다 —
+§4 의 "짧은 움직임은 보고되지 않는다"와 같은 한계다.
 
 세션 디렉터리에 남는 파일: `realtime_status.json`(현재 상태, 원자적 교체),
 `realtime_events.jsonl`(상태 전환), `realtime_marks.jsonl`(운영자 전환 표시).

@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import glob
 import http.server
+import re
 import json
 import shutil
 import subprocess
@@ -207,8 +208,10 @@ def session_note(d: Path) -> str:
 
 def realtime_view(raw_root: Path = RAW_ROOT) -> Optional[dict]:
     """가장 최근 세션의 realtime_status.json. 실시간 판단이 안 돌면 None."""
-    # 폴더 이름이 아니라 **마지막으로 갱신된** 상태 파일을 고른다 — 지금 돌고 있는 것이 그것이다
-    files = sorted(Path(raw_root).glob("*/*/realtime_status.json"),
+    # 폴더 이름이 아니라 **마지막으로 갱신된** 상태 파일을 고른다 — 지금 돌고 있는 것이 그것이다.
+    # demo/ 는 합성 세션(scripts/make_demo_session.py)이라 시연·전환 실험에서만 쓴다.
+    files = sorted([*Path(raw_root).glob("*/*/realtime_status.json"),
+                    *(REPO_ROOT / "mac_collector_output" / "demo").glob("*/realtime_status.json")],
                    key=lambda f: f.stat().st_mtime, reverse=True)
     if not files:
         return None
@@ -219,6 +222,13 @@ def realtime_view(raw_root: Path = RAW_ROOT) -> Optional[dict]:
         return None
     view["spans"] = timeline_spans(view.get("events", []), view.get("t", 0.0))
     view["stale_s"] = round(time.time() - p.stat().st_mtime, 1)
+    view["synthetic"] = "/demo/" in str(p)
+    truth = p.parent / "demo_truth.json"
+    if truth.is_file():
+        try:
+            view["truth"] = json.loads(truth.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
     return view
 
 
@@ -240,6 +250,28 @@ def timeline_spans(events: list, now: float, minutes: int = 60) -> list:
     for s in out:
         s["pct"] = round(100.0 * s["pct"] / total, 3)
     out[0]["covers_s"] = round(span_s, 1)
+    return out
+
+
+def realtime_models() -> list:
+    """실시간에 쓸 수 있는 체크포인트 (엔진과 같은 목록을 쓴다)."""
+    sys.path.insert(0, str(REPO_ROOT))
+    from realtime.engine import available_models
+
+    return available_models()
+
+
+def realtime_sessions() -> list:
+    """실시간을 붙일 수 있는 세션 — 최근 수집 세션과 합성 세션."""
+    out = []
+    for d in sorted(RAW_ROOT.glob("*/*"), reverse=True)[:12]:
+        if (d / "session.json").is_file():
+            out.append({"path": str(d.relative_to(REPO_ROOT)), "name": d.name,
+                        "date": d.parent.name, "synthetic": False})
+    for d in sorted((REPO_ROOT / "mac_collector_output" / "demo").glob("*"), reverse=True):
+        if (d / "session.json").is_file():
+            out.append({"path": str(d.relative_to(REPO_ROOT)), "name": d.name,
+                        "date": "합성", "synthetic": True})
     return out
 
 
@@ -491,8 +523,10 @@ function renderJob() {
 function render() {
   if (!S) return;
   const busy = S.job.running;
-  if (tab === 'realtime' && changed('realtime', [S.realtime])) {
-    document.getElementById('realtime').innerHTML = renderRealtime(S.realtime);
+  if (tab === 'realtime' && changed('realtime', [S.realtime, S.rt_models, S.rt_sessions, busy,
+                                                  rtSession, rtModel])) {
+    document.getElementById('realtime').innerHTML =
+      renderRealtime(S.realtime) + renderRealtimeStart(S, busy);
   }
   if (tab === 'boards' && changed('boards', [S.boards, busy])) {
     const rows = S.boards.map(b => `<tr>
@@ -598,10 +632,38 @@ function spanLabel(spans){
   const s = (spans && spans[0] && spans[0].covers_s) || 0;
   return s >= 3600 ? '60분' : held(s);
 }
+let rtSession = null, rtModel = null;
+function rtSet(k, v){ if (k === 's') rtSession = v; else rtModel = v; delete sig.realtime; render(); }
+function startRealtime(follow){
+  post('/api/realtime/start', {session: rtSession, model: rtModel, follow: follow, speed: 2});
+}
+function renderRealtimeStart(S, busy){
+  const models = S.rt_models || [], sessions = S.rt_sessions || [];
+  if (!models.length || !sessions.length) return '';
+  if (rtModel === null) rtModel = (models.find(m => m.is_deployed) || models[0]).path;
+  if (rtSession === null && sessions.length) rtSession = sessions[0].path;
+  const opts = sessions.map(x => `<option value="${esc(x.path)}" ${rtSession===x.path?'selected':''}>
+      ${esc(x.date)} · ${esc(x.name)}${x.synthetic ? ' (합성)' : ''}</option>`).join('');
+  const mopts = models.map(m => `<option value="${esc(m.path)}" ${rtModel===m.path?'selected':''}>
+      ${esc(m.name)} · ${esc(m.mode)} 창 ${m.window_s}초${m.is_deployed ? ' (배포)' : ''}
+      ${m.score ? ' · ' + esc(m.score) : ''}</option>`).join('');
+  return `<div class="card"><h2>실시간 시작</h2>
+    <p class="sub">모델과 세션을 고릅니다. 수집 중이면 <b>따라가기</b>, 녹화·합성이면 <b>재생</b>입니다.</p>
+    <div class="row">
+      <div><label for="rtm">모델</label>
+        <select id="rtm" onchange="rtSet('m', this.value)">${mopts}</select></div>
+      <div><label for="rts">세션</label>
+        <select id="rts" onchange="rtSet('s', this.value)">${opts}</select></div>
+    </div>
+    <div class="bar" style="margin-top:1rem">
+      <button class="act primary" ${busy?'disabled':''} onclick="startRealtime(false)">재생 (2배속)</button>
+      <button class="act" ${busy?'disabled':''} onclick="startRealtime(true)">따라가기 (수집 중)</button>
+      ${busy ? '<span class="hint">다른 작업이 실행 중입니다</span>' : ''}
+    </div></div>`;
+}
 function renderRealtime(r){
   if (!r) return `<div class="card"><h2>실시간 판단이 실행 중이 아닙니다</h2>
-    <p class="sub">터미널에서 시작합니다 — 수집 중인 세션을 지정하세요:</p>
-    <pre class="log">python realtime/ui.py --session mac_collector_output/raw/&lt;날짜&gt;/&lt;세션&gt; --follow</pre></div>`;
+    <p class="sub">아래에서 모델과 세션을 고르면 시작합니다.</p></div>`;
   const deciding = r.state === 'deciding';
   const pct = deciding
     ? Math.round(100 * (1 - Math.min(1, r.remaining_s / 60)))
@@ -619,11 +681,15 @@ function renderRealtime(r){
           ${deciding ? '' : `<span class="mark" style="left:${Math.round(r.threshold*100)}%"></span>`}</span>
         <span class="num">${deciding ? Math.round(r.remaining_s) + '초' : pct + '%'}</span></div>
       ${r.note ? `<p class="note">${esc(r.note)}</p>` : ''}
+      ${r.synthetic ? `<p class="note">합성 세션 — 녹화를 이어 붙인 것이라 실제 전환이 아닙니다</p>` : ''}
     </div>
     <div class="card"><h2>최근 기록</h2>
       <div class="tl">${(r.spans||[]).map(s =>
         `<i class="${esc(s.state)}" style="width:${s.pct}%"></i>`).join('')}</div>
       <div class="axis"><span>${spanLabel(r.spans)} 전</span><span>지금</span></div>
+      ${r.truth ? `<p class="sub" style="margin:.7rem 0 .2rem">정답 (합성 대본, ${r.truth.hold_s}초마다)</p>
+        <div class="tl">${r.truth.segments.map(sg =>
+          `<i class="${esc(sg.state)}" style="width:${100 / r.truth.segments.length}%"></i>`).join('')}</div>` : ''}
       <div class="key">
         <span><i style="background:var(--st-empty)"></i>빈 방</span>
         <span><i style="background:var(--st-static)"></i>정지</span>
@@ -641,11 +707,11 @@ function renderRealtime(r){
       <span class="meta">
         <span class="tag ${r.n_rx >= 3 ? 'ok' : 'warn'}">RX ${r.n_rx}대</span>
         <span>${r.hz}Hz</span><span>창 ${r.window_s}초</span>
-        <span>${esc(r.session)}</span>
+        <span>${esc(r.model || '')}</span><span>${esc(r.session)}</span>
         <span>${r.stale_s > 5 ? '갱신 ' + Math.round(r.stale_s) + '초 전' : '갱신 중'}</span>
       </span></div></div>`;
 }
-let trainPick = new Set(), trainEval = null, trainPreset = 'balanced';
+let trainPick = new Set(), trainEval = null, trainPreset = 'balanced', trainName = '';
 function trainToggle(key){ trainPick.has(key) ? trainPick.delete(key) : trainPick.add(key);
   if (trainEval && [...trainPick].some(k => k.startsWith(trainEval))) trainEval = null;
   delete sig.train; render(); }
@@ -658,7 +724,7 @@ function trainSetEval(d){ trainEval = d || null; delete sig.train; render(); }
 function trainSetPreset(p){ trainPreset = p; delete sig.train; render(); }
 function startTrain(){
   post('/api/train', {sessions: [...trainPick], eval_dates: trainEval ? [trainEval] : [],
-                      preset: trainPreset});
+                      preset: trainPreset, name: trainName.trim()});
 }
 function renderTrain(t, busy){
   if (!t) return '';
@@ -717,6 +783,12 @@ function renderTrain(t, busy){
     <div class="card"><h2>3. 설정</h2>
       <p class="sub">실험에서 가장 좋았던 구성입니다. 효과가 없던 조합은 올리지 않았습니다.</p>
       <div class="presets">${presets}</div>
+    </div>
+    <div class="card"><h2>4. 모델 이름</h2>
+      <p class="sub">비워 두면 날짜와 설정으로 자동 생성합니다 (예: 20261012-1430-balanced).
+        글자·숫자·밑줄·하이픈만 씁니다.</p>
+      <input id="trainname" type="text" placeholder="예: 9월전체-균형" maxlength="40"
+        value="${esc(trainName)}" oninput="trainName = this.value">
     </div>
     <div class="card"><div class="bar" style="margin:0">
       <button class="act primary" ${busy||!ready?'disabled':''} onclick="startTrain()">학습 시작</button>
@@ -800,6 +872,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if (REPO_ROOT / DIAG_PNG_REL).is_file() else 0,
                 "readiness": readiness(),
                 "training": training_state(),
+                "rt_models": realtime_models(),
+                "rt_sessions": realtime_sessions(),
                 "realtime": realtime_view(),
                 "job": JOB.state(),
             })
@@ -892,16 +966,36 @@ def dispatch(path: str, body: dict) -> dict:
         set_session_note(target, str(body.get("text", "")))
         return {"ok": True}
 
+    if path == "/api/realtime/start":
+        session = (REPO_ROOT / str(body.get("session", ""))).resolve()
+        model = (REPO_ROOT / str(body.get("model", ""))).resolve()
+        if not str(session).startswith(str(REPO_ROOT)) or not (session / "session.json").is_file():
+            return {"error": "세션 디렉터리가 아닙니다"}
+        if not str(model).startswith(str(REPO_ROOT)) or model.suffix != ".pt":
+            return {"error": "체크포인트가 아닙니다"}
+        cmd = [PY, str(REPO_ROOT / "realtime" / "ui.py"), "--session", str(session),
+               "--model", str(model), "--plain",
+               "--speed", str(float(body.get("speed") or 2))]
+        if body.get("follow"):
+            cmd.append("--follow")
+        err = JOB.start(f"실시간 · {model.stem.replace('model_', '')} · {session.name}", cmd)
+        return {"error": err} if err else {"ok": True}
+
     if path == "/api/train":
         keys = list(body.get("sessions") or [])
         eval_dates = list(body.get("eval_dates") or [])
         preset = body.get("preset", "balanced")
         if preset not in PRESET_INFO:
             return {"error": f"알 수 없는 설정: {preset}"}
+        name = str(body.get("name") or "").strip()
+        if name and not re.fullmatch(r"[\w가-힣.-]{1,40}", name):
+            return {"error": "모델 이름은 글자·숫자·밑줄·하이픈만, 40자까지 씁니다"}
         problems = check_selection(keys, eval_dates)
         if problems:
             return {"error": " / ".join(problems)}
         cmd = [PY, str(SCRIPT_DIR / "_train_run.py"), "--preset", preset, "--sessions", *keys]
+        if name:
+            cmd += ["--name", name]
         if eval_dates:
             cmd += ["--eval", *eval_dates]
         err = JOB.start(f"학습 · {PRESET_INFO[preset]['label']} · {len(keys)}세션", cmd)

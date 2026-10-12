@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import meshsense_gui as gui  # noqa: E402
+from realtime.engine import available_models, load_any  # noqa: E402
 from realtime.state import Reading, StateMachine  # noqa: E402
 from realtime.ui import hms, render, render_plain  # noqa: E402
 
@@ -147,3 +148,41 @@ class TimelineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ModelChoiceTest(unittest.TestCase):
+    """실시간이 고를 수 있는 체크포인트 — 진폭·위상 어느 쪽이든 같은 방식으로 연다."""
+
+    def setUp(self):
+        self.models = available_models()
+
+    def test_deployed_amplitude_model_is_listed_and_marked(self):
+        deployed = [m for m in self.models if m["is_deployed"]]
+        self.assertEqual(len(deployed), 1)
+        self.assertEqual(deployed[0]["mode"], "A")
+
+    def test_phase_checkpoints_are_listed_with_their_window(self):
+        phase = [m for m in self.models if m["mode"] == "P"]
+        self.assertTrue(phase)
+        for m in phase:
+            with self.subTest(m["name"]):
+                self.assertIn(m["window_s"], (60.0, 90.0))
+
+    def test_every_listed_model_opens_and_reports_its_kind(self):
+        for m in self.models:
+            with self.subTest(m["name"]):
+                bundle, nets, kind = load_any(ROOT / m["path"])
+                self.assertIn(kind, ("amp", "phase"))
+                self.assertTrue(nets)
+                self.assertEqual(bundle["window_frames"], int(m["window_s"] * 100))
+
+    def test_unknown_checkpoint_is_refused(self):
+        import tempfile
+
+        import torch
+
+        with tempfile.TemporaryDirectory() as t:
+            p = Path(t) / "weird.pt"
+            torch.save({"mode": "X", "state_dicts": []}, p)
+            with self.assertRaises(ValueError):
+                load_any(p)

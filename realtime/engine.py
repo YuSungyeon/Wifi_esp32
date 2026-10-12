@@ -22,12 +22,57 @@ import torch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from model_train.robust.predict import load_bundle  # noqa: E402
 from model_train.robust.shared_temporal import amplitude_input  # noqa: E402
 from realtime.state import Event, Reading, StateMachine  # noqa: E402
 from realtime.stream import CsiStream  # noqa: E402
 
 MODEL = ROOT / "model_train" / "robust" / "model.pt"
+MODEL_DIRS = (ROOT / "model_train" / "robust", ROOT / "model_train" / "phase60",
+              ROOT / "model_train" / "amp60")
+
+
+def available_models() -> list[dict]:
+    """실시간에 쓸 수 있는 체크포인트. 화면이 고르게 하려고 요약만 읽는다."""
+    out = []
+    for d in MODEL_DIRS:
+        for p in sorted(d.glob("model*.pt")):
+            try:
+                b = torch.load(p, map_location="cpu", weights_only=False)
+            except Exception:
+                continue
+            m = b.get("metrics", {})
+            out.append({"path": str(p.relative_to(ROOT)), "name": p.stem.replace("model_", ""),
+                        "mode": b.get("mode", "?"), "window_s": b.get("window_frames", 0) / 100,
+                        "score": m.get("sessions"), "window_acc": m.get("window_accuracy"),
+                        "trained_at": b.get("trained_at", ""),
+                        "is_deployed": p.parent.name == "robust"})
+    return out
+
+
+def load_any(path: Path, device: str = "cpu"):
+    """진폭(robust)·위상(phase60)·우리 진폭(amp60) 체크포인트를 모두 연다.
+
+    반환: (bundle, models, kind) — kind 는 창 입력을 어떻게 만들지 정한다.
+    """
+    head = torch.load(path, map_location="cpu", weights_only=False)
+    mode = head.get("mode")
+    if mode == "P":
+        from model_train.phase60.predict import load_bundle as load_phase
+        bundle, models = load_phase(path, device)
+        return bundle, models, "phase"
+    if mode in ("A", "A-ours"):
+        from model_train.robust.shared_temporal import SharedEncoder
+        if mode == "A":                      # 배포 체크포인트는 입력 계약 검사를 그대로 거친다
+            from model_train.robust.predict import load_bundle as load_amp
+            bundle, models = load_amp(path)  # 담당자 쪽은 device 인자를 받지 않는다
+            return bundle, [m.to(device) for m in models], "amp"
+        models = []
+        for state in head["state_dicts"]:
+            m = SharedEncoder(mode="A")
+            m.load_state_dict(state)
+            models.append(m.to(device).eval())
+        return head, models, "amp"
+    raise ValueError(f"알 수 없는 체크포인트 형식: {path} (mode={mode})")
 STATUS_NAME = "realtime_status.json"
 EVENTS_NAME = "realtime_events.jsonl"
 MARKS_NAME = "realtime_marks.jsonl"
@@ -49,22 +94,33 @@ class Engine:
         self.stride = stride
         self.device = device
         self.events: list[Event] = []
-        self.bundle, self.models = (None, [])
+        self.bundle, self.models, self.kind = (None, [], "amp")
         if model_path is not None:
-            self.bundle, self.models = load_bundle(model_path)
+            self.bundle, self.models, self.kind = load_any(Path(model_path), device)
         self.window = self.bundle["window_frames"] if self.bundle else 3000
+        self.model_name = Path(model_path).stem.replace("model_", "") if model_path else "없음"
         self._t0 = time.monotonic()
         self._frames = 0
         self._hz, self._rx = 0.0, ()
         self._window_probs: list[tuple] = []     # (t, probs) — 화면 타임라인용
 
     # ── 판단 한 번 ──────────────────────────────────────────────────────────
+    def _window_input(self, win) -> np.ndarray:
+        """체크포인트가 요구하는 입력으로 창을 바꾼다. 학습 때와 같은 변환이어야 한다."""
+        if self.kind == "phase":
+            from model_train.phase60 import features as F
+            return F.windows(win.phase, np.array([0]), self.window,
+                             self.bundle["downsample"], self.bundle.get("diff_channel", False),
+                             self.bundle.get("pool", "mean"))
+        return amplitude_input(win.amp)[None, ...]
+
     def predict(self) -> tuple | None:
         """최근 창의 3-class 확률. 창이 덜 찼거나 누락이 있으면 None."""
         win = self.stream.latest(self.window)
-        if win is None or not np.isfinite(win.amp).all():
+        series = win.phase if (win and self.kind == "phase") else (win.amp if win else None)
+        if win is None or not np.isfinite(series).all():
             return None
-        x = torch.from_numpy(amplitude_input(win.amp)).unsqueeze(0)
+        x = torch.from_numpy(self._window_input(win))
         with torch.no_grad():
             probs = torch.stack([m(x).softmax(1) for m in self.models]).mean(0)
         self._hz, self._rx = win.hz, win.rx_alive
@@ -119,6 +175,7 @@ class Engine:
                 "n_rx": len(self._rx) if self._rx else len(self.stream.rx_alive()),
                 "hz": round(self._hz, 1),
                 "session": self.dir.name, "window_s": self.window / 100,
+                "model": self.model_name, "model_kind": self.kind,
                 "events": [{"t": round(e.t, 2), "from": e.frm, "to": e.to,
                             "confidence": round(e.confidence, 4)} for e in self.events[-30:]]}
 
@@ -148,9 +205,10 @@ def main() -> int:
     ap.add_argument("--follow", action="store_true", help="실시간(파일 tail). 없으면 재생")
     ap.add_argument("--stride", type=int, default=30, help="판단 간격 (frame, 100Hz)")
     ap.add_argument("--conf", type=float, default=0.7)
+    ap.add_argument("--model", type=Path, default=MODEL, help="쓸 체크포인트 (기본: 배포 진폭 모델)")
     args = ap.parse_args()
     torch.set_num_threads(2)
-    eng = Engine(args.session, stride=args.stride, conf=args.conf)
+    eng = Engine(args.session, model_path=args.model, stride=args.stride, conf=args.conf)
     for ev in eng.run(args.follow):
         print(f"{ev.t:8.1f}s  {ev.frm} → {ev.to}  ({ev.confidence:.0%})", flush=True)
     v = eng.view()

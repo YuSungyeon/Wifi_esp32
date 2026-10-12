@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from realtime.engine import Engine  # noqa: E402
+from realtime.engine import MODEL, Engine, available_models  # noqa: E402
 
 LABEL = {"empty": "빈 방", "static": "정지", "motion": "움직임",
          "deciding": "판단 중", "suspended": "판단 정지"}
@@ -105,8 +105,8 @@ def render(view: dict, width: int = 62, height: int = 24, color: bool = False) -
 
     rows.append("├" + "─" * inner + "┤")
     quality = "정상" if view["n_rx"] >= 3 else ("저하" if view["n_rx"] == 2 else "이상")
-    foot = (f"  {view['hz']:.1f}Hz  RX{view['n_rx']}  {quality}  {view['session'][:18]}"
-            f"        [m]전환 [q]종료")
+    foot = (f"  {view['hz']:.1f}Hz  RX{view['n_rx']}  {quality}  "
+            f"{view.get('model', '')[:14]}  {view['session'][:16]}   [m]전환 [q]종료")
     rows.append(f"│{_pad(foot, inner)}│")
     rows.append("└" + "─" * inner + "┘")
     return "\n".join(rows[:height])
@@ -131,19 +131,32 @@ def read_key() -> str | None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--session", type=Path, required=True)
+    ap.add_argument("--session", type=Path, default=None)
     ap.add_argument("--follow", action="store_true", help="실시간(파일 tail). 없으면 재생")
     ap.add_argument("--plain", action="store_true", help="한 줄 갱신 모드")
     ap.add_argument("--stride", type=int, default=30, help="판단 간격 (frame, 100Hz)")
     ap.add_argument("--conf", type=float, default=0.7)
+    ap.add_argument("--model", type=Path, default=MODEL,
+                    help="쓸 체크포인트 (기본: 배포 진폭 모델). --list-models 로 목록을 본다")
+    ap.add_argument("--list-models", action="store_true", help="쓸 수 있는 체크포인트 목록")
     ap.add_argument("--speed", type=float, default=0.0,
                     help="재생 속도 (0=최대한 빨리, 1=실제 속도)")
     args = ap.parse_args()
 
+    if args.list_models:
+        for m in available_models():
+            mark = " (배포)" if m["is_deployed"] else ""
+            print(f"  {m['mode']:7s} 창 {m['window_s']:>4.0f}초  {m['name']:22s} "
+                  f"{m['score'] or '—':>7}{mark}\n          {m['path']}")
+        return 0
+
+    if args.session is None:
+        ap.error("--session 또는 --list-models 가 필요하다")
     if not (args.session / "session.json").is_file():
         print(f"세션 디렉터리가 아닙니다: {args.session}")
         return 1
-    eng = Engine(args.session, stride=args.stride, conf=args.conf)
+    eng = Engine(args.session, model_path=args.model, stride=args.stride, conf=args.conf)
+    print(f"모델: {eng.model_name} ({eng.kind}, 창 {eng.window / 100:.0f}초)", flush=True)
     size = None
     try:
         import shutil
