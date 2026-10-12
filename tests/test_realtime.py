@@ -26,7 +26,7 @@ def feed(sm, t0, n, probs, n_rx=3, step=0.3):
 
 class StateMachineTest(unittest.TestCase):
     def setUp(self):
-        self.sm = StateMachine()
+        self.sm = StateMachine(conf=0.7, rest_hold_s=15.0, direct_switch_s=60.0)
 
     def test_starts_undecided(self):
         self.assertEqual(self.sm.state, "deciding")
@@ -242,7 +242,8 @@ class ModelChoiceTest(unittest.TestCase):
     def test_deployed_amplitude_model_is_listed_and_marked(self):
         deployed = [m for m in self.models if m["is_deployed"]]
         self.assertEqual(len(deployed), 1)
-        self.assertEqual(deployed[0]["mode"], "A")
+        self.assertIn(deployed[0]["mode"], ("A", "A-ours"))     # 진폭 모델이어야 실시간 기본이 된다
+        self.assertEqual(deployed[0]["window_s"], 15.0)
 
     def test_phase_checkpoints_are_listed_with_their_window(self):
         phase = [m for m in self.models if m["mode"] == "P"]

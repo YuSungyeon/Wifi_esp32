@@ -101,12 +101,17 @@ class CsiStream:
         self._end = max(self._end, int(idx.max()) + 1)
 
     def _roll(self, shift: int) -> None:
-        shift = min(shift, self.capacity)
-        for buf in (self._re, self._im):
-            buf[:, :-shift] = buf[:, shift:]
-            buf[:, -shift:] = np.nan
-        self._present[:, :-shift] = self._present[:, shift:]
-        self._present[:, -shift:] = False
+        # 한 번에 용량보다 큰 묶음(긴 파일을 통째로 읽는 재생)이 와도 base 는 shift 만큼 민다.
+        # 버퍼 이동만 용량으로 자른다 — 전부 밀리면 전부 비운다.
+        move = min(shift, self.capacity)
+        if move == self.capacity:
+            self._re[:], self._im[:], self._present[:] = np.nan, np.nan, False
+        else:
+            for buf in (self._re, self._im):
+                buf[:, :-move] = buf[:, move:]
+                buf[:, -move:] = np.nan
+            self._present[:, :-move] = self._present[:, move:]
+            self._present[:, -move:] = False
         self._base += shift
         self._end = max(0, self._end - shift)
         if self._cursor is not None:

@@ -26,7 +26,8 @@ from model_train.robust.shared_temporal import amplitude_input  # noqa: E402
 from realtime.state import Event, Reading, StateMachine  # noqa: E402
 from realtime.stream import CsiStream  # noqa: E402
 
-MODEL = ROOT / "model_train" / "robust" / "model.pt"
+MODEL = ROOT / "model_train" / "amp60" / "model_amp1500_all74.pt"   # 실시간 기본: 진폭 15초, 74세션
+ROBUST = ROOT / "model_train" / "robust" / "model.pt"               # 담당자 배포 체크포인트 (30초)
 #: 1단계 — 움직임 여부만 내는 짧은 창 모델. 상태 판단에는 **쓰지 않는다**: 화면에 활동량을
 #: 그리는 용도다. 기준값을 정하려면 전환 세션이 필요한데 아직 없다
 #: (doc/realtime-inference.md §6-②). 없으면 활동량 줄만 빠지고 나머지는 그대로 돈다.
@@ -52,7 +53,7 @@ def available_models() -> list[dict]:
                         "mode": b.get("mode", "?"), "window_s": b.get("window_frames", 0) / 100,
                         "score": m.get("sessions"), "window_acc": m.get("window_accuracy"),
                         "trained_at": b.get("trained_at", ""),
-                        "is_deployed": p.parent.name == "robust"})
+                        "is_deployed": p.resolve() == MODEL.resolve()})
     return out
 
 
@@ -113,7 +114,8 @@ def write_status(path: Path, view: dict) -> None:
 
 class Engine:
     def __init__(self, session_dir: Path, model_path: Path = MODEL, stride: int = 30,
-                 conf: float = 0.7, device: str = "cpu", stage1: Path | None = STAGE1) -> None:
+                 conf: float = 0.6, device: str = "cpu", stage1: Path | None = STAGE1,
+                 stage1_gate: tuple | None = (0.9, 3)) -> None:
         self.dir = Path(session_dir)
         self.stream = CsiStream(self.dir)
         self.sm = StateMachine(conf=conf)
@@ -131,6 +133,9 @@ class Engine:
         self._window_probs: list[tuple] = []     # (t, probs) — 화면 타임라인용
         self.stage1 = load_stage1(stage1, device) if stage1 else None
         self._activity: list[float] = []          # 최근 p_motion — 화면 활동량 띠용
+        # (기준, 연속 횟수) — 1단계가 이만큼 연속으로 움직임을 보면 상태 모델보다 먼저 motion 후보를 낸다.
+        # None 이면 1단계는 화면 표시 전용.
+        self.stage1_gate = stage1_gate
 
     # ── 판단 한 번 ──────────────────────────────────────────────────────────
     def _window_input(self, win) -> np.ndarray:
@@ -153,6 +158,14 @@ class Engine:
             probs = torch.stack([m(x).softmax(1) for m in self.models]).mean(0)
         self._hz, self._rx = win.hz, win.rx_alive
         return tuple(probs[0].tolist()), win.rx_alive
+
+    def _motion_now(self) -> bool:
+        """1단계 게이트: 최근 n 번의 p_motion 이 전부 기준 이상인가."""
+        if not self.stage1_gate or not self.stage1:
+            return False
+        thr, n = self.stage1_gate
+        recent = self._activity[-n:]
+        return len(recent) == n and all(a is not None and a >= thr for a in recent)
 
     def activity(self) -> float | None:
         """지금 이 순간의 움직임 세기 — 1단계의 p_motion. 창이 덜 찼으면 None.
@@ -177,14 +190,20 @@ class Engine:
         del self._activity[:-ACTIVITY_KEEP]
         got = self.predict()
         if got is None:
+            # 창이 덜 찼거나 긴 공백으로 이번 판단을 건너뛴다. **후보 유지 시간은 그대로 둔다** —
+            # 이것을 "확신 없음" 으로 넘기면 후보가 지워져 15초 유지가 공백마다 처음부터 다시 쌓인다.
+            # RX 손실은 별도: 창이 안 나오는 이유가 RX 끊김이면 그것만 상태 기계에 알린다.
             alive = self.stream.rx_alive() if now is None else ()
-            reading = Reading(t=t, probs=(0.0, 0.0, 0.0), n_rx=len(alive) or 3)
-            if self.sm.state == "deciding":       # 아직 창이 안 찼다 — 조용히 기다린다
+            if now is None and len(alive) <= 1 and self.sm.state != "deciding":
+                reading = Reading(t=t, probs=(0.0, 0.0, 0.0), n_rx=len(alive))
+            else:
                 self.sm._t = t
                 write_status(self.dir / STATUS_NAME, self.view())
                 return None
         else:
             probs, alive = got
+            if self._motion_now():
+                probs = (0.0, 0.0, 1.0)      # 1단계가 본 움직임이 30초 창의 평균을 이긴다
             reading = Reading(t=t, probs=probs, n_rx=len(alive))
             self._window_probs.append((t, probs))
         ev = self.sm.update(reading)
@@ -230,6 +249,19 @@ class Engine:
                             "confidence": round(e.confidence, 4)} for e in self.events[-30:]]}
 
     # ── 루프 ────────────────────────────────────────────────────────────────
+    def replay_capacity(self) -> int:
+        """재생용 버퍼 크기 — 파일 전체. 링버퍼(240초)보다 긴 세션은 앞부분이 밀려 나가 처음부터 못 돈다."""
+        import csi_store as cs
+        n = max((p.stat().st_size // cs.CSI_FRAME_SIZE for p in self.dir.glob("device_*.csi")), default=0)
+        return max(self.stream.capacity, n + 1000)
+
+    def start_replay(self) -> float:
+        """파일 전체를 버퍼에 올리고 첫 창 끝에 맞춘다. 돌려주는 값은 첫 판단 시각(초)."""
+        self.stream = CsiStream(self.dir, capacity=self.replay_capacity())
+        self.stream.poll()
+        self.stream.rewind(self.window)
+        return self.window / 100.0
+
     def run(self, follow: bool) -> Iterator[Event]:
         if follow:
             while True:
@@ -237,8 +269,7 @@ class Engine:
                 if ev:
                     yield ev
                 time.sleep(self.stride / 100.0)
-        self.stream.poll()
-        self.stream.rewind(self.window)
+        self.start_replay()
         t = self.window / 100.0
         while True:
             ev = self.step(now=t)

@@ -163,7 +163,7 @@ def main() -> int:
     ap.add_argument("--follow", action="store_true", help="실시간(파일 tail). 없으면 재생")
     ap.add_argument("--plain", action="store_true", help="한 줄 갱신 모드")
     ap.add_argument("--stride", type=int, default=30, help="판단 간격 (frame, 100Hz)")
-    ap.add_argument("--conf", type=float, default=0.7)
+    ap.add_argument("--conf", type=float, default=0.6)
     ap.add_argument("--model", type=Path, default=MODEL,
                     help="쓸 체크포인트 (기본: 배포 진폭 모델). --list-models 로 목록을 본다")
     ap.add_argument("--list-models", action="store_true", help="쓸 수 있는 체크포인트 목록")
@@ -193,8 +193,7 @@ def main() -> int:
         pass
 
     if not args.follow:
-        eng.stream.poll()
-        eng.stream.rewind(eng.window)
+        eng.start_replay()          # 링버퍼(240초)보다 긴 세션도 처음부터
     t = eng.window / 100.0
     try:
         while True:

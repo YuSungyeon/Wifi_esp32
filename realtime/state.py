@@ -35,9 +35,9 @@ class Event:
 
 
 class StateMachine:
-    def __init__(self, conf: float = 0.7, degraded_conf: float = 0.85,
-                 motion_hold_s: float = 1.0, rest_hold_s: float = 15.0,
-                 direct_switch_s: float = 60.0) -> None:
+    def __init__(self, conf: float = 0.6, degraded_conf: float = 0.85,
+                 motion_hold_s: float = 1.0, rest_hold_s: float = 5.0,
+                 direct_switch_s: float = 10.0) -> None:
         self.conf, self.degraded_conf = conf, degraded_conf
         self.motion_hold_s, self.rest_hold_s = motion_hold_s, rest_hold_s
         self.direct_switch_s = direct_switch_s
