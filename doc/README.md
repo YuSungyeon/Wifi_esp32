@@ -20,7 +20,10 @@
 **PLANNED** 상태이며 수집·자료 분리·일부 가중치 학습·다른 날 시험 순서로 진행합니다.
 
 2026-10-13에는 요청에 따라 **기존 위상 3분류 모델을 이번 방 자료로 추가 학습하고 GUI·CLI에 연결했습니다.**
-현재 다음 작업은 [새 가중치로 실시간 시험](../model_train/docs/model-training/20261013-phase60-room-finetuning.md)입니다.
+후속으로 [10/13 밤 새 실시간 평가](../model_train/docs/model-training/20261013-room-live-evaluation.md)도 완료했습니다.
+중문 밖 정지를 static으로 정의한 감지 범위에서, 첫 60초 제외 시간 일치율은 기존 **90.47% → 추가 학습 97.26%**였습니다.
+판단 가능한 시간 기준이며 한 번의 측정 결과입니다. 원래 모델은 같은 기록 입력을 재생해 비교했고,
+실제 온라인 실행은 추가 학습 모델이었습니다. 다음은 같은 감지 범위를 미리 정한 별도 시험에서 반복 확인하는 것입니다.
 [2단계 구조 설계](../model_train/docs/model-training/phase60-two-stage-design.md)는 후속 후보로 보존합니다.
 
 현재 학습한 모델을 확인하려면 [모델 학습 문서 안내](../model_train/docs/README.md)에서

@@ -1,0 +1,1350 @@
+{
+  "session": "mac_collector_output/realtime/20261013-223405-12476623/capture",
+  "truth": [
+    {
+      "start_wall": 1791898472.0,
+      "end_wall": 1791898661.0,
+      "label": "empty",
+      "name": "집 밖 대기 1"
+    },
+    {
+      "start_wall": 1791898677.0,
+      "end_wall": 1791898860.0,
+      "label": "motion",
+      "name": "방 안 걷기"
+    },
+    {
+      "start_wall": 1791898863.0,
+      "end_wall": 1791899044.0,
+      "label": "static",
+      "name": "침대 앉기"
+    },
+    {
+      "start_wall": 1791899057.0,
+      "end_wall": 1791899239.0,
+      "label": "static",
+      "name": "중문 밖 대기"
+    },
+    {
+      "start_wall": 1791899249.0,
+      "end_wall": 1791899437.0,
+      "label": "empty",
+      "name": "집 밖 대기 2"
+    }
+  ],
+  "capture_start_wall": 1791898446.246393,
+  "capture_end_wall": 1791899452.567124,
+  "models": {
+    "phase_original": {
+      "metrics": {
+        "segments": [
+          {
+            "start_wall": 1791898472.0,
+            "end_wall": 1791898661.0,
+            "label": "empty",
+            "name": "집 밖 대기 1",
+            "evaluation_start_wall": 1791898472.0,
+            "duration_s": 189.0,
+            "correct_s": 129.91538310050964,
+            "incorrect_s": 20.987626552581787,
+            "unavailable_s": 38.09699034690857,
+            "valid_s": 150.90300965309143,
+            "match_among_valid": 0.8609197616347751,
+            "match_among_all": 0.6873829793677759,
+            "first_correct_delay_s": 57.099867820739746,
+            "first_10s_stable_start_delay_s": 57.099867820739746,
+            "durations_by_state_s": {
+              "empty": 129.91538310050964,
+              "static": 20.987626552581787,
+              "motion": 0.0,
+              "suspended": 2.774085283279419,
+              "deciding": 35.32290506362915
+            }
+          },
+          {
+            "start_wall": 1791898677.0,
+            "end_wall": 1791898860.0,
+            "label": "motion",
+            "name": "방 안 걷기",
+            "evaluation_start_wall": 1791898677.0,
+            "duration_s": 183.0,
+            "correct_s": 154.53432416915894,
+            "incorrect_s": 22.879116535186768,
+            "unavailable_s": 5.586559295654297,
+            "valid_s": 177.4134407043457,
+            "match_among_valid": 0.8710406807716776,
+            "match_among_all": 0.844449858847863,
+            "first_correct_delay_s": 24.472442150115967,
+            "first_10s_stable_start_delay_s": 24.472442150115967,
+            "durations_by_state_s": {
+              "empty": 0.0,
+              "static": 22.879116535186768,
+              "motion": 154.53432416915894,
+              "suspended": 5.586559295654297,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791898863.0,
+            "end_wall": 1791899044.0,
+            "label": "static",
+            "name": "침대 앉기",
+            "evaluation_start_wall": 1791898863.0,
+            "duration_s": 181.0,
+            "correct_s": 149.6210789680481,
+            "incorrect_s": 25.349388599395752,
+            "unavailable_s": 6.029532432556152,
+            "valid_s": 174.97046756744385,
+            "match_among_valid": 0.8551219017024995,
+            "match_among_all": 0.8266357954035807,
+            "first_correct_delay_s": 24.983104944229126,
+            "first_10s_stable_start_delay_s": 39.23626494407654,
+            "durations_by_state_s": {
+              "empty": 0.0,
+              "static": 149.6210789680481,
+              "motion": 25.349388599395752,
+              "suspended": 6.029532432556152,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791899057.0,
+            "end_wall": 1791899239.0,
+            "label": "static",
+            "name": "중문 밖 대기",
+            "evaluation_start_wall": 1791899057.0,
+            "duration_s": 182.0,
+            "correct_s": 120.01277923583984,
+            "incorrect_s": 58.80699968338013,
+            "unavailable_s": 3.1802210807800293,
+            "valid_s": 178.81977891921997,
+            "match_among_valid": 0.671138170291858,
+            "match_among_all": 0.659410874922197,
+            "first_correct_delay_s": 0.0,
+            "first_10s_stable_start_delay_s": 0.0,
+            "durations_by_state_s": {
+              "empty": 58.80699968338013,
+              "static": 120.01277923583984,
+              "motion": 0.0,
+              "suspended": 3.1802210807800293,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791899249.0,
+            "end_wall": 1791899437.0,
+            "label": "empty",
+            "name": "집 밖 대기 2",
+            "evaluation_start_wall": 1791899249.0,
+            "duration_s": 188.0,
+            "correct_s": 127.90141367912292,
+            "incorrect_s": 56.88929295539856,
+            "unavailable_s": 3.2092933654785156,
+            "valid_s": 184.79070663452148,
+            "match_among_valid": 0.6921420238523465,
+            "match_among_all": 0.680326668505973,
+            "first_correct_delay_s": 57.286893129348755,
+            "first_10s_stable_start_delay_s": 57.286893129348755,
+            "durations_by_state_s": {
+              "empty": 127.90141367912292,
+              "static": 56.88929295539856,
+              "motion": 0.0,
+              "suspended": 3.2092933654785156,
+              "deciding": 0.0
+            }
+          }
+        ],
+        "overall": {
+          "duration_s": 923.0,
+          "valid_s": 866.8974034786224,
+          "correct_s": 681.9849791526794,
+          "unavailable_s": 56.10259652137756,
+          "match_among_valid": 0.7866962992576285,
+          "match_among_all": 0.7388786339682334
+        },
+        "by_class": {
+          "empty": {
+            "duration_s": 377.0,
+            "valid_s": 335.6937162876129,
+            "correct_s": 257.81679677963257,
+            "unavailable_s": 41.306283712387085,
+            "match_among_valid": 0.7680119831577139,
+            "match_among_all": 0.6838641824393437
+          },
+          "static": {
+            "duration_s": 363.0,
+            "valid_s": 353.7902464866638,
+            "correct_s": 269.63385820388794,
+            "unavailable_s": 9.209753513336182,
+            "match_among_valid": 0.7621291453947752,
+            "match_among_all": 0.7427929978068538
+          },
+          "motion": {
+            "duration_s": 183.0,
+            "valid_s": 177.4134407043457,
+            "correct_s": 154.53432416915894,
+            "unavailable_s": 5.586559295654297,
+            "match_among_valid": 0.8710406807716776,
+            "match_among_all": 0.844449858847863
+          }
+        },
+        "macro_class_match_among_valid": 0.8003939364413889,
+        "trim_seconds": 0,
+        "prediction_wall_shift_s": 0
+      },
+      "after60s": {
+        "segments": [
+          {
+            "start_wall": 1791898472.0,
+            "end_wall": 1791898661.0,
+            "label": "empty",
+            "name": "집 밖 대기 1",
+            "evaluation_start_wall": 1791898532.0,
+            "duration_s": 129.0,
+            "correct_s": 127.01525092124939,
+            "incorrect_s": 0.0,
+            "unavailable_s": 1.9847490787506104,
+            "valid_s": 127.01525092124939,
+            "match_among_valid": 1.0,
+            "match_among_all": 0.9846143482267394,
+            "first_correct_delay_s": 0.0,
+            "first_10s_stable_start_delay_s": 0.0,
+            "durations_by_state_s": {
+              "empty": 127.01525092124939,
+              "static": 0.0,
+              "motion": 0.0,
+              "suspended": 1.9847490787506104,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791898677.0,
+            "end_wall": 1791898860.0,
+            "label": "motion",
+            "name": "방 안 걷기",
+            "evaluation_start_wall": 1791898737.0,
+            "duration_s": 123.0,
+            "correct_s": 119.0067663192749,
+            "incorrect_s": 0.0,
+            "unavailable_s": 3.9932336807250977,
+            "valid_s": 119.0067663192749,
+            "match_among_valid": 1.0,
+            "match_among_all": 0.9675346855225602,
+            "first_correct_delay_s": 0.0,
+            "first_10s_stable_start_delay_s": 1.0050828456878662,
+            "durations_by_state_s": {
+              "empty": 0.0,
+              "static": 0.0,
+              "motion": 119.0067663192749,
+              "suspended": 3.9932336807250977,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791898863.0,
+            "end_wall": 1791899044.0,
+            "label": "static",
+            "name": "침대 앉기",
+            "evaluation_start_wall": 1791898923.0,
+            "duration_s": 121.0,
+            "correct_s": 117.00279951095581,
+            "incorrect_s": 0.0,
+            "unavailable_s": 3.9972004890441895,
+            "valid_s": 117.00279951095581,
+            "match_among_valid": 1.0,
+            "match_among_all": 0.9669652852145109,
+            "first_correct_delay_s": 0.0,
+            "first_10s_stable_start_delay_s": 10.130014896392822,
+            "durations_by_state_s": {
+              "empty": 0.0,
+              "static": 117.00279951095581,
+              "motion": 0.0,
+              "suspended": 3.9972004890441895,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791899057.0,
+            "end_wall": 1791899239.0,
+            "label": "static",
+            "name": "중문 밖 대기",
+            "evaluation_start_wall": 1791899117.0,
+            "duration_s": 122.0,
+            "correct_s": 61.69546318054199,
+            "incorrect_s": 57.90684175491333,
+            "unavailable_s": 2.3976950645446777,
+            "valid_s": 119.60230493545532,
+            "match_among_valid": 0.5158384130961072,
+            "match_among_all": 0.5057005178732951,
+            "first_correct_delay_s": 35.790220975875854,
+            "first_10s_stable_start_delay_s": 42.06238412857056,
+            "durations_by_state_s": {
+              "empty": 57.90684175491333,
+              "static": 61.69546318054199,
+              "motion": 0.0,
+              "suspended": 2.3976950645446777,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791899249.0,
+            "end_wall": 1791899437.0,
+            "label": "empty",
+            "name": "집 밖 대기 2",
+            "evaluation_start_wall": 1791899309.0,
+            "duration_s": 128.0,
+            "correct_s": 125.18830680847168,
+            "incorrect_s": 0.0,
+            "unavailable_s": 2.8116931915283203,
+            "valid_s": 125.18830680847168,
+            "match_among_valid": 1.0,
+            "match_among_all": 0.978033646941185,
+            "first_correct_delay_s": 0.0,
+            "first_10s_stable_start_delay_s": 0.0,
+            "durations_by_state_s": {
+              "empty": 125.18830680847168,
+              "static": 0.0,
+              "motion": 0.0,
+              "suspended": 2.8116931915283203,
+              "deciding": 0.0
+            }
+          }
+        ],
+        "overall": {
+          "duration_s": 623.0,
+          "valid_s": 607.8154284954071,
+          "correct_s": 549.9085867404938,
+          "unavailable_s": 15.184571504592896,
+          "match_among_valid": 0.9047295625610285,
+          "match_among_all": 0.8826783093747894
+        },
+        "by_class": {
+          "empty": {
+            "duration_s": 257.0,
+            "valid_s": 252.20355772972107,
+            "correct_s": 252.20355772972107,
+            "unavailable_s": 4.796442270278931,
+            "match_among_valid": 1.0,
+            "match_among_all": 0.9813368005047512
+          },
+          "static": {
+            "duration_s": 243.0,
+            "valid_s": 236.60510444641113,
+            "correct_s": 178.6982626914978,
+            "unavailable_s": 6.394895553588867,
+            "match_among_valid": 0.7552595414608704,
+            "match_among_all": 0.7353837970843531
+          },
+          "motion": {
+            "duration_s": 123.0,
+            "valid_s": 119.0067663192749,
+            "correct_s": 119.0067663192749,
+            "unavailable_s": 3.9932336807250977,
+            "match_among_valid": 1.0,
+            "match_among_all": 0.9675346855225602
+          }
+        },
+        "macro_class_match_among_valid": 0.9184198471536235,
+        "trim_seconds": 60,
+        "prediction_wall_shift_s": 0
+      },
+      "time_shift_checks": [
+        {
+          "segments": [
+            {
+              "start_wall": 1791898472.0,
+              "end_wall": 1791898661.0,
+              "label": "empty",
+              "name": "집 밖 대기 1",
+              "evaluation_start_wall": 1791898472.0,
+              "duration_s": 189.0,
+              "correct_s": 130.91538310050964,
+              "incorrect_s": 20.987626552581787,
+              "unavailable_s": 37.09699034690857,
+              "valid_s": 151.90300965309143,
+              "match_among_valid": 0.8618353474331266,
+              "match_among_all": 0.6926739846587812,
+              "first_correct_delay_s": 56.099867820739746,
+              "first_10s_stable_start_delay_s": 56.099867820739746,
+              "durations_by_state_s": {
+                "empty": 130.91538310050964,
+                "static": 20.987626552581787,
+                "motion": 0.0,
+                "suspended": 2.774085283279419,
+                "deciding": 34.32290506362915
+              }
+            },
+            {
+              "start_wall": 1791898677.0,
+              "end_wall": 1791898860.0,
+              "label": "motion",
+              "name": "방 안 걷기",
+              "evaluation_start_wall": 1791898677.0,
+              "duration_s": 183.0,
+              "correct_s": 155.53432416915894,
+              "incorrect_s": 22.272743463516235,
+              "unavailable_s": 5.192932367324829,
+              "valid_s": 177.80706763267517,
+              "match_among_valid": 0.8747364558672738,
+              "match_among_all": 0.84991433972218,
+              "first_correct_delay_s": 23.472442150115967,
+              "first_10s_stable_start_delay_s": 23.472442150115967,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 22.272743463516235,
+                "motion": 155.53432416915894,
+                "suspended": 5.192932367324829,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791898863.0,
+              "end_wall": 1791899044.0,
+              "label": "static",
+              "name": "침대 앉기",
+              "evaluation_start_wall": 1791898863.0,
+              "duration_s": 181.0,
+              "correct_s": 150.6210789680481,
+              "incorrect_s": 24.36756658554077,
+              "unavailable_s": 6.011354446411133,
+              "valid_s": 174.98864555358887,
+              "match_among_valid": 0.8607477273256658,
+              "match_among_all": 0.8321606572820337,
+              "first_correct_delay_s": 23.983104944229126,
+              "first_10s_stable_start_delay_s": 38.23626494407654,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 150.6210789680481,
+                "motion": 24.36756658554077,
+                "suspended": 6.011354446411133,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791899057.0,
+              "end_wall": 1791899239.0,
+              "label": "static",
+              "name": "중문 밖 대기",
+              "evaluation_start_wall": 1791899057.0,
+              "duration_s": 182.0,
+              "correct_s": 119.01277923583984,
+              "incorrect_s": 59.80699968338013,
+              "unavailable_s": 3.1802210807800293,
+              "valid_s": 178.81977891921997,
+              "match_among_valid": 0.6655459477421828,
+              "match_among_all": 0.6539163694276915,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": 0.0,
+              "durations_by_state_s": {
+                "empty": 59.80699968338013,
+                "static": 119.01277923583984,
+                "motion": 0.0,
+                "suspended": 3.1802210807800293,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791899249.0,
+              "end_wall": 1791899437.0,
+              "label": "empty",
+              "name": "집 밖 대기 2",
+              "evaluation_start_wall": 1791899249.0,
+              "duration_s": 188.0,
+              "correct_s": 128.90141367912292,
+              "incorrect_s": 55.88929295539856,
+              "unavailable_s": 3.2092933654785156,
+              "valid_s": 184.79070663452148,
+              "match_among_valid": 0.6975535514026892,
+              "match_among_all": 0.6856458174421433,
+              "first_correct_delay_s": 56.286893129348755,
+              "first_10s_stable_start_delay_s": 56.286893129348755,
+              "durations_by_state_s": {
+                "empty": 128.90141367912292,
+                "static": 55.88929295539856,
+                "motion": 0.0,
+                "suspended": 3.2092933654785156,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 923.0,
+            "valid_s": 868.3092083930969,
+            "correct_s": 684.9849791526794,
+            "unavailable_s": 54.690791606903076,
+            "match_among_valid": 0.7888721811672602,
+            "match_among_all": 0.7421289048241381
+          },
+          "by_class": {
+            "empty": {
+              "duration_s": 377.0,
+              "valid_s": 336.6937162876129,
+              "correct_s": 259.81679677963257,
+              "unavailable_s": 40.306283712387085,
+              "match_among_valid": 0.7716710595147847,
+              "match_among_all": 0.689169222227142
+            },
+            "static": {
+              "duration_s": 363.0,
+              "valid_s": 353.80842447280884,
+              "correct_s": 269.63385820388794,
+              "unavailable_s": 9.191575527191162,
+              "match_among_valid": 0.7620899886871124,
+              "match_among_all": 0.7427929978068538
+            },
+            "motion": {
+              "duration_s": 183.0,
+              "valid_s": 177.80706763267517,
+              "correct_s": 155.53432416915894,
+              "unavailable_s": 5.192932367324829,
+              "match_among_valid": 0.8747364558672738,
+              "match_among_all": 0.84991433972218
+            }
+          },
+          "macro_class_match_among_valid": 0.8028325013563903,
+          "trim_seconds": 0,
+          "prediction_wall_shift_s": -1
+        },
+        {
+          "segments": [
+            {
+              "start_wall": 1791898472.0,
+              "end_wall": 1791898661.0,
+              "label": "empty",
+              "name": "집 밖 대기 1",
+              "evaluation_start_wall": 1791898472.0,
+              "duration_s": 189.0,
+              "correct_s": 128.91538310050964,
+              "incorrect_s": 20.987626552581787,
+              "unavailable_s": 39.09699034690857,
+              "valid_s": 149.90300965309143,
+              "match_among_valid": 0.859991960127073,
+              "match_among_all": 0.6820919740767706,
+              "first_correct_delay_s": 58.099867820739746,
+              "first_10s_stable_start_delay_s": 58.099867820739746,
+              "durations_by_state_s": {
+                "empty": 128.91538310050964,
+                "static": 20.987626552581787,
+                "motion": 0.0,
+                "suspended": 2.774085283279419,
+                "deciding": 36.32290506362915
+              }
+            },
+            {
+              "start_wall": 1791898677.0,
+              "end_wall": 1791898860.0,
+              "label": "motion",
+              "name": "방 안 걷기",
+              "evaluation_start_wall": 1791898677.0,
+              "duration_s": 183.0,
+              "correct_s": 153.53432416915894,
+              "incorrect_s": 23.879116535186768,
+              "unavailable_s": 5.586559295654297,
+              "valid_s": 177.4134407043457,
+              "match_among_valid": 0.8654041292453112,
+              "match_among_all": 0.8389853779735461,
+              "first_correct_delay_s": 25.472442150115967,
+              "first_10s_stable_start_delay_s": 25.472442150115967,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 23.879116535186768,
+                "motion": 153.53432416915894,
+                "suspended": 5.586559295654297,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791898863.0,
+              "end_wall": 1791899044.0,
+              "label": "static",
+              "name": "침대 앉기",
+              "evaluation_start_wall": 1791898863.0,
+              "duration_s": 181.0,
+              "correct_s": 148.6210789680481,
+              "incorrect_s": 25.972684621810913,
+              "unavailable_s": 6.406236410140991,
+              "valid_s": 174.593763589859,
+              "match_among_valid": 0.8512393335948485,
+              "match_among_all": 0.8211109335251277,
+              "first_correct_delay_s": 25.983104944229126,
+              "first_10s_stable_start_delay_s": 40.23626494407654,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 148.6210789680481,
+                "motion": 25.972684621810913,
+                "suspended": 6.406236410140991,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791899057.0,
+              "end_wall": 1791899239.0,
+              "label": "static",
+              "name": "중문 밖 대기",
+              "evaluation_start_wall": 1791899057.0,
+              "duration_s": 182.0,
+              "correct_s": 121.01277923583984,
+              "incorrect_s": 57.80699968338013,
+              "unavailable_s": 3.1802210807800293,
+              "valid_s": 178.81977891921997,
+              "match_among_valid": 0.6767303928415331,
+              "match_among_all": 0.6649053804167024,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": 0.0,
+              "durations_by_state_s": {
+                "empty": 57.80699968338013,
+                "static": 121.01277923583984,
+                "motion": 0.0,
+                "suspended": 3.1802210807800293,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791899249.0,
+              "end_wall": 1791899437.0,
+              "label": "empty",
+              "name": "집 밖 대기 2",
+              "evaluation_start_wall": 1791899249.0,
+              "duration_s": 188.0,
+              "correct_s": 126.90141367912292,
+              "incorrect_s": 57.88929295539856,
+              "unavailable_s": 3.2092933654785156,
+              "valid_s": 184.79070663452148,
+              "match_among_valid": 0.6867304963020038,
+              "match_among_all": 0.6750075195698028,
+              "first_correct_delay_s": 58.286893129348755,
+              "first_10s_stable_start_delay_s": 58.286893129348755,
+              "durations_by_state_s": {
+                "empty": 126.90141367912292,
+                "static": 57.88929295539856,
+                "motion": 0.0,
+                "suspended": 3.2092933654785156,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 923.0,
+            "valid_s": 865.5206995010376,
+            "correct_s": 678.9849791526794,
+            "unavailable_s": 57.4793004989624,
+            "match_among_valid": 0.7844815029196948,
+            "match_among_all": 0.7356283631123287
+          },
+          "by_class": {
+            "empty": {
+              "duration_s": 377.0,
+              "valid_s": 334.6937162876129,
+              "correct_s": 255.81679677963257,
+              "unavailable_s": 42.306283712387085,
+              "match_among_valid": 0.7643310415777304,
+              "match_among_all": 0.6785591426515453
+            },
+            "static": {
+              "duration_s": 363.0,
+              "valid_s": 353.413542509079,
+              "correct_s": 269.63385820388794,
+              "unavailable_s": 9.58645749092102,
+              "match_among_valid": 0.7629414998916212,
+              "match_among_all": 0.7427929978068538
+            },
+            "motion": {
+              "duration_s": 183.0,
+              "valid_s": 177.4134407043457,
+              "correct_s": 153.53432416915894,
+              "unavailable_s": 5.586559295654297,
+              "match_among_valid": 0.8654041292453112,
+              "match_among_all": 0.8389853779735461
+            }
+          },
+          "macro_class_match_among_valid": 0.7975588902382209,
+          "trim_seconds": 0,
+          "prediction_wall_shift_s": 1
+        }
+      ]
+    },
+    "phase_room": {
+      "metrics": {
+        "segments": [
+          {
+            "start_wall": 1791898472.0,
+            "end_wall": 1791898661.0,
+            "label": "empty",
+            "name": "집 밖 대기 1",
+            "evaluation_start_wall": 1791898472.0,
+            "duration_s": 189.0,
+            "correct_s": 129.5219190120697,
+            "incorrect_s": 21.38109064102173,
+            "unavailable_s": 38.09699034690857,
+            "valid_s": 150.90300965309143,
+            "match_among_valid": 0.8583123644109261,
+            "match_among_all": 0.6853011587940195,
+            "first_correct_delay_s": 57.49333190917969,
+            "first_10s_stable_start_delay_s": 57.49333190917969,
+            "durations_by_state_s": {
+              "empty": 129.5219190120697,
+              "static": 21.38109064102173,
+              "motion": 0.0,
+              "suspended": 2.774085283279419,
+              "deciding": 35.32290506362915
+            }
+          },
+          {
+            "start_wall": 1791898677.0,
+            "end_wall": 1791898860.0,
+            "label": "motion",
+            "name": "방 안 걷기",
+            "evaluation_start_wall": 1791898677.0,
+            "duration_s": 183.0,
+            "correct_s": 144.16189241409302,
+            "incorrect_s": 33.251548290252686,
+            "unavailable_s": 5.586559295654297,
+            "valid_s": 177.4134407043457,
+            "match_among_valid": 0.8125759347305291,
+            "match_among_all": 0.7877699039021476,
+            "first_correct_delay_s": 33.659615993499756,
+            "first_10s_stable_start_delay_s": 35.244898080825806,
+            "durations_by_state_s": {
+              "empty": 0.0,
+              "static": 33.251548290252686,
+              "motion": 144.16189241409302,
+              "suspended": 5.586559295654297,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791898863.0,
+            "end_wall": 1791899044.0,
+            "label": "static",
+            "name": "침대 앉기",
+            "evaluation_start_wall": 1791898863.0,
+            "duration_s": 181.0,
+            "correct_s": 154.86609840393066,
+            "incorrect_s": 20.104369163513184,
+            "unavailable_s": 6.029532432556152,
+            "valid_s": 174.97046756744385,
+            "match_among_valid": 0.8850985000896577,
+            "match_among_all": 0.8556138033366335,
+            "first_correct_delay_s": 18.99815082550049,
+            "first_10s_stable_start_delay_s": 20.598777055740356,
+            "durations_by_state_s": {
+              "empty": 1.5252151489257812,
+              "static": 154.86609840393066,
+              "motion": 18.579154014587402,
+              "suspended": 6.029532432556152,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791899057.0,
+            "end_wall": 1791899239.0,
+            "label": "static",
+            "name": "중문 밖 대기",
+            "evaluation_start_wall": 1791899057.0,
+            "duration_s": 182.0,
+            "correct_s": 163.68020343780518,
+            "incorrect_s": 15.139575481414795,
+            "unavailable_s": 3.1802210807800293,
+            "valid_s": 178.81977891921997,
+            "match_among_valid": 0.9153361246003221,
+            "match_among_all": 0.8993417771307977,
+            "first_correct_delay_s": 0.0,
+            "first_10s_stable_start_delay_s": 0.0,
+            "durations_by_state_s": {
+              "empty": 15.139575481414795,
+              "static": 163.68020343780518,
+              "motion": 0.0,
+              "suspended": 3.1802210807800293,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791899249.0,
+            "end_wall": 1791899437.0,
+            "label": "empty",
+            "name": "집 밖 대기 2",
+            "evaluation_start_wall": 1791899249.0,
+            "duration_s": 188.0,
+            "correct_s": 127.90141367912292,
+            "incorrect_s": 56.88929295539856,
+            "unavailable_s": 3.2092933654785156,
+            "valid_s": 184.79070663452148,
+            "match_among_valid": 0.6921420238523465,
+            "match_among_all": 0.680326668505973,
+            "first_correct_delay_s": 57.286893129348755,
+            "first_10s_stable_start_delay_s": 57.286893129348755,
+            "durations_by_state_s": {
+              "empty": 127.90141367912292,
+              "static": 56.88929295539856,
+              "motion": 0.0,
+              "suspended": 3.2092933654785156,
+              "deciding": 0.0
+            }
+          }
+        ],
+        "overall": {
+          "duration_s": 923.0,
+          "valid_s": 866.8974034786224,
+          "correct_s": 720.1315269470215,
+          "unavailable_s": 56.10259652137756,
+          "match_among_valid": 0.830699831441795,
+          "match_among_all": 0.7802075048180082
+        },
+        "by_class": {
+          "empty": {
+            "duration_s": 377.0,
+            "valid_s": 335.6937162876129,
+            "correct_s": 257.4233326911926,
+            "unavailable_s": 41.306283712387085,
+            "match_among_valid": 0.7668398906538947,
+            "match_among_all": 0.6828205111172219
+          },
+          "static": {
+            "duration_s": 363.0,
+            "valid_s": 353.7902464866638,
+            "correct_s": 318.54630184173584,
+            "unavailable_s": 9.209753513336182,
+            "match_among_valid": 0.9003818081619824,
+            "match_among_all": 0.8775380216025781
+          },
+          "motion": {
+            "duration_s": 183.0,
+            "valid_s": 177.4134407043457,
+            "correct_s": 144.16189241409302,
+            "unavailable_s": 5.586559295654297,
+            "match_among_valid": 0.8125759347305291,
+            "match_among_all": 0.7877699039021476
+          }
+        },
+        "macro_class_match_among_valid": 0.8265992111821355,
+        "trim_seconds": 0,
+        "prediction_wall_shift_s": 0
+      },
+      "after60s": {
+        "segments": [
+          {
+            "start_wall": 1791898472.0,
+            "end_wall": 1791898661.0,
+            "label": "empty",
+            "name": "집 밖 대기 1",
+            "evaluation_start_wall": 1791898532.0,
+            "duration_s": 129.0,
+            "correct_s": 127.01525092124939,
+            "incorrect_s": 0.0,
+            "unavailable_s": 1.9847490787506104,
+            "valid_s": 127.01525092124939,
+            "match_among_valid": 1.0,
+            "match_among_all": 0.9846143482267394,
+            "first_correct_delay_s": 0.0,
+            "first_10s_stable_start_delay_s": 0.0,
+            "durations_by_state_s": {
+              "empty": 127.01525092124939,
+              "static": 0.0,
+              "motion": 0.0,
+              "suspended": 1.9847490787506104,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791898677.0,
+            "end_wall": 1791898860.0,
+            "label": "motion",
+            "name": "방 안 걷기",
+            "evaluation_start_wall": 1791898737.0,
+            "duration_s": 123.0,
+            "correct_s": 119.0067663192749,
+            "incorrect_s": 0.0,
+            "unavailable_s": 3.9932336807250977,
+            "valid_s": 119.0067663192749,
+            "match_among_valid": 1.0,
+            "match_among_all": 0.9675346855225602,
+            "first_correct_delay_s": 0.0,
+            "first_10s_stable_start_delay_s": 1.0050828456878662,
+            "durations_by_state_s": {
+              "empty": 0.0,
+              "static": 0.0,
+              "motion": 119.0067663192749,
+              "suspended": 3.9932336807250977,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791898863.0,
+            "end_wall": 1791899044.0,
+            "label": "static",
+            "name": "침대 앉기",
+            "evaluation_start_wall": 1791898923.0,
+            "duration_s": 121.0,
+            "correct_s": 115.47758436203003,
+            "incorrect_s": 1.5252151489257812,
+            "unavailable_s": 3.9972004890441895,
+            "valid_s": 117.00279951095581,
+            "match_among_valid": 0.986964284997446,
+            "match_among_all": 0.9543602013390912,
+            "first_correct_delay_s": 0.0,
+            "first_10s_stable_start_delay_s": 10.130014896392822,
+            "durations_by_state_s": {
+              "empty": 1.5252151489257812,
+              "static": 115.47758436203003,
+              "motion": 0.0,
+              "suspended": 3.9972004890441895,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791899057.0,
+            "end_wall": 1791899239.0,
+            "label": "static",
+            "name": "중문 밖 대기",
+            "evaluation_start_wall": 1791899117.0,
+            "duration_s": 122.0,
+            "correct_s": 104.46272945404053,
+            "incorrect_s": 15.139575481414795,
+            "unavailable_s": 2.3976950645446777,
+            "valid_s": 119.60230493545532,
+            "match_among_valid": 0.873417360229094,
+            "match_among_all": 0.856251880770824,
+            "first_correct_delay_s": 0.0,
+            "first_10s_stable_start_delay_s": 0.0,
+            "durations_by_state_s": {
+              "empty": 15.139575481414795,
+              "static": 104.46272945404053,
+              "motion": 0.0,
+              "suspended": 2.3976950645446777,
+              "deciding": 0.0
+            }
+          },
+          {
+            "start_wall": 1791899249.0,
+            "end_wall": 1791899437.0,
+            "label": "empty",
+            "name": "집 밖 대기 2",
+            "evaluation_start_wall": 1791899309.0,
+            "duration_s": 128.0,
+            "correct_s": 125.18830680847168,
+            "incorrect_s": 0.0,
+            "unavailable_s": 2.8116931915283203,
+            "valid_s": 125.18830680847168,
+            "match_among_valid": 1.0,
+            "match_among_all": 0.978033646941185,
+            "first_correct_delay_s": 0.0,
+            "first_10s_stable_start_delay_s": 0.0,
+            "durations_by_state_s": {
+              "empty": 125.18830680847168,
+              "static": 0.0,
+              "motion": 0.0,
+              "suspended": 2.8116931915283203,
+              "deciding": 0.0
+            }
+          }
+        ],
+        "overall": {
+          "duration_s": 623.0,
+          "valid_s": 607.8154284954071,
+          "correct_s": 591.1506378650665,
+          "unavailable_s": 15.184571504592896,
+          "match_among_valid": 0.9725824817056836,
+          "match_among_all": 0.9488774283548419
+        },
+        "by_class": {
+          "empty": {
+            "duration_s": 257.0,
+            "valid_s": 252.20355772972107,
+            "correct_s": 252.20355772972107,
+            "unavailable_s": 4.796442270278931,
+            "match_among_valid": 1.0,
+            "match_among_all": 0.9813368005047512
+          },
+          "static": {
+            "duration_s": 243.0,
+            "valid_s": 236.60510444641113,
+            "correct_s": 219.94031381607056,
+            "unavailable_s": 6.394895553588867,
+            "match_among_valid": 0.9295670705442663,
+            "match_among_all": 0.9051041720825949
+          },
+          "motion": {
+            "duration_s": 123.0,
+            "valid_s": 119.0067663192749,
+            "correct_s": 119.0067663192749,
+            "unavailable_s": 3.9932336807250977,
+            "match_among_valid": 1.0,
+            "match_among_all": 0.9675346855225602
+          }
+        },
+        "macro_class_match_among_valid": 0.9765223568480889,
+        "trim_seconds": 60,
+        "prediction_wall_shift_s": 0
+      },
+      "time_shift_checks": [
+        {
+          "segments": [
+            {
+              "start_wall": 1791898472.0,
+              "end_wall": 1791898661.0,
+              "label": "empty",
+              "name": "집 밖 대기 1",
+              "evaluation_start_wall": 1791898472.0,
+              "duration_s": 189.0,
+              "correct_s": 130.5219190120697,
+              "incorrect_s": 21.38109064102173,
+              "unavailable_s": 37.09699034690857,
+              "valid_s": 151.90300965309143,
+              "match_among_valid": 0.8592451150911966,
+              "match_among_all": 0.6905921640850249,
+              "first_correct_delay_s": 56.49333190917969,
+              "first_10s_stable_start_delay_s": 56.49333190917969,
+              "durations_by_state_s": {
+                "empty": 130.5219190120697,
+                "static": 21.38109064102173,
+                "motion": 0.0,
+                "suspended": 2.774085283279419,
+                "deciding": 34.32290506362915
+              }
+            },
+            {
+              "start_wall": 1791898677.0,
+              "end_wall": 1791898860.0,
+              "label": "motion",
+              "name": "방 안 걷기",
+              "evaluation_start_wall": 1791898677.0,
+              "duration_s": 183.0,
+              "correct_s": 145.16189241409302,
+              "incorrect_s": 32.64517521858215,
+              "unavailable_s": 5.192932367324829,
+              "valid_s": 177.80706763267517,
+              "match_among_valid": 0.8164011383055786,
+              "match_among_all": 0.7932343847764646,
+              "first_correct_delay_s": 32.659615993499756,
+              "first_10s_stable_start_delay_s": 34.244898080825806,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 32.64517521858215,
+                "motion": 145.16189241409302,
+                "suspended": 5.192932367324829,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791898863.0,
+              "end_wall": 1791899044.0,
+              "label": "static",
+              "name": "침대 앉기",
+              "evaluation_start_wall": 1791898863.0,
+              "duration_s": 181.0,
+              "correct_s": 155.86609840393066,
+              "incorrect_s": 19.122547149658203,
+              "unavailable_s": 6.011354446411133,
+              "valid_s": 174.98864555358887,
+              "match_among_valid": 0.8907212117154077,
+              "match_among_all": 0.8611386652150865,
+              "first_correct_delay_s": 17.99815082550049,
+              "first_10s_stable_start_delay_s": 19.598777055740356,
+              "durations_by_state_s": {
+                "empty": 1.5252151489257812,
+                "static": 155.86609840393066,
+                "motion": 17.597332000732422,
+                "suspended": 6.011354446411133,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791899057.0,
+              "end_wall": 1791899239.0,
+              "label": "static",
+              "name": "중문 밖 대기",
+              "evaluation_start_wall": 1791899057.0,
+              "duration_s": 182.0,
+              "correct_s": 163.17482042312622,
+              "incorrect_s": 15.64495849609375,
+              "unavailable_s": 3.1802210807800293,
+              "valid_s": 178.81977891921997,
+              "match_among_valid": 0.9125099103094115,
+              "match_among_all": 0.8965649473798144,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": 0.0,
+              "durations_by_state_s": {
+                "empty": 15.64495849609375,
+                "static": 163.17482042312622,
+                "motion": 0.0,
+                "suspended": 3.1802210807800293,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791899249.0,
+              "end_wall": 1791899437.0,
+              "label": "empty",
+              "name": "집 밖 대기 2",
+              "evaluation_start_wall": 1791899249.0,
+              "duration_s": 188.0,
+              "correct_s": 128.90141367912292,
+              "incorrect_s": 55.88929295539856,
+              "unavailable_s": 3.2092933654785156,
+              "valid_s": 184.79070663452148,
+              "match_among_valid": 0.6975535514026892,
+              "match_among_all": 0.6856458174421433,
+              "first_correct_delay_s": 56.286893129348755,
+              "first_10s_stable_start_delay_s": 56.286893129348755,
+              "durations_by_state_s": {
+                "empty": 128.90141367912292,
+                "static": 55.88929295539856,
+                "motion": 0.0,
+                "suspended": 3.2092933654785156,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 923.0,
+            "valid_s": 868.3092083930969,
+            "correct_s": 723.6261439323425,
+            "unavailable_s": 54.690791606903076,
+            "match_among_valid": 0.8333737992615481,
+            "match_among_all": 0.7839936553979876
+          },
+          "by_class": {
+            "empty": {
+              "duration_s": 377.0,
+              "valid_s": 336.6937162876129,
+              "correct_s": 259.4233326911926,
+              "unavailable_s": 40.306283712387085,
+              "match_among_valid": 0.7705024481941509,
+              "match_among_all": 0.6881255509050203
+            },
+            "static": {
+              "duration_s": 363.0,
+              "valid_s": 353.80842447280884,
+              "correct_s": 319.0409188270569,
+              "unavailable_s": 9.191575527191162,
+              "match_among_valid": 0.9017335279747587,
+              "match_among_all": 0.8789006028293578
+            },
+            "motion": {
+              "duration_s": 183.0,
+              "valid_s": 177.80706763267517,
+              "correct_s": 145.16189241409302,
+              "unavailable_s": 5.192932367324829,
+              "match_among_valid": 0.8164011383055786,
+              "match_among_all": 0.7932343847764646
+            }
+          },
+          "macro_class_match_among_valid": 0.8295457048248295,
+          "trim_seconds": 0,
+          "prediction_wall_shift_s": -1
+        },
+        {
+          "segments": [
+            {
+              "start_wall": 1791898472.0,
+              "end_wall": 1791898661.0,
+              "label": "empty",
+              "name": "집 밖 대기 1",
+              "evaluation_start_wall": 1791898472.0,
+              "duration_s": 189.0,
+              "correct_s": 128.5219190120697,
+              "incorrect_s": 21.38109064102173,
+              "unavailable_s": 39.09699034690857,
+              "valid_s": 149.90300965309143,
+              "match_among_valid": 0.8573671690081321,
+              "match_among_all": 0.6800101535030143,
+              "first_correct_delay_s": 58.49333190917969,
+              "first_10s_stable_start_delay_s": 58.49333190917969,
+              "durations_by_state_s": {
+                "empty": 128.5219190120697,
+                "static": 21.38109064102173,
+                "motion": 0.0,
+                "suspended": 2.774085283279419,
+                "deciding": 36.32290506362915
+              }
+            },
+            {
+              "start_wall": 1791898677.0,
+              "end_wall": 1791898860.0,
+              "label": "motion",
+              "name": "방 안 걷기",
+              "evaluation_start_wall": 1791898677.0,
+              "duration_s": 183.0,
+              "correct_s": 143.16189241409302,
+              "incorrect_s": 34.251548290252686,
+              "unavailable_s": 5.586559295654297,
+              "valid_s": 177.4134407043457,
+              "match_among_valid": 0.8069393832041627,
+              "match_among_all": 0.7823054230278307,
+              "first_correct_delay_s": 34.659615993499756,
+              "first_10s_stable_start_delay_s": 36.244898080825806,
+              "durations_by_state_s": {
+                "empty": 0.0,
+                "static": 34.251548290252686,
+                "motion": 143.16189241409302,
+                "suspended": 5.586559295654297,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791898863.0,
+              "end_wall": 1791899044.0,
+              "label": "static",
+              "name": "침대 앉기",
+              "evaluation_start_wall": 1791898863.0,
+              "duration_s": 181.0,
+              "correct_s": 153.86609840393066,
+              "incorrect_s": 20.727665185928345,
+              "unavailable_s": 6.406236410140991,
+              "valid_s": 174.593763589859,
+              "match_among_valid": 0.8812806095719431,
+              "match_among_all": 0.8500889414581805,
+              "first_correct_delay_s": 19.99815082550049,
+              "first_10s_stable_start_delay_s": 21.598777055740356,
+              "durations_by_state_s": {
+                "empty": 1.5252151489257812,
+                "static": 153.86609840393066,
+                "motion": 19.202450037002563,
+                "suspended": 6.406236410140991,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791899057.0,
+              "end_wall": 1791899239.0,
+              "label": "static",
+              "name": "중문 밖 대기",
+              "evaluation_start_wall": 1791899057.0,
+              "duration_s": 182.0,
+              "correct_s": 164.07761359214783,
+              "incorrect_s": 14.742165327072144,
+              "unavailable_s": 3.1802210807800293,
+              "valid_s": 178.81977891921997,
+              "match_among_valid": 0.917558530626907,
+              "match_among_all": 0.9015253494074057,
+              "first_correct_delay_s": 0.0,
+              "first_10s_stable_start_delay_s": 0.0,
+              "durations_by_state_s": {
+                "empty": 14.742165327072144,
+                "static": 164.07761359214783,
+                "motion": 0.0,
+                "suspended": 3.1802210807800293,
+                "deciding": 0.0
+              }
+            },
+            {
+              "start_wall": 1791899249.0,
+              "end_wall": 1791899437.0,
+              "label": "empty",
+              "name": "집 밖 대기 2",
+              "evaluation_start_wall": 1791899249.0,
+              "duration_s": 188.0,
+              "correct_s": 126.90141367912292,
+              "incorrect_s": 57.88929295539856,
+              "unavailable_s": 3.2092933654785156,
+              "valid_s": 184.79070663452148,
+              "match_among_valid": 0.6867304963020038,
+              "match_among_all": 0.6750075195698028,
+              "first_correct_delay_s": 58.286893129348755,
+              "first_10s_stable_start_delay_s": 58.286893129348755,
+              "durations_by_state_s": {
+                "empty": 126.90141367912292,
+                "static": 57.88929295539856,
+                "motion": 0.0,
+                "suspended": 3.2092933654785156,
+                "deciding": 0.0
+              }
+            }
+          ],
+          "overall": {
+            "duration_s": 923.0,
+            "valid_s": 865.5206995010376,
+            "correct_s": 716.5289371013641,
+            "unavailable_s": 57.4793004989624,
+            "match_among_valid": 0.8278588109035804,
+            "match_among_all": 0.7763043738909687
+          },
+          "by_class": {
+            "empty": {
+              "duration_s": 377.0,
+              "valid_s": 334.6937162876129,
+              "correct_s": 255.42333269119263,
+              "unavailable_s": 42.306283712387085,
+              "match_among_valid": 0.7631554470885233,
+              "match_among_all": 0.6775154713294235
+            },
+            "static": {
+              "duration_s": 363.0,
+              "valid_s": 353.413542509079,
+              "correct_s": 317.9437119960785,
+              "unavailable_s": 9.58645749092102,
+              "match_among_valid": 0.8996364704612606,
+              "match_among_all": 0.875877994479555
+            },
+            "motion": {
+              "duration_s": 183.0,
+              "valid_s": 177.4134407043457,
+              "correct_s": 143.16189241409302,
+              "unavailable_s": 5.586559295654297,
+              "match_among_valid": 0.8069393832041627,
+              "match_among_all": 0.7823054230278307
+            }
+          },
+          "macro_class_match_among_valid": 0.8232437669179822,
+          "trim_seconds": 0,
+          "prediction_wall_shift_s": 1
+        }
+      ]
+    }
+  },
+  "quality": [
+    {
+      "rx": 101,
+      "frames": 95220,
+      "duplicates": 10,
+      "max_gap_frames": 4,
+      "long_gaps": []
+    },
+    {
+      "rx": 102,
+      "frames": 97575,
+      "duplicates": 11,
+      "max_gap_frames": 2,
+      "long_gaps": []
+    },
+    {
+      "rx": 103,
+      "frames": 96585,
+      "duplicates": 42,
+      "max_gap_frames": 3,
+      "long_gaps": []
+    }
+  ],
+  "protocol": {
+    "training_performed": false,
+    "test_raw_used_in_adaptation": false,
+    "timing": "recorded live decision wall times and exact logged TX windows",
+    "phone_mac_offset_s": 0,
+    "clock_offset_source": "user info.txt: clocks equal",
+    "new_inferences": 2314,
+    "unique_inputs": 2314,
+    "paired_compute_seconds": 169.752146375,
+    "video_reviewed": false,
+    "model_hashes": {
+      "phase_original": "1232d156dc9c1c6dd07a3dbf29384200d0848abd319cd3c7a77f30bd2f5b4c42",
+      "phase_room": "5224bb396460240a373db5f9bbcb6762cecba1eb8c3701bf7b3ba453f465e364"
+    },
+    "label_correction": {
+      "segment": "중문 밖 대기",
+      "previous_label": "empty",
+      "label": "static",
+      "reason": "User clarified monitored area includes waiting space outside inner door",
+      "method": "Reaggregate unchanged saved predictions; no inference or training repeated",
+      "source_output": "model_train/analysis/output/20261014-room-live-223405"
+    }
+  },
+  "checks": {
+    "input_files_unchanged": 21,
+    "model_weights_unchanged": true,
+    "direct_prefix_checks": 12,
+    "logged_class_agreement": true,
+    "live_probability_max_error": 5.364418029785156e-07,
+    "single_window_max_error": 5.960464477539063e-08,
+    "independent_segment_time_checks": 20
+  }
+}
