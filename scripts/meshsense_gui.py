@@ -109,7 +109,8 @@ class Job:
                 "rc": self.rc, "log": list(self.log), "note": self.done_note}
 
 
-JOB = Job()
+JOB = Job()       # 플래시·수집·학습·진단 — 포트를 쓰므로 한 번에 하나
+RT_JOB = Job()    # 실시간 판단 — 파일만 읽으므로 수집과 같이 돈다
 
 
 # ── 상태 조회 ─────────────────────────────────────────────────────────────────
@@ -209,9 +210,7 @@ def session_note(d: Path) -> str:
 def realtime_view(raw_root: Path = RAW_ROOT) -> Optional[dict]:
     """가장 최근 세션의 realtime_status.json. 실시간 판단이 안 돌면 None."""
     # 폴더 이름이 아니라 **마지막으로 갱신된** 상태 파일을 고른다 — 지금 돌고 있는 것이 그것이다.
-    # demo/ 는 합성 세션(scripts/make_demo_session.py)이라 시연·전환 실험에서만 쓴다.
-    files = sorted([*Path(raw_root).glob("*/*/realtime_status.json"),
-                    *(REPO_ROOT / "mac_collector_output" / "demo").glob("*/realtime_status.json")],
+    files = sorted(Path(raw_root).glob("*/*/realtime_status.json"),
                    key=lambda f: f.stat().st_mtime, reverse=True)
     if not files:
         return None
@@ -222,13 +221,6 @@ def realtime_view(raw_root: Path = RAW_ROOT) -> Optional[dict]:
         return None
     view["spans"] = timeline_spans(view.get("events", []), view.get("t", 0.0))
     view["stale_s"] = round(time.time() - p.stat().st_mtime, 1)
-    view["synthetic"] = "/demo/" in str(p)
-    truth = p.parent / "demo_truth.json"
-    if truth.is_file():
-        try:
-            view["truth"] = json.loads(truth.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            pass
     return view
 
 
@@ -261,18 +253,18 @@ def realtime_models() -> list:
     return available_models()
 
 
-def realtime_sessions() -> list:
-    """실시간을 붙일 수 있는 세션 — 최근 수집 세션과 합성 세션."""
-    out = []
-    for d in sorted(RAW_ROOT.glob("*/*"), reverse=True)[:12]:
+def live_session_dir(raw_root: Path = RAW_ROOT, max_age_s: float = 10.0) -> Optional[Path]:
+    """지금 수집 중인 세션 — 이름이 가장 최근이고 `.csi` 가 최근 `max_age_s` 초 안에 자란 것.
+
+    옛 녹화를 실시간인 것처럼 따라가지 않도록, 파일이 지금 쓰이고 있는지까지 본다.
+    """
+    for d in sorted(Path(raw_root).glob("*/*"), reverse=True):
         if (d / "session.json").is_file():
-            out.append({"path": str(d.relative_to(REPO_ROOT)), "name": d.name,
-                        "date": d.parent.name, "synthetic": False})
-    for d in sorted((REPO_ROOT / "mac_collector_output" / "demo").glob("*"), reverse=True):
-        if (d / "session.json").is_file():
-            out.append({"path": str(d.relative_to(REPO_ROOT)), "name": d.name,
-                        "date": "합성", "synthetic": True})
-    return out
+            now = time.time()
+            if any(now - f.stat().st_mtime <= max_age_s for f in d.glob("device_*.csi")):
+                return d
+            return None
+    return None
 
 
 def training_state() -> dict:
@@ -529,10 +521,9 @@ function renderJob() {
 function render() {
   if (!S) return;
   const busy = S.job.running;
-  if (tab === 'realtime' && changed('realtime', [S.realtime, S.rt_models, S.rt_sessions, busy,
-                                                  rtSession, rtModel])) {
+  if (tab === 'realtime' && changed('realtime', [S.realtime, S.rt_models, S.rt_job, rtModel])) {
     document.getElementById('realtime').innerHTML =
-      renderRealtime(S.realtime) + renderRealtimeStart(S, busy);
+      renderRealtimeStart(S) + renderRealtime(S.realtime);
   }
   if (tab === 'boards' && changed('boards', [S.boards, busy])) {
     const rows = S.boards.map(b => `<tr>
@@ -638,34 +629,26 @@ function spanLabel(spans){
   const s = (spans && spans[0] && spans[0].covers_s) || 0;
   return s >= 3600 ? '60분' : held(s);
 }
-let rtSession = null, rtModel = null;
-function rtSet(k, v){ if (k === 's') rtSession = v; else rtModel = v; delete sig.realtime; render(); }
-function startRealtime(follow){
-  post('/api/realtime/start', {session: rtSession, model: rtModel, follow: follow, speed: 2});
-}
-function renderRealtimeStart(S, busy){
-  const models = S.rt_models || [], sessions = S.rt_sessions || [];
-  if (!models.length || !sessions.length) return '';
+let rtModel = null;
+function rtSet(v){ rtModel = v; delete sig.realtime; render(); }
+function startRealtime(){ post('/api/realtime/start', {model: rtModel}); }
+function renderRealtimeStart(S){
+  const models = S.rt_models || [], j = S.rt_job || {};
+  if (!models.length) return '';
   if (rtModel === null) rtModel = (models.find(m => m.is_deployed) || models[0]).path;
-  if (rtSession === null && sessions.length) rtSession = sessions[0].path;
-  const opts = sessions.map(x => `<option value="${esc(x.path)}" ${rtSession===x.path?'selected':''}>
-      ${esc(x.date)} · ${esc(x.name)}${x.synthetic ? ' (합성)' : ''}</option>`).join('');
+  if (j.running) return `<div class="card"><div class="bar" style="margin:0">
+      <span class="tag ok">${esc(j.name)}</span>
+      <button class="act danger" onclick="post('/api/realtime/stop')">실시간 중지</button></div></div>`;
   const mopts = models.map(m => `<option value="${esc(m.path)}" ${rtModel===m.path?'selected':''}>
-      ${esc(m.name)} · ${esc(m.mode)} 창 ${m.window_s}초${m.is_deployed ? ' (배포)' : ''}
-      ${m.score ? ' · ' + esc(m.score) : ''}</option>`).join('');
-  return `<div class="card"><h2>실시간 시작</h2>
-    <p class="sub">모델과 세션을 고릅니다. 수집 중이면 <b>따라가기</b>, 녹화·합성이면 <b>재생</b>입니다.</p>
-    <div class="row">
-      <div><label for="rtm">모델</label>
-        <select id="rtm" onchange="rtSet('m', this.value)">${mopts}</select></div>
-      <div><label for="rts">세션</label>
-        <select id="rts" onchange="rtSet('s', this.value)">${opts}</select></div>
-    </div>
+      ${esc(m.name)} · 창 ${m.window_s}초${m.is_deployed ? ' (기본)' : ''}</option>`).join('');
+  const crashed = j.name && ![0, null, -15].includes(j.rc)
+    ? `<p class="note">지난 실시간이 오류로 끝났습니다: ${esc((j.log || []).slice(-1)[0] || '')}</p>` : '';
+  return `<div class="card"><h2>실시간</h2>
+    <p class="sub">수집 탭에서 수집을 시작하고 시작 지연이 끝나면 누르세요. 지금 수집 중인 세션을 따라갑니다.</p>
+    <label for="rtm">모델</label>
+    <select id="rtm" onchange="rtSet(this.value)">${mopts}</select>
     <div class="bar" style="margin-top:1rem">
-      <button class="act primary" ${busy?'disabled':''} onclick="startRealtime(false)">재생 (2배속)</button>
-      <button class="act" ${busy?'disabled':''} onclick="startRealtime(true)">따라가기 (수집 중)</button>
-      ${busy ? '<span class="hint">다른 작업이 실행 중입니다</span>' : ''}
-    </div></div>`;
+      <button class="act primary" onclick="startRealtime()">실시간 시작</button></div>${crashed}</div>`;
 }
 function actBars(r){
   const raw = r.activity || [], step = r.activity_step_s || 0.3;
@@ -682,8 +665,7 @@ function actBars(r){
   return out;
 }
 function renderRealtime(r){
-  if (!r) return `<div class="card"><h2>실시간 판단이 실행 중이 아닙니다</h2>
-    <p class="sub">아래에서 모델과 세션을 고르면 시작합니다.</p></div>`;
+  if (!r) return '';
   const deciding = r.state === 'deciding';
   const pct = deciding
     ? Math.round(100 * (1 - Math.min(1, r.remaining_s / 60)))
@@ -705,15 +687,11 @@ function renderRealtime(r){
           <span>활동 — 창 ${r.activity_window_s}초 · 상태 판단에는 쓰지 않습니다</span>
           <span>지금</span></div>` : ''}
       ${r.note ? `<p class="note">${esc(r.note)}</p>` : ''}
-      ${r.synthetic ? `<p class="note">합성 세션 — 녹화를 이어 붙인 것이라 실제 전환이 아닙니다</p>` : ''}
     </div>
     <div class="card"><h2>최근 기록</h2>
       <div class="tl">${(r.spans||[]).map(s =>
         `<i class="${esc(s.state)}" style="width:${s.pct}%"></i>`).join('')}</div>
       <div class="axis"><span>${spanLabel(r.spans)} 전</span><span>지금</span></div>
-      ${r.truth ? `<p class="sub" style="margin:.7rem 0 .2rem">정답 (합성 대본, ${r.truth.hold_s}초마다)</p>
-        <div class="tl">${r.truth.segments.map(sg =>
-          `<i class="${esc(sg.state)}" style="width:${100 / r.truth.segments.length}%"></i>`).join('')}</div>` : ''}
       <div class="key">
         <span><i style="background:var(--st-empty)"></i>빈 방</span>
         <span><i style="background:var(--st-static)"></i>정지</span>
@@ -897,8 +875,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "readiness": readiness(),
                 "training": training_state(),
                 "rt_models": realtime_models(),
-                "rt_sessions": realtime_sessions(),
-                "realtime": realtime_view(),
+                # 실시간이 안 돌면 지난 실행의 화면을 띄우지 않는다 — 옛 결과를 지금으로 착각하게 된다
+                "realtime": view if (view := realtime_view()) and (RT_JOB.running or view["stale_s"] < 5)
+                else None,
+                "rt_job": RT_JOB.state(),
                 "job": JOB.state(),
             })
         elif u.path == "/api/img":
@@ -991,19 +971,21 @@ def dispatch(path: str, body: dict) -> dict:
         return {"ok": True}
 
     if path == "/api/realtime/start":
-        session = (REPO_ROOT / str(body.get("session", ""))).resolve()
+        session = live_session_dir()
+        if session is None:
+            return {"error": "수집 중인 세션이 없습니다 — 수집 탭에서 수집을 시작하고, "
+                             "시작 지연이 끝난 뒤 다시 누르세요"}
         model = (REPO_ROOT / str(body.get("model", ""))).resolve()
-        if not str(session).startswith(str(REPO_ROOT)) or not (session / "session.json").is_file():
-            return {"error": "세션 디렉터리가 아닙니다"}
         if not str(model).startswith(str(REPO_ROOT)) or model.suffix != ".pt":
             return {"error": "체크포인트가 아닙니다"}
         cmd = [PY, str(REPO_ROOT / "realtime" / "ui.py"), "--session", str(session),
-               "--model", str(model), "--plain",
-               "--speed", str(float(body.get("speed") or 2))]
-        if body.get("follow"):
-            cmd.append("--follow")
-        err = JOB.start(f"실시간 · {model.stem.replace('model_', '')} · {session.name}", cmd)
+               "--model", str(model), "--plain", "--follow"]
+        err = RT_JOB.start(f"실시간 · {model.stem.replace('model_', '')} · {session.name}", cmd)
         return {"error": err} if err else {"ok": True}
+
+    if path == "/api/realtime/stop":
+        RT_JOB.stop()
+        return {"ok": True}
 
     if path == "/api/train":
         keys = list(body.get("sessions") or [])
@@ -1066,6 +1048,7 @@ def main() -> int:
         print("\n[gui] 종료")
     finally:
         JOB.stop()
+        RT_JOB.stop()
         srv.server_close()
     return 0
 

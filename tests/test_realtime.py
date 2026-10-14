@@ -311,3 +311,24 @@ class LiveWindowTest(unittest.TestCase):
         slowest_end = min(int(frames[rx]["hdr"]["tx_seq"][3000 + 2000 - lag[rx] - 1]) + 1
                           for rx in lag)
         self.assertEqual(win.tx_seq0 + 300, slowest_end)
+
+
+class LiveSessionTest(unittest.TestCase):
+    """실시간 시작은 **지금 쓰이고 있는** 세션만 따라간다 — 옛 녹화를 실시간처럼 보여 준 적이 있다."""
+
+    def test_only_a_growing_newest_session_counts(self):
+        import os
+        import tempfile
+        import time as _t
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = Path(tmp)
+            old = raw / "20260920" / "203812_empty_s60"; old.mkdir(parents=True)
+            (old / "session.json").write_text("{}"); (old / "device_101.csi").write_bytes(b"x")
+            past = _t.time() - 3600
+            os.utime(old / "device_101.csi", (past, past))
+            self.assertIsNone(gui.live_session_dir(raw))          # 수집 전: 옛 녹화는 안 잡는다
+            new = raw / "20261014" / "210500_motion_s61"; new.mkdir(parents=True)
+            (new / "session.json").write_text("{}")
+            self.assertIsNone(gui.live_session_dir(raw))          # 시작 지연 중: 파일이 아직 없다
+            (new / "device_101.csi").write_bytes(b"x")
+            self.assertEqual(gui.live_session_dir(raw), new)      # 수집 중
