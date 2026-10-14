@@ -3,10 +3,15 @@
 
     python scripts/_collect_run.py <label> <duration_sec> [start_delay_sec]
 
+duration 0 이면 종료 신호(SIGTERM·SIGINT)를 받을 때까지 수집한다. 신호를 받으면 reader 들에
+SIGINT 를 넘겨 통계를 쓰게 하고, 평소처럼 매니페스트를 마감한다 — 그냥 죽으면 reader 가 고아로
+남고 session.json 에 RX 통계가 빠진다.
+
 CLI 의 대화형 수집과 같은 절차를 비대화형으로 수행한다. 포트를 프로브하지 않고 모든
 시리얼 포트에 reader 를 붙인 뒤, IDENT 가 오지 않는 포트(TX·미등록)는 스스로 빠지게 둔다.
 """
 import glob
+import signal
 import subprocess
 import sys
 import threading
@@ -38,6 +43,19 @@ def main() -> int:
         print("[중단] USB 시리얼 포트를 찾지 못했습니다.")
         return 1
 
+    procs = []
+
+    def stop(*_):
+        if not procs:                       # 시작 지연 중이면 세션을 만들지 않고 끝낸다
+            raise SystemExit(0)
+        print("\n[종료] 수집을 마감합니다", flush=True)
+        for _, pr in procs:
+            if pr.poll() is None:
+                pr.send_signal(signal.SIGINT)
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+
     # 운영자가 자리를 잡거나 방을 나갈 시간. 세션을 만들기 전에 기다려 지연 구간이 안 섞이게 한다
     for left in range(int(delay), 0, -1):
         print(f"[대기] {left}초 후 시작", flush=True)
@@ -48,8 +66,9 @@ def main() -> int:
                         device_registry=DEVICE_REGISTRY, tx_registry=TX_REGISTRY)
     print(f"[세션] {sd.relative_to(REPO_ROOT)}  (label={label}, session_id={session_id})", flush=True)
     print(f"[포트] {', '.join(ports)}", flush=True)
+    if not duration:
+        print("[안내] 종료할 때까지 수집합니다", flush=True)
 
-    procs = []
     for port in ports:
         p = subprocess.Popen(
             [sys.executable, str(READER), "--port", port, "--session-dir", str(sd),

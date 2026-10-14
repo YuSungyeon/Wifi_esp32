@@ -114,6 +114,7 @@ class Job:
 
 JOB = Job()       # 플래시·수집·학습·진단 — 포트를 쓰므로 한 번에 하나
 RT_JOB = Job()    # 실시간 판단 — 파일만 읽으므로 수집과 같이 돈다
+LIVE_JOB = "실시간 측정 · 수집"
 
 
 # ── 상태 조회 ─────────────────────────────────────────────────────────────────
@@ -254,6 +255,11 @@ def realtime_models() -> list:
     from realtime.engine import available_models
 
     return available_models()
+
+
+def latest_session_dir(raw_root: Path = RAW_ROOT) -> Optional[Path]:
+    return next((d for d in sorted(Path(raw_root).glob("*/*"), reverse=True)
+                 if (d / "session.json").is_file()), None)
 
 
 def live_session_dir(raw_root: Path = RAW_ROOT, max_age_s: float = 10.0) -> Optional[Path]:
@@ -524,7 +530,7 @@ function renderJob() {
 function render() {
   if (!S) return;
   const busy = S.job.running;
-  if (tab === 'realtime' && changed('realtime', [S.realtime, S.rt_models, S.rt_job, rtModel])) {
+  if (tab === 'realtime' && changed('realtime', [S.realtime, S.rt_models, S.rt_job, S.job.running, S.job.name, rtModel])) {
     document.getElementById('realtime').innerHTML =
       renderRealtimeStart(S) + renderRealtime(S.realtime);
   }
@@ -634,24 +640,27 @@ function spanLabel(spans){
 }
 let rtModel = null;
 function rtSet(v){ rtModel = v; delete sig.realtime; render(); }
-function startRealtime(){ post('/api/realtime/start', {model: rtModel}); }
+function startLive(){ post('/api/live/start', {model: rtModel}); }
 function renderRealtimeStart(S){
-  const models = S.rt_models || [], j = S.rt_job || {};
+  const models = S.rt_models || [], j = S.rt_job || {}, c = S.job || {};
   if (!models.length) return '';
   if (rtModel === null) rtModel = (models.find(m => m.is_deployed) || models[0]).path;
-  if (j.running) return `<div class="card"><div class="bar" style="margin:0">
-      <span class="tag ok">${esc(j.name)}</span>
-      <button class="act danger" onclick="post('/api/realtime/stop')">실시간 중지</button></div></div>`;
+  const collecting = c.running && c.name === S.live_job;
+  if (j.running || collecting) return `<div class="card"><div class="bar" style="margin:0">
+      <span class="tag ok">${j.running ? esc(j.name) : '수집 시작 중 — 첫 판단까지 약 20초'}</span>
+      <button class="act danger" onclick="post('/api/live/stop')">종료</button></div></div>`;
+  if (c.running) return `<div class="card"><h2>실시간 측정</h2>
+    <p class="sub">${esc(c.name)} 이(가) 실행 중입니다. 끝난 뒤 시작할 수 있습니다.</p></div>`;
   const mopts = models.map(m => `<option value="${esc(m.path)}" ${rtModel===m.path?'selected':''}>
       ${esc(m.name)} · 창 ${m.window_s}초${m.is_deployed ? ' (기본)' : ''}</option>`).join('');
   const crashed = j.name && ![0, null, -15].includes(j.rc)
     ? `<p class="note">지난 실시간이 오류로 끝났습니다: ${esc((j.log || []).slice(-1)[0] || '')}</p>` : '';
-  return `<div class="card"><h2>실시간</h2>
-    <p class="sub">수집 탭에서 수집을 시작하고 시작 지연이 끝나면 누르세요. 지금 수집 중인 세션을 따라갑니다.</p>
+  return `<div class="card"><h2>실시간 측정</h2>
+    <p class="sub">누르면 수집(라벨 live, 학습에 안 씀)과 실시간 판단이 함께 시작되고, 종료를 누를 때까지 계속됩니다.</p>
     <label for="rtm">모델</label>
     <select id="rtm" onchange="rtSet(this.value)">${mopts}</select>
     <div class="bar" style="margin-top:1rem">
-      <button class="act primary" onclick="startRealtime()">실시간 시작</button></div>${crashed}</div>`;
+      <button class="act primary" onclick="startLive()">실시간 측정</button></div>${crashed}</div>`;
 }
 function actBars(r){
   const raw = r.activity || [], step = r.activity_step_s || 0.3;
@@ -881,7 +890,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # 실시간이 안 돌면 지난 실행의 화면을 띄우지 않는다 — 옛 결과를 지금으로 착각하게 된다
                 "realtime": view if (view := realtime_view()) and (RT_JOB.running or view["stale_s"] < 5)
                 else None,
-                "rt_job": RT_JOB.state(),
+                "rt_job": RT_JOB.state(), "live_job": LIVE_JOB,
                 "job": JOB.state(),
             })
         elif u.path == "/api/img":
@@ -973,21 +982,37 @@ def dispatch(path: str, body: dict) -> dict:
         set_session_note(target, str(body.get("text", "")))
         return {"ok": True}
 
-    if path == "/api/realtime/start":
-        session = live_session_dir()
-        if session is None:
-            return {"error": "수집 중인 세션이 없습니다 — 수집 탭에서 수집을 시작하고, "
-                             "시작 지연이 끝난 뒤 다시 누르세요"}
+    if path == "/api/live/start":
         model = (REPO_ROOT / str(body.get("model", ""))).resolve()
         if not str(model).startswith(str(REPO_ROOT)) or model.suffix != ".pt":
             return {"error": "체크포인트가 아닙니다"}
-        cmd = [PY, str(REPO_ROOT / "realtime" / "ui.py"), "--session", str(session),
-               "--model", str(model), "--plain", "--follow"]
-        err = RT_JOB.start(f"실시간 · {model.stem.replace('model_', '')} · {session.name}", cmd)
-        return {"error": err} if err else {"ok": True}
+        if RT_JOB.running:
+            return {"error": "실시간 측정이 이미 돌고 있습니다"}
+        before = latest_session_dir()
+        err = JOB.start(LIVE_JOB, [PY, str(SCRIPT_DIR / "_collect_run.py"), LIVE_LABEL, "0", "0"])
+        if err:
+            return {"error": err}
 
-    if path == "/api/realtime/stop":
+        def attach() -> None:
+            """수집이 세션을 만들고 파일이 자라기 시작하면 실시간 판단을 붙인다."""
+            for _ in range(120):                       # 최대 60초
+                if not JOB.running:
+                    return
+                d = live_session_dir()
+                if d is not None and d != before and LIVE_LABEL in d.name.split("_"):
+                    RT_JOB.start(f"실시간 · {model.stem.replace('model_', '')} · {d.name}",
+                                 [PY, str(REPO_ROOT / "realtime" / "ui.py"), "--session", str(d),
+                                  "--model", str(model), "--plain", "--follow"])
+                    return
+                time.sleep(0.5)
+
+        threading.Thread(target=attach, daemon=True).start()
+        return {"ok": True}
+
+    if path == "/api/live/stop":
         RT_JOB.stop()
+        if JOB.running and JOB.name == LIVE_JOB:
+            JOB.stop()                                  # 러너가 reader 를 정상 마감한다
         return {"ok": True}
 
     if path == "/api/train":
