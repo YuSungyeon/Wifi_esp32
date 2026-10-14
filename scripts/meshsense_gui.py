@@ -655,12 +655,14 @@ function renderRealtimeStart(S){
       ${esc(m.name)} · 창 ${m.window_s}초${m.is_deployed ? ' (기본)' : ''}</option>`).join('');
   const crashed = j.name && ![0, null, -15].includes(j.rc)
     ? `<p class="note">지난 실시간이 오류로 끝났습니다: ${esc((j.log || []).slice(-1)[0] || '')}</p>` : '';
+  const stalled = c.name === S.live_job && (c.log || []).some(l => l.includes('스트림 정지'))
+    ? `<p class="note">보드 신호가 3초 넘게 끊겨 측정이 멈췄습니다. 보드 전원과 USB 를 확인하고 다시 누르세요.</p>` : '';
   return `<div class="card"><h2>실시간 측정</h2>
     <p class="sub">누르면 수집(라벨 live, 학습에 안 씀)과 실시간 판단이 함께 시작되고, 종료를 누를 때까지 계속됩니다.</p>
     <label for="rtm">모델</label>
     <select id="rtm" onchange="rtSet(this.value)">${mopts}</select>
     <div class="bar" style="margin-top:1rem">
-      <button class="act primary" onclick="startLive()">실시간 측정</button></div>${crashed}</div>`;
+      <button class="act primary" onclick="startLive()">실시간 측정</button></div>${stalled}${crashed}</div>`;
 }
 function actBars(r){
   const raw = r.activity || [], step = r.activity_step_s || 0.3;
@@ -870,6 +872,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b)
         elif u.path == "/api/state":
+            # 실시간 측정은 종료를 누를 때까지 돈다. 그 전에 수집이 끝났다면 보드 신호가 끊긴 것이다 —
+            # 실시간만 남겨 두면 멈춘 화면을 측정 중으로 착각하므로 같이 내린다.
+            if RT_JOB.running and not JOB.running and JOB.name == LIVE_JOB:
+                RT_JOB.stop()
             rows = session_rows()
             meta = read_meta(SESSION_META)
             self._json({
