@@ -715,10 +715,12 @@ def _ask_label(default: Optional[str]) -> Optional[str]:
     이전에는 라벨이 후처리 CLI 인자에만 있어(기본 empty) 데이터만 보고는 어떤 세션이
     무슨 상태였는지 알 수 없었다.
     """
-    labels = list(LABELS)
+    from csi_session import LIVE_LABEL, SESSION_LABELS
+    labels = list(SESSION_LABELS)
     desc = {"empty": "부재 — 공간에 사람 없음",
             "static": "정지 — 사람이 있으나 움직이지 않음",
-            "motion": "움직임 — 사람이 움직이는 중"}
+            "motion": "움직임 — 사람이 움직이는 중",
+            LIVE_LABEL: "실시간 — 여러 상태를 섞어 찍음 (학습에 안 씀)"}
     if default not in labels:
         default = None
     print("\n  이번 세션의 라벨:")

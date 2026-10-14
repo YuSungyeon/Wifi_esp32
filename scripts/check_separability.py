@@ -177,6 +177,8 @@ def collect(raw_root: Path, rx_ids):
     for d in cs.find_sessions(raw_root):
         try:
             label = read_manifest(d)["label"]
+            if label not in cs.LABELS:                  # live 등 학습 클래스가 아닌 세션
+                continue
             X = session_windows(d, rx_ids)
         except (ValueError, FileNotFoundError, KeyError) as exc:
             skipped.append((d.name, str(exc).splitlines()[0]))

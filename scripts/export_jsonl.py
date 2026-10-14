@@ -108,6 +108,9 @@ def main() -> int:
     labels_by_session: dict[int, str] = {}
     date_dirs: set[Path] = set()
     for d in sessions:
+        if d.name.split("_")[1] not in cs.LABELS:     # live 등 학습 클래스가 아닌 세션
+            print(f"  [건너뜀] {d.name}: 학습 라벨이 아님")
+            continue
         try:
             sid, label, n = export_session(d, args.out_root)
         except (FileNotFoundError, KeyError, ValueError) as exc:

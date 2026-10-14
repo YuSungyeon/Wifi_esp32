@@ -31,7 +31,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from csi_session import next_session_id, read_manifest, repo_provenance, set_session_note  # noqa: E402
+from csi_session import (  # noqa: E402
+    LIVE_LABEL, SESSION_LABELS, next_session_id, read_manifest, repo_provenance, set_session_note,
+)
 from csi_store import LABELS  # noqa: E402
 from train_sessions import (  # noqa: E402
     available_eval_dates, check_selection, group_by_date, list_sessions,
@@ -53,7 +55,8 @@ PRESET_INFO = {k: {"label": v["label"], "detail": v["detail"]} for k, v in _PRES
 
 LABEL_DESC = {"empty": "부재 — 공간에 사람 없음",
               "static": "정지 — 사람이 있으나 움직이지 않음",
-              "motion": "움직임 — 사람이 움직이는 중"}
+              "motion": "움직임 — 사람이 움직이는 중",
+              LIVE_LABEL: "실시간 — 여러 상태를 섞어 찍음 (학습에 안 씀)"}
 
 
 # ── 백그라운드 작업 ────────────────────────────────────────────────────────────
@@ -549,7 +552,7 @@ function render() {
       <code>python scripts/device_registry.py add --port &lt;포트&gt; --board-name RXn</code></p></div>`;
   }
   if (tab === 'collect' && changed('collect', [S.next_session_id, S.rx_count, busy, S.meta.label_target, S.readiness, order])) {
-    const opts = S.labels.map(l => `<option value="${l}" ${l===S.meta.label_target?'selected':''}>${l} — ${esc(S.label_desc[l])}</option>`).join('');
+    const opts = S.session_labels.map(l => `<option value="${l}" ${l===S.meta.label_target?'selected':''}>${l} — ${esc(S.label_desc[l])}</option>`).join('');
     document.getElementById('collect').innerHTML = `<div class="card">
       <h2>수집</h2>
       <p class="sub">라벨은 지금 고른 값이 그대로 데이터에 기록됩니다. 순번은 <code>session.json</code>이 있는 세션만 세어 자동으로 정합니다. 매니페스트가 없는 예전 <code>session_N</code> 폴더는 제외됩니다.</p>
@@ -867,7 +870,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 for r in (b.get("via") or [b]) if r.get("registered")),
                 "sessions": rows, "label_counts": label_counts(rows),
                 "next_session_id": next_session_id(OUTPUT_DIR),
-                "labels": list(LABELS), "label_desc": LABEL_DESC,
+                "labels": list(LABELS), "session_labels": list(SESSION_LABELS), "label_desc": LABEL_DESC,
                 "meta": meta, "meta_fields": FIELDS, "known_devices": known_devices(),
                 "diag_png": DIAG_PNG_REL if (REPO_ROOT / DIAG_PNG_REL).is_file() else None,
                 "diag_png_mtime": int((REPO_ROOT / DIAG_PNG_REL).stat().st_mtime)
@@ -941,7 +944,7 @@ def dispatch(path: str, body: dict) -> dict:
     if path == "/api/collect":
         label, dur = body.get("label"), float(body.get("duration") or 300)
         delay = max(0.0, float(body.get("delay") or 0))
-        if label not in LABELS:
+        if label not in SESSION_LABELS:
             return {"error": f"알 수 없는 라벨: {label}"}
         err = JOB.start(f"수집 · {label} · {dur:.0f}초",
                         [PY, str(SCRIPT_DIR / "_collect_run.py"), label, str(dur), str(delay)])

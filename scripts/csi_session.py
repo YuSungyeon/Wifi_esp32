@@ -50,10 +50,16 @@ def next_session_id(output_dir: Path) -> int:
     return max(used, default=0) + 1
 
 
+#: 여러 상태를 섞어 찍는 실시간 세션. 학습 클래스가 아니므로 학습·평가·내보내기 목록에서 빠진다
+#: (그쪽은 전부 `LABELS` 로 거른다). `LABELS` 자체는 전처리 `LABEL_MAP` 과 같아야 하므로 넣지 않는다.
+LIVE_LABEL = "live"
+SESSION_LABELS = (*LABELS, LIVE_LABEL)
+
+
 def session_dir_name(label: str, session_id: int, when: Optional[float] = None) -> str:
     """`<HHMMSS>_<label>_s<session_id>` — 라벨이 경로에서 바로 보이게."""
-    if label not in LABELS:
-        raise ValueError(f"unknown label {label!r}; expected one of {list(LABELS)}")
+    if label not in SESSION_LABELS:
+        raise ValueError(f"unknown label {label!r}; expected one of {list(SESSION_LABELS)}")
     return f"{time.strftime('%H%M%S', time.localtime(when))}_{label}_s{session_id}"
 
 
