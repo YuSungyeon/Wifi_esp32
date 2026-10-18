@@ -78,3 +78,6 @@ model_train/phase60/cache/
 model_train/amp60/cache/
 mac_collector_output/demo/
 .superpowers/
+
+# 블록 순서 진행 상태 — 런타임 값이고 지워도 다음에 새로 뽑는다
+mac_collector/block_order.json

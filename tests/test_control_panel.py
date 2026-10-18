@@ -367,10 +367,26 @@ class CliMenuTest(unittest.TestCase):
 class ReviewFixTest(unittest.TestCase):
     """전체 브랜치 리뷰에서 나온 것들. 각각 그 전에는 통과하던 스위트를 깨뜨린다."""
 
+    def setUp(self):
+        """**registry 와 실험 데이터는 테스트가 건드리지 않는다** (CLAUDE.md).
+
+        이 클래스는 쓰기 엔드포인트를 부르므로 실제 파일로 새지 않게 막아 둔다.
+        """
+        self.addCleanup(gui.PAUSED_BY_OPERATOR.__setitem__, 0, False)
+        guard = mock.patch.object(gui.block_order, "save")
+        self.block_save = guard.start()
+        self.addCleanup(guard.stop)
+
     def test_rescan_is_refused_while_a_job_runs(self):
-        """수집 중 포트를 다시 열면 reader 가 읽던 바이트를 가져간다 (CLAUDE.md 금지)."""
+        """수집 중 포트를 다시 열면 reader 가 읽던 바이트를 가져간다 (CLAUDE.md 금지).
+
+        `subprocess.run` 까지 막는다 — 가드가 없는 코드에서 이 테스트를 돌리면 실제
+        registry 에 가짜 보드가 등록된다. 실제로 한 번 그랬다.
+        """
         with mock.patch.object(type(gui.JOB), "running", property(lambda s: True)), \
-             mock.patch.object(gui, "identify", side_effect=AssertionError("probed")):
+             mock.patch.object(gui, "identify", side_effect=AssertionError("probed")), \
+             mock.patch.object(gui.subprocess, "run",
+                               side_effect=AssertionError("registry 를 건드렸다")):
             for path in ("/api/rescan", "/api/register"):
                 with self.subTest(path):
                     self.assertIn("error", gui.dispatch(path, {"sta_mac": "1a:00:00:00:00:01"}))
@@ -399,10 +415,9 @@ class ReviewFixTest(unittest.TestCase):
 
     def test_run_cancelled_before_a_session_exists_does_not_advance_the_block(self):
         """시작 지연 중 중지하면 rc=0 인데 세션이 없다 — 직전 세션으로 블록이 움직이면 안 된다."""
-        with mock.patch.object(gui, "latest_session_dir", return_value=Path("/prev")), \
-             mock.patch.object(gui.block_order, "save") as save:
+        with mock.patch.object(gui, "latest_session_dir", return_value=Path("/prev")):
             note = gui.collect_done(0, before=Path("/prev"))
-        save.assert_not_called()
+        self.block_save.assert_not_called()
         self.assertEqual(note, "")
 
     def test_gui_written_mark_reports_its_time(self):
@@ -419,17 +434,15 @@ class ReviewFixTest(unittest.TestCase):
     def test_going_back_only_reopens_the_cell_you_clicked(self):
         """다른 칸의 ✓ 까지 지우면 이미 찍은 세션을 또 찍게 된다."""
         st = {"order": ["empty", "static", "motion"], "done": ["empty", "motion"]}
-        with mock.patch.object(gui.block_order, "load", return_value=st), \
-             mock.patch.object(gui.block_order, "save") as save:
+        with mock.patch.object(gui.block_order, "load", return_value=st):
             gui.dispatch("/api/block/goto", {"label": "empty"})
-        self.assertEqual(save.call_args[0][0]["done"], ["motion"])
+        self.assertEqual(self.block_save.call_args[0][0]["done"], ["motion"])
 
     def test_going_to_a_cell_that_is_not_done_changes_nothing(self):
         st = {"order": ["empty", "static", "motion"], "done": ["empty", "motion"]}
-        with mock.patch.object(gui.block_order, "load", return_value=st), \
-             mock.patch.object(gui.block_order, "save") as save:
+        with mock.patch.object(gui.block_order, "load", return_value=st):
             gui.dispatch("/api/block/goto", {"label": "static"})
-        self.assertEqual(save.call_args[0][0]["done"], ["empty", "motion"])
+        self.assertEqual(self.block_save.call_args[0][0]["done"], ["empty", "motion"])
 
     def test_state_survives_a_machine_without_torch(self):
         """수집용 노트북에 torch 가 없어도 화면이 떠야 한다 — 준비 줄이 그렇게 약속한다."""
