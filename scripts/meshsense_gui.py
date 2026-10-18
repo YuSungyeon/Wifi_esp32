@@ -204,6 +204,11 @@ def ready_line(boards: list | None = None, job_running: bool | None = None,
             if not r.get("registered") and r.get("sta_mac"):
                 rows.append({"key": f"new-{r['sta_mac']}", "level": "warn", "action": "register",
                              "text": f"등록되지 않은 보드 {r['sta_mac']}"})
+        #: 포트마다 플래시. 보드 탭을 지워도 할 수 있는 일은 그대로다.
+        rows.append({"key": f"port-{b.get('port')}", "level": "ok", "action": "flash",
+                     "text": f"{b.get('port')} — "
+                             + ("TX 또는 미플래시 (TX 라면 정상)" if not b.get("sta_mac")
+                                and not b.get("via") else "펌웨어 다시 굽기")})
 
     level = "ok" if len(rx) >= 3 else "block"
     text = f"RX {len(rx)}대" if len(rx) >= 3 else f"RX {len(rx)}대 — 수집에는 3대가 필요합니다"
@@ -704,24 +709,18 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <header>
   <h1>MeshSense 제어판</h1>
   <nav id="nav">
-    <button data-t="realtime" class="on">실시간</button>
-    <button data-t="boards">보드</button>
-    <button data-t="collect">수집</button>
+    <button data-t="collect" class="on">수집</button>
     <button data-t="sessions">세션</button>
     <button data-t="train">학습</button>
-    <button data-t="analyze">진단·데이터셋</button>
-    <button data-t="meta">실험 정보</button>
+    <button data-t="realtime">실시간</button>
   </nav>
   <span id="jobbadge" class="hint" style="margin-left:auto"></span>
 </header>
 <main>
-  <section id="realtime" class="on"></section>
-  <section id="boards"></section>
-  <section id="collect"></section>
+  <section id="collect" class="on"></section>
   <section id="sessions"></section>
   <section id="train"></section>
-  <section id="analyze"></section>
-  <section id="meta"></section>
+  <section id="realtime"></section>
   <div class="card" id="logcard" style="display:none">
     <div class="bar"><h2 id="logtitle" style="margin:0">작업 로그</h2>
       <button class="act danger" id="stopbtn" onclick="post('/api/stop')">중지</button></div>
@@ -733,7 +732,7 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <script>__JS__</script></body></html>"""
 
 JS = r"""
-let S = null, tab = 'realtime', shownPng = null;
+let S = null, tab = 'collect', shownPng = null;
 let order = null;  // 이번 블록의 무작위 클래스 순서
 try { order = JSON.parse(localStorage.getItem('blockOrder')); } catch (e) {}
 // 섹션별 데이터 지문. 바뀐 섹션만 다시 그린다 —
@@ -788,33 +787,6 @@ function renderJob() {
 function render() {
   if (!S) return;
   const busy = S.job.running;
-  if (tab === 'realtime' && changed('realtime', [S.realtime, S.rt_models, S.rt_job, S.job.running, S.job.name, rtModel])) {
-    document.getElementById('realtime').innerHTML =
-      renderRealtimeStart(S) + renderRealtime(S.realtime);
-  }
-  if (tab === 'boards' && changed('boards', [S.boards, busy])) {
-    const rows = S.boards.map(b => `<tr>
-      <td><code>${esc(b.port)}</code></td>
-      <td>${b.role === 'sink' ? `<span class="tag ok">SINK</span> ` + (b.via||[]).map(r => r.registered
-          ? `<span class="tag ok">${esc(r.board_name || ('RX'+r.device_id))}</span>` : `<span class="tag warn">미등록 ${esc(r.sta_mac)}</span>`).join(' ')
-        : b.registered ? `<span class="tag ok">${esc(b.board_name || ('RX'+b.device_id))}</span>`
-        : b.sta_mac ? `<span class="tag warn">미등록</span>` : `<span class="tag">RX 아님 / 미플래시</span>`}</td>
-      <td class="hint">${esc(b.sta_mac || '—')}</td>
-      <td>
-        <button class="act" ${busy?'disabled':''} onclick="post('/api/flash',{port:'${b.port}',kind:'rx'})">RX 플래시</button>
-        <button class="act" ${busy?'disabled':''} onclick="post('/api/flash',{port:'${b.port}',kind:'tx'})">TX 플래시</button>
-      </td></tr>`).join('');
-    document.getElementById('boards').innerHTML = `<div class="card">
-      <h2>연결된 보드</h2>
-      <p class="sub">보드는 2초마다 자기 MAC 을 알립니다 — 확인만으로는 보드가 리셋되지 않습니다.
-      TX 는 아무것도 보내지 않으므로 'RX 아님'으로 표시되는 것이 정상입니다.
-      SINK 포트는 경유하는 RX 목록으로 표시됩니다.</p>
-      <div class="bar"><button class="act" ${busy?'disabled':''} onclick="post('/api/rescan')">다시 검색</button></div>
-      ${S.boards.length ? `<table><tr><th>포트</th><th>식별</th><th>MAC</th><th>플래시</th></tr>${rows}</table>`
-        : `<p class="sub">USB 시리얼 포트를 찾지 못했습니다. 보드 연결을 확인하세요.</p>`}
-      <p class="sub" style="margin-top:1rem">등록되지 않은 보드는 먼저 registry 에 추가해야 수집됩니다:
-      <code>python scripts/device_registry.py add --port &lt;포트&gt; --board-name RXn</code></p></div>`;
-  }
   if (tab === 'collect' && changed('collect', [S.next_session_id, busy, S.ready, S.block, S.meta, readyOpen, timeOpen, setOpen, projOpen])) {
     const b = S.block, next = b.next;
     //: 블록 세 칸이 곧 진행 상태다 — 어디까지 찍었는지 화면이 기억한다 (설계 §3.2)
@@ -897,36 +869,9 @@ function render() {
   if (tab === 'train' && changed('train', [S.training, busy, trainPick.size, trainEval, trainPreset, trainName, trainOpen])) {
     document.getElementById('train').innerHTML = renderTrain(S.training, busy);
   }
-  if (tab === 'analyze' && changed('analyze', [busy, S.diag_png])) {
-    document.getElementById('analyze').innerHTML = `<div class="card">
-      <h2>클래스 분리 가능성 진단</h2>
-      <p class="sub">지금 배치로 empty / static / action 이 실제로 갈리는지 확인합니다.
-      세션 단위 교차검증이라 결과가 부풀려지지 않습니다. 데이터를 많이 모으기 전에 먼저 돌려보세요.</p>
-      <div class="bar"><button class="act primary" ${busy?'disabled':''} onclick="post('/api/diagnose')">진단 실행</button></div>
-      ${S.diag_png ? `<img class="wf" src="/api/img?path=${encodeURIComponent(S.diag_png)}&v=${encodeURIComponent(S.diag_png_mtime)}">` : ''}</div>
-      <div class="card"><h2>전처리용 JSONL 내보내기</h2>
-      <p class="sub">수집은 <code>.csi</code>(raw I/Q)로 하고, 학습 전처리는 JSONL 을 읽습니다.
-      모든 세션을 <code>mac_collector_output/jsonl/</code> 로 내보내고,
-      전처리의 <code>LABEL_SESSION_RANGES</code> 에 넣을 라벨 배정도 함께 출력합니다.</p>
-      <div class="bar"><button class="act" ${busy?'disabled':''} onclick="post('/api/export')">JSONL 내보내기</button></div>
-      <p class="sub" style="margin-top:.8rem">이후 터미널에서:
-      <code>python model_train/preprocessing/preprocess_3rx.py --raw-dir mac_collector_output/jsonl/raw/&lt;날짜&gt;</code></p></div>`;
-  }
-  if (tab === 'meta' && changed('meta', ['once'])) {
-    const f = S.meta_fields.map(([k,t,kind,hint]) => {
-      const v = esc(S.meta[k] ?? '');
-      const lab = `<label for="${k}">${esc(t)}${hint?` <span class="hint">— ${esc(hint)}</span>`:''}</label>`;
-      if (kind==='label') return lab + `<select id="${k}">${S.labels.map(l=>`<option ${l===S.meta[k]?'selected':''}>${l}</option>`).join('')}</select>`;
-      if (kind==='textarea') return lab + `<textarea id="${k}">${v}</textarea>`;
-      return lab + `<input id="${k}" type="${kind==='number'?'number':'text'}" ${kind==='number'?'step="0.1"':''} value="${v}">`;
-    }).join('');
-    const chips = S.known_devices.map(([id,n])=>`<button type="button" onclick="tog(${id})">${id} · ${esc(n)}</button>`).join('');
-    document.getElementById('meta').innerHTML = `<div class="card">
-      <h2>실험 정보</h2>
-      <p class="sub">수집할 때마다 세션 폴더에 그대로 복사됩니다. 나중에 조건을 되짚을 때 쓰입니다.</p>
-      ${f}<div class="chips">${chips}</div>
-      <div class="bar" style="margin-top:1rem"><button class="act primary" onclick="saveMeta()">저장</button>
-        <span id="metamsg" class="hint"></span></div></div>`;
+  if (tab === 'realtime' && changed('realtime', [S.realtime, S.rt_models, S.rt_job, S.job.running, S.job.name, rtModel])) {
+    document.getElementById('realtime').innerHTML =
+      renderRealtimeStart(S) + renderRealtime(S.realtime);
   }
 }
 const RT_LABEL = {empty:'빈 방', static:'정지', motion:'움직임',
@@ -1029,6 +974,9 @@ function renderRealtime(r){
           <span class="link" onclick="post('/api/rt/pause')">판단 정지</span></span></div>
     </div>`;
 }
+//: 학습 탭이 고른 것 — 서버가 아니라 화면이 들고 있다. 새로고침하면 지워진다.
+let trainPick = new Set(), trainEval = null, trainPreset = 'balanced', trainName = '';
+let trainOpen = false;
 function trainToggle(key){ trainPick.has(key) ? trainPick.delete(key) : trainPick.add(key);
   if (trainEval && [...trainPick].some(k => k.startsWith(trainEval))) trainEval = null;
   delete sig.train; render(); }
@@ -1186,23 +1134,19 @@ function registerBoard(mac){
 //: 평소엔 한 줄, 막혔을 때만 펼친다 — 문제는 막힌 자리에서 푼다 (control-panel.md §2)
 function renderReady(r){
   if (!r) return '';
-  const act = {register: m => `<button class="act" onclick="registerBoard('${esc(m)}')">등록</button>`};
+  const act = {
+    register: k => `<button class="act" onclick="registerBoard('${esc(k.replace('new-',''))}')">등록</button>`,
+    flash: k => { const port = k.replace('port-','');
+      return `<button class="act" onclick="post('/api/flash',{port:'${esc(port)}',kind:'rx'})">RX 플래시</button>`
+           + `<button class="act" onclick="post('/api/flash',{port:'${esc(port)}',kind:'tx'})">TX 플래시</button>`; }};
   const rows = readyOpen ? `<div class="readyrows">${r.rows.map(x => `<div class="r">
       <span>${esc(x.text)}</span>
-      ${x.action === 'register' ? act.register(x.key.replace('new-','')) : ''}</div>`).join('')
+      ${x.action ? act[x.action](x.key) : ''}</div>`).join('')
     || '<div class="r"><span>더 볼 것이 없습니다</span></div>'}
     <div class="r"><button class="act" onclick="post('/api/rescan')">보드 다시 찾기</button></div></div>` : '';
   return `<div class="ready ${esc(r.level)}" onclick="toggleReady()">
       <span>${r.level === 'ok' ? '✓' : '⚠'} ${esc(r.text)}</span>
       <span class="sp">자세히 ${readyOpen ? '▾' : '▸'}</span></div>${rows}`;
-}
-function drawOrder(){
-  const prev = JSON.stringify(order); let o;
-  do { o = [...S.labels]; for (let i = o.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [o[i],o[j]] = [o[j],o[i]]; } }
-  while (JSON.stringify(o) === prev);          // 직전 블록과 같은 순서는 다시 뽑는다
-  order = o;
-  try { localStorage.setItem('blockOrder', JSON.stringify(o)); } catch (e) {}
-  render();
 }
 function noteSession(p){
   const s = S.sessions.find(x => x.path === p);

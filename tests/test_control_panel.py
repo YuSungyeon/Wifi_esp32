@@ -303,6 +303,49 @@ class FileNameTest(unittest.TestCase):
         self.assertEqual(gui.MARKS_NAME, MARKS_NAME)
 
 
+class TabTest(unittest.TestCase):
+    """탭 이름이 곧 할 일이고, 순서가 곧 작업 순서다 (설계 §2)."""
+
+    def test_exactly_four_tabs_in_work_order(self):
+        import re
+        self.assertEqual(re.findall(r'data-t="(\w+)"', gui.PAGE),
+                         ["collect", "sessions", "train", "realtime"])
+
+    def test_collect_is_the_default_tab(self):
+        self.assertIn('data-t="collect" class="on"', gui.PAGE)
+        self.assertIn("<section id=\"collect\" class=\"on\">", gui.PAGE)
+        self.assertIn("let S = null, tab = 'collect'", gui.JS)
+
+    def test_every_server_action_is_still_reachable_from_the_screen(self):
+        """탭을 지우면 그 탭에만 있던 버튼이 조용히 사라진다 — 플래시가 그랬다."""
+        import re
+        served = set(re.findall(r'path == "(/api/[\w/]+)"',
+                                Path(gui.__file__).read_text(encoding="utf-8")))
+        called = set(re.findall(r"post\('(/api/[\w/]+)'", gui.JS + gui.PAGE))
+        # 화면이 아니라 다른 경로로 불리는 것들
+        internal = {"/api/state", "/api/img", "/api/live/start"}
+        self.assertEqual(served - called - internal, set())
+
+    def test_every_state_variable_the_tabs_use_is_declared(self):
+        """탭을 옮기다 선언 줄을 통째로 지운 적이 있다 — 학습 탭이 통째로 죽었다.
+        pytest 는 JS 를 실행하지 않으므로 선언 유무만이라도 묶는다."""
+        import re
+        declared = set()
+        for m in re.finditer(r"^(?:let|const|var)\s+(.+?);", gui.JS, re.M):
+            declared |= {x.split("=")[0].strip() for x in m.group(1).split(",")}
+        for name in ("trainPick", "trainEval", "trainPreset", "trainName", "trainOpen",
+                     "readyOpen", "timeOpen", "setOpen", "projOpen", "openDates",
+                     "toolOpen", "durS", "delayS", "rtModel", "shownPng", "tab", "sig"):
+            with self.subTest(name):
+                self.assertIn(name, declared)
+
+    def test_removed_tabs_leave_no_dead_sections(self):
+        for gone in ("boards", "meta", "analyze"):
+            with self.subTest(gone):
+                self.assertNotIn(f'id="{gone}"', gui.PAGE)
+                self.assertNotIn(f"tab === '{gone}'", gui.JS)
+
+
 class VerdictLineTest(unittest.TestCase):
     """CLI 수집 직후 한 줄 — 제어판과 같은 문장을 쓴다."""
 
