@@ -50,15 +50,53 @@ PRESETS = {
 }
 TRAINERS = {"phase60": ROOT / "model_train" / "phase60" / "train.py",
             "amp60": ROOT / "model_train" / "amp60" / "train.py"}
+#: 학습기마다 `--train-stride` 기본값이 다르다. 하나로 뭉뚱그리면 창 수가 5배 틀린다.
+#: 값은 각 train.py 의 add_argument 기본값이고, 바뀌면 여기 테스트가 깨진다.
+TRAINER_STRIDE = {"phase60": 30, "amp60": 150}
+TRAINER_WINDOW = {"phase60": 6000, "amp60": 3000}
 #: 사전 추정용 계수 (초 / (창 × 스텝 × epoch × seed)). 위상 모델 실측에서 얻었다 —
 #: v1 11789창×300스텝 1631초, v3 11789×600 2629초, v2 10189×900 3415초 → 1.24~1.54e-5.
 #: 진폭 모델은 시계열이 1/3 이라 더 빠르다. 어차피 첫 epoch 뒤 실측으로 대체된다.
 SECONDS_PER_UNIT = 1.24e-5
+#: 학습기별 계수 (초 / (창 × 스텝 × epoch × seed)). **진폭이 위상보다 5배 빠르다** —
+#: 위상은 156열을 들고 특징을 뽑지만 진폭은 51계열이다. 하나로 쓰면 버튼이 5배 부풀린다.
+#: 실측: 위상 11789창×300스텝 1631초 / 진폭 2687창×300스텝 62초.
+TRAINER_RATE = {"phase60": 1.24e-5, "amp60": 2.56e-6}
 EPOCH_RE = re.compile(r"seed (\d+) epoch (\d+)/(\d+)")
 
 
-def estimate_seconds(windows: int, steps: int, epochs: int, seeds: int) -> float:
-    return SECONDS_PER_UNIT * windows * steps * epochs * seeds
+def preset_shape(preset: dict) -> dict:
+    """프리셋의 창·stride·스텝 — 화면이 버튼에 쓸 시간을 어림하는 데 쓴다.
+
+    창은 `--window` 인자에서, stride 는 학습기 기본값(150)에서 온다. 인자로 명시되지 않은
+    것은 학습기와 같은 기본값을 쓴다.
+    """
+    args, trainer = preset["args"], preset["trainer"]
+    window = (int(args[args.index("--window") + 1]) if "--window" in args
+              else TRAINER_WINDOW[trainer])
+    stride = (int(args[args.index("--train-stride") + 1]) if "--train-stride" in args
+              else TRAINER_STRIDE[trainer])
+    return {"window": window, "train_stride": stride, "steps": preset["steps"],
+            "rate": TRAINER_RATE[trainer]}
+
+
+def predict_windows(sessions: list, window: int, stride: int) -> int:
+    """학습기가 데이터를 읽기 **전에** 창 수를 어림한다 — 버튼에 예상 시간을 쓰려면 필요하다.
+
+    실제 창 수는 누락이 낀 창을 빼므로 이보다 조금 적다. 그래서 화면에는 `약` 을 붙이고,
+    첫 epoch 이 끝나면 실측 속도로 갈아탄다.
+    """
+    total = 0
+    for s in sessions:
+        frames = int((s.get("span_s") or 0) * 100)
+        if frames >= window:
+            total += (frames - window) // stride + 1
+    return total
+
+
+def estimate_seconds(windows: int, steps: int, epochs: int, seeds: int,
+                     trainer: str = "phase60") -> float:
+    return TRAINER_RATE.get(trainer, SECONDS_PER_UNIT) * windows * steps * epochs * seeds
 
 
 def hms(seconds: float) -> str:
@@ -103,7 +141,8 @@ def main() -> int:
             if line.startswith("  학습 ") and "창 " in line:       # 창 수를 알면 사전 추정을 낸다
                 try:
                     windows = int(line.split("창 ")[1].split("개")[0])
-                    eta = estimate_seconds(windows, preset["steps"], args.epochs, len(args.seeds))
+                    eta = estimate_seconds(windows, preset["steps"], args.epochs,
+                                           len(args.seeds), preset["trainer"])
                     print(f"[예상] 약 {hms(eta)} (첫 epoch 뒤 실측으로 갱신)", flush=True)
                 except (IndexError, ValueError):
                     pass

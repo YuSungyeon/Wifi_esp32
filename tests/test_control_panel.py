@@ -216,6 +216,35 @@ class SessionGroupTest(unittest.TestCase):
         self.assertEqual(gui.session_groups(rows)[0]["placements"], ["P1", "P3"])
 
 
+class TrainScreenTest(unittest.TestCase):
+    """학습 탭 — 고민하는 건 '어떤 데이터로' 와 '어떤 설정으로' 둘뿐이다 (설계 §5)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.state = gui.training_state()
+
+    def test_nothing_is_selected_when_the_screen_opens(self):
+        """미리 고르면 평가 날짜 기본값(학습에 안 쓴 날짜)이 갈 곳이 없어진다."""
+        self.assertEqual(self.state["selected"], [])
+
+    def test_each_date_reports_how_many_models_used_it(self):
+        """'봉인' 이라고 적을 수 없다 — 네 날짜 모두 이미 학습에 쓰였다. 사실만 적는다."""
+        row = next(d for d in self.state["dates"] if d["date"] == "20260920")
+        self.assertGreater(row["trained_models"], 0)
+
+    def test_presets_carry_what_the_screen_needs_to_estimate_time(self):
+        """버튼의 '약 N분' 은 창 길이와 stride 로 센다 — 화면이 그 값을 알아야 한다."""
+        for name, p in self.state["presets"].items():
+            with self.subTest(name):
+                self.assertGreater(p["window"], 0)
+                self.assertGreater(p["train_stride"], 0)
+                self.assertGreater(p["steps"], 0)
+
+    def test_a_date_no_model_used_reports_zero(self):
+        row = next(d for d in self.state["dates"] if d["date"] == "20260910")
+        self.assertEqual(row["trained_models"], 0)
+
+
 class VerdictLineTest(unittest.TestCase):
     """CLI 수집 직후 한 줄 — 제어판과 같은 문장을 쓴다."""
 

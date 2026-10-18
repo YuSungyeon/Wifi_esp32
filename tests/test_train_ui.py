@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from _train_run import PRESETS, estimate_seconds, hms  # noqa: E402
+from _train_run import PRESETS, estimate_seconds, hms, predict_windows  # noqa: E402
 from train_sessions import (  # noqa: E402
     EXCLUDED_SESSIONS, available_eval_dates, check_selection, group_by_date, is_excluded, session_key,
 )
@@ -93,12 +93,51 @@ class ExclusionTest(unittest.TestCase):
             self.assertTrue(why.strip())
 
 
+class PresetShapeTest(unittest.TestCase):
+    def test_stride_follows_the_trainer_not_one_global_default(self):
+        """학습기마다 --train-stride 기본값이 다르다 — phase60 은 30, amp60 은 150.
+        하나로 뭉뚱그리면 버튼의 예상 시간이 5배 틀린다."""
+        from _train_run import preset_shape
+        self.assertEqual(preset_shape(PRESETS["balanced"])["train_stride"], 30)
+        self.assertEqual(preset_shape(PRESETS["amplitude"])["train_stride"], 150)
+
+    def test_explicit_argument_wins_over_the_default(self):
+        from _train_run import preset_shape
+        p = dict(PRESETS["balanced"], args=["--window", "6000", "--train-stride", "60"])
+        self.assertEqual(preset_shape(p)["train_stride"], 60)
+
+
+class PredictWindowsTest(unittest.TestCase):
+    """버튼에 예상 시간을 쓰려면 창 수를 **학습기가 읽기 전에** 알아야 한다."""
+
+    def test_matches_the_trainer_within_10_percent(self):
+        """실측: 15세션 300초, 창 3000 stride 150 → 학습기가 센 창 2687개."""
+        got = predict_windows([{"span_s": 300.0}] * 15, window=3000, stride=150)
+        self.assertLess(abs(got - 2687) / 2687, 0.10)
+
+    def test_sessions_shorter_than_the_window_contribute_nothing(self):
+        self.assertEqual(predict_windows([{"span_s": 10.0}], window=3000, stride=150), 0)
+
+    def test_no_sessions_is_zero_not_a_crash(self):
+        self.assertEqual(predict_windows([], window=3000, stride=150), 0)
+
+
 class EstimateTest(unittest.TestCase):
     def test_estimate_is_within_25_percent_of_measured_runs(self):
         for windows, steps, real in [(11789, 300, 1631), (11789, 600, 2629), (10189, 900, 3415)]:
             with self.subTest(steps=steps):
                 got = estimate_seconds(windows, steps, 10, 3)
                 self.assertLess(abs(got - real) / real, 0.25)
+
+    def test_amplitude_is_much_faster_and_needs_its_own_rate(self):
+        """실측: 진폭 30초 15세션(2687창 × 300스텝, seed 3, epoch 10) 62초.
+        위상 계수를 그대로 쓰면 5배 부풀어 버튼이 거짓말을 한다."""
+        got = estimate_seconds(2687, 300, 10, 3, trainer="amp60")
+        self.assertLess(abs(got - 62) / 62, 0.25)
+
+    def test_phase_rate_is_the_default(self):
+        self.assertEqual(estimate_seconds(1000, 300, 10, 3),
+                         estimate_seconds(1000, 300, 10, 3, trainer="phase60"))
 
     def test_estimate_scales_with_every_factor(self):
         base = estimate_seconds(1000, 300, 10, 3)

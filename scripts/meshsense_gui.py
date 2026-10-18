@@ -53,9 +53,10 @@ RECV_POC = REPO_ROOT / "esp32s3_csi_recv_poc"
 PY = sys.executable
 
 sys.path.insert(0, str(SCRIPT_DIR))
-from _train_run import PRESETS as _PRESETS  # noqa: E402
+from _train_run import PRESETS as _PRESETS, preset_shape  # noqa: E402
 
-PRESET_INFO = {k: {"label": v["label"], "detail": v["detail"]} for k, v in _PRESETS.items()}
+PRESET_INFO = {k: {"label": v["label"], "detail": v["detail"], **preset_shape(v)}
+               for k, v in _PRESETS.items()}
 
 LABEL_DESC = {"empty": "부재 — 공간에 사람 없음",
               "static": "정지 — 사람이 있으나 움직이지 않음",
@@ -457,11 +458,21 @@ def live_session_dir(raw_root: Path = RAW_ROOT, max_age_s: float = 10.0) -> Opti
 
 
 def training_state() -> dict:
-    """학습 탭이 쓰는 것: 날짜별 세션과 지금까지 학습한 모델."""
+    """학습 탭이 쓰는 것: 날짜별 세션과 지금까지 학습한 모델.
+
+    날짜마다 **그 날짜로 학습한 모델이 몇 개인지** 적는다. "봉인" 이라고 쓰지 않는 이유는
+    봉인된 날짜가 더 이상 없기 때문이다 — 네 날짜 모두 이미 학습에 쓰였다. 잠금이 아니라
+    사실이므로 체크포인트를 세어 만들고, 학습할 때마다 저절로 맞는다 (설계 §5).
+    """
+    models = trained_models()
+    used: dict = {}
+    for m in models:
+        for d in m.get("train_dates") or []:
+            used[d] = used.get(d, 0) + 1
     sessions = list_sessions()
-    groups = [{"date": date, "sessions": items}
+    groups = [{"date": date, "sessions": items, "trained_models": used.get(date, 0)}
               for date, items in group_by_date(sessions).items()]
-    return {"dates": groups, "presets": PRESET_INFO, "models": trained_models()}
+    return {"dates": groups, "presets": PRESET_INFO, "models": models, "selected": []}
 
 
 def trained_models() -> list:
@@ -855,7 +866,7 @@ function render() {
         <code>python model_train/preprocessing/preprocess_3rx.py --raw-dir mac_collector_output/jsonl/raw/&lt;날짜&gt;</code></p>` : ''}
       </div>`;
   }
-  if (tab === 'train' && changed('train', [S.training, busy, trainPick.size, trainEval, trainPreset])) {
+  if (tab === 'train' && changed('train', [S.training, busy, trainPick.size, trainEval, trainPreset, trainName, trainOpen])) {
     document.getElementById('train').innerHTML = renderTrain(S.training, busy);
   }
   if (tab === 'analyze' && changed('analyze', [busy, S.diag_png])) {
@@ -989,6 +1000,7 @@ function renderRealtime(r){
       </span></div></div>`;
 }
 let trainPick = new Set(), trainEval = null, trainPreset = 'balanced', trainName = '';
+let trainOpen = false;
 function trainToggle(key){ trainPick.has(key) ? trainPick.delete(key) : trainPick.add(key);
   if (trainEval && [...trainPick].some(k => k.startsWith(trainEval))) trainEval = null;
   delete sig.train; render(); }
@@ -1000,80 +1012,97 @@ function trainToggleDate(date, keys){
 function trainSetEval(d){ trainEval = d || null; delete sig.train; render(); }
 function trainSetPreset(p){ trainPreset = p; delete sig.train; render(); }
 function startTrain(){
-  post('/api/train', {sessions: [...trainPick], eval_dates: trainEval ? [trainEval] : [],
+  const locked = new Set([...trainPick].map(k => k.split('_')[0]));
+  const free = (S.training.dates || []).map(g => g.date).filter(d => !locked.has(d)).sort().reverse();
+  const ev = free.includes(trainEval) ? trainEval : (free[0] || null);
+  post('/api/train', {sessions: [...trainPick], eval_dates: ev ? [ev] : [],
                       preset: trainPreset, name: trainName.trim()});
 }
 function renderTrain(t, busy){
   if (!t) return '';
-  const lockedDates = new Set([...trainPick].map(k => k.split('_')[0]));
   const counts = {empty:0, static:0, motion:0};
-  t.dates.forEach(g => g.sessions.forEach(s => { if (trainPick.has(s.key)) counts[s.label]++; }));
+  let span = 0;
+  t.dates.forEach(g => g.sessions.forEach(s => {
+    if (trainPick.has(s.key)) { counts[s.label]++; span += s.span_s || 0; }
+  }));
   const total = trainPick.size;
   const ready = total > 0 && Object.values(counts).every(c => c >= 2);
+  const lockedDates = new Set([...trainPick].map(k => k.split('_')[0]));
+  //: 평가 날짜 기본값 — 학습에 안 쓴 날짜 중 가장 최근 (설계 §5)
+  const free = t.dates.map(g => g.date).filter(d => !lockedDates.has(d)).sort().reverse();
+  const evalDate = trainEval !== undefined && trainEval !== null && free.includes(trainEval)
+    ? trainEval : (free[0] || null);
+  const preset = t.presets[trainPreset] || Object.values(t.presets)[0];
+  const name = trainName || autoName(trainPreset);
 
-  const dates = t.dates.map(g => {
+  const dates = t.dates.slice().reverse().map(g => {
     const keys = g.sessions.map(s => s.key);
     const picked = keys.filter(k => trainPick.has(k)).length;
-    const isEval = trainEval === g.date;
-    return `<div class="datebox${isEval ? ' locked' : ''}">
-      <div class="datehead">${esc(g.date)}
-        <span class="hint">${picked}/${g.sessions.length} 선택${isEval ? ' · 평가용' : ''}</span>
-        <button class="act" ${isEval||busy?'disabled':''}
-          onclick='trainToggleDate("${g.date}", ${JSON.stringify(keys)})'>날짜 전체</button></div>
-      <div class="slist">${g.sessions.map(s => `<label title="${esc(s.name)}">
-        <input type="checkbox" ${trainPick.has(s.key)?'checked':''} ${isEval||busy?'disabled':''}
-          onchange='trainToggle("${s.key}")'>
-        <span class="${s.ok?'':'bad'}">${esc(s.label)}</span>
-        <span class="lab">s${esc(s.key.split('_')[1])} · ${s.hz}Hz${s.ok?'':' ⚠'}</span>
-      </label>`).join('')}</div></div>`;
+    const isEval = evalDate === g.date;
+    //: 왜 못 고르는지 적는다. 전에는 그냥 회색이라 이유를 알 수 없었다.
+    const why = isEval ? '평가에 쓰입니다'
+      : g.trained_models ? `이 날짜로 학습한 모델이 ${g.trained_models}개 있습니다` : '';
+    const n = {empty:0, static:0, motion:0};
+    g.sessions.forEach(s => { if (n[s.label] !== undefined) n[s.label]++; });
+    return `<div class="grp"><div class="hd" ${isEval||busy?'':`onclick='trainToggleDate("${g.date}", ${JSON.stringify(keys)})'`}
+        style="${isEval?'opacity:.55;cursor:default':''}">
+        ${picked === keys.length ? '☑' : picked ? '◪' : '☐'} <b>${esc(g.date)}</b>
+        <span class="hint">${picked ? picked + '/' : ''}${keys.length}세션</span>
+        <span class="sp">${why || `empty ${n.empty} · static ${n.static} · motion ${n.motion}`}</span>
+      </div></div>`;
   }).join('');
 
-  const evalOptions = t.dates.map(g => g.date).filter(d => !lockedDates.has(d));
-  const presets = Object.entries(t.presets).map(([k, p]) => `<label>
-    <input type="radio" name="preset" ${trainPreset===k?'checked':''} ${busy?'disabled':''}
-      onchange='trainSetPreset("${k}")'><b>${esc(p.label)}</b><span>${esc(p.detail)}</span></label>`).join('');
+  const windows = predictWindows(span, preset);
+  const secs = windows ? preset.rate * windows * preset.steps * 10 * 3 : 0;
+  const eta = secs && secs < 36000 ? ` — 약 ${hms(secs)}` : '';
 
-  const models = t.models.length ? `<table><tr><th>모델</th><th>구성</th><th>학습</th><th>평가</th><th>크기</th></tr>
-    ${t.models.map(m => `<tr>
-      <td>${esc(m.name)}<br><span class="hint">${esc(m.trained_at)}</span></td>
+  const models = t.models.length ? `<table><tr><th>이름</th><th>구성</th><th>평가</th></tr>
+    ${t.models.map(m => `<tr><td>${esc(m.name)}<br><span class="hint">${esc(m.trained_at)}</span></td>
       <td>${esc(m.mode)} · 창 ${m.window_s}초</td>
-      <td>${m.sessions}세션<br><span class="hint">${esc((m.train_dates||[]).join(' '))}</span></td>
-      <td>${m.score ? esc(m.score) + `<br><span class="hint">창 ${m.window_acc}</span>` : '—'}</td>
-      <td class="hint">${m.size_kb}KB</td></tr>`).join('')}</table>`
+      <td>${m.score ? esc(m.score) + `<br><span class="hint">창 ${m.window_acc}</span>` : '—'}</td></tr>`).join('')}</table>`
     : `<p class="sub">아직 학습한 모델이 없습니다.</p>`;
 
   return `<div class="card">
-      <h2>1. 세션 고르기</h2>
-      <p class="sub">학습에 쓸 세션을 고릅니다. ⚠ 는 수집 품질이 미달한 세션입니다.</p>
+      <p class="lbl">학습할 세션</p>
       ${dates}
-      <p class="sub" style="margin:.6rem 0 0">선택 <b>${total}세션</b> —
-        빈 방 ${counts.empty} · 정지 ${counts.static} · 움직임 ${counts.motion}
-        ${ready ? '' : '<span class="tag warn">클래스마다 2세션 이상 필요</span>'}</p>
-    </div>
-    <div class="card"><h2>2. 평가 날짜</h2>
-      <p class="sub">학습에 쓴 날짜는 고를 수 없습니다 — 그 데이터로 평가하면 점수가 부풀기 때문입니다.</p>
-      <div class="bar">${evalOptions.map(d => `<button class="act ${trainEval===d?'primary':''}"
-        ${busy?'disabled':''} onclick='trainSetEval("${d}")'>${esc(d)}</button>`).join('')}
-        <button class="act ${trainEval===null?'primary':''}" ${busy?'disabled':''}
-          onclick='trainSetEval(null)'>평가 없이 학습만</button></div>
-    </div>
-    <div class="card"><h2>3. 설정</h2>
-      <p class="sub">실험에서 가장 좋았던 구성입니다. 효과가 없던 조합은 올리지 않았습니다.</p>
-      <div class="presets">${presets}</div>
-    </div>
-    <div class="card"><h2>4. 모델 이름</h2>
-      <p class="sub">비워 두면 날짜와 설정으로 자동 생성합니다 (예: 20261012-1430-balanced).
-        글자·숫자·밑줄·하이픈만 씁니다.</p>
-      <input id="trainname" type="text" placeholder="예: 9월전체-균형" maxlength="40"
-        value="${esc(trainName)}" oninput="trainName = this.value">
-    </div>
-    <div class="card"><div class="bar" style="margin:0">
-      <button class="act primary" ${busy||!ready?'disabled':''} onclick="startTrain()">학습 시작</button>
-      <span class="hint">${busy ? '다른 작업이 실행 중입니다'
-        : ready ? `${total}세션 · seed 3개 · epoch 10` : '세션을 더 고르세요'}</span>
-    </div></div>
-    <div class="card"><h2>학습한 모델</h2>${models}</div>`;
+      <p class="hint">선택 <b>${total}세션</b> — 빈 방 ${counts.empty} · 정지 ${counts.static} · 움직임 ${counts.motion}
+        ${ready ? '✓' : '<span class="tag warn">클래스마다 2세션 이상 필요</span>'}</p>
+
+      <p class="lbl">설정</p>
+      <div class="steps">${Object.entries(t.presets).map(([k,p]) =>
+        `<i class="${trainPreset===k?'now':''}" onclick="trainSetPreset('${k}')">${esc(p.label)}</i>`).join('')}</div>
+      <p class="hint">${esc(preset.detail)}</p>
+
+      ${trainOpen
+        ? `<div class="row" style="margin-top:.9rem">
+             <div><label>평가 날짜</label>
+               <div class="steps">${free.map(d => `<i class="${evalDate===d?'now':''}" onclick="trainSetEval('${d}')">${esc(d)}</i>`).join('')}
+                 <i class="${evalDate===null?'now':''}" onclick="trainSetEval(null)">평가 없이</i></div></div>
+             <div><label for="trainname">모델 이름</label>
+               <input id="trainname" type="text" maxlength="40" value="${esc(trainName)}"
+                 placeholder="${esc(autoName(trainPreset))}" oninput="trainName = this.value"></div></div>`
+        : `<div class="setting"><span>평가는 <b>${evalDate ? esc(evalDate) : '없이'}</b>로 · 이름 <b>${esc(name)}</b></span>
+             <span class="link" onclick="trainOpen=true;delete sig.train;render()">바꾸기</span></div>`}
+
+      <button class="act primary go" ${busy||!ready?'disabled':''} onclick="startTrain()">
+        ${ready ? `${total}세션으로 학습 시작${eta}` : '세션을 더 고르세요'}</button>
+      ${busy?'<p class="hint">다른 작업이 실행 중입니다</p>':''}
+
+      <p class="lbl">학습한 모델 (${t.models.length})</p>
+      ${models}</div>`;
 }
+//: 창 수 어림 — 학습기가 데이터를 읽기 전에 버튼에 시간을 쓰려면 필요하다 (_train_run.predict_windows)
+function predictWindows(spanSeconds, preset){
+  const frames = Math.round(spanSeconds * 100);
+  const w = preset.window || 6000, stride = preset.train_stride || 150;
+  return frames >= w ? Math.floor((frames - w) / stride) + 1 : 0;
+}
+function autoName(preset){
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}-${preset}`;
+}
+function hms(s){ s = Math.round(s); return s >= 60 ? `${Math.floor(s/60)}분 ${p2(s%60)}초` : `${s}초`; }
+function p2(n){ return String(n).padStart(2,'0'); }
 function tog(id){const f=document.getElementById('devices.expected_device_ids');
   const s=f.value.split(/[,\s]+/).filter(Boolean);const i=s.indexOf(String(id));
   if(i<0)s.push(String(id));else s.splice(i,1);f.value=s.sort((a,b)=>a-b).join(', ');}
