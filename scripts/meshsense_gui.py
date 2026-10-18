@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import importlib.util
 import http.server
 import re
 import json
@@ -118,6 +119,11 @@ RT_JOB = Job()    # 실시간 판단 — 파일만 읽으므로 수집과 같이
 LIVE_JOB = "실시간 측정 · 수집"
 
 
+#: 학습·파형에만 쓰이는 패키지. 없어도 **수집은 막지 않는다**.
+VENV_PACKAGES = {name: importlib.util.find_spec(name) is not None
+                 for name in ("numpy", "matplotlib", "torch")}
+
+
 # ── 상태 조회 ─────────────────────────────────────────────────────────────────
 def list_ports() -> list[str]:
     return sorted(glob.glob("/dev/cu.usbmodem*") + glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*"))
@@ -135,6 +141,87 @@ def identify(port: str) -> dict:
     except Exception:
         return {"port": port, "registered": False, "device_id": None,
                 "sta_mac": None, "firmware": None, "board_name": ""}
+
+
+def _registered_rx(boards: list) -> list[dict]:
+    """등록된 RX 들. SINK 포트는 뒤에 붙은 RX(`via`)로 센다."""
+    return [r for b in boards for r in (b.get("via") or [b]) if r.get("registered")]
+
+
+def last_session_hz() -> dict:
+    """보드별 마지막 세션의 Hz. **실측이 아니다** — 포트를 열지 않고 매니페스트에서 읽는다."""
+    out: dict = {}
+    for d in sorted(RAW_ROOT.glob("*/*"), reverse=True):
+        if not (d / "session.json").is_file():
+            continue
+        try:
+            m = read_manifest(d)
+        except Exception:
+            continue
+        for x in m.get("devices", []):
+            span = x.get("span_s") or 0
+            if span and x["device_id"] not in out:
+                out[x["device_id"]] = round(x["frames"] / span, 1)
+        if len(out) >= 3:
+            break
+    return out
+
+
+def ready_line(boards: list | None = None, job_running: bool | None = None,
+               packages: dict | None = None, pyserial: bool | None = None,
+               last_hz: dict | None = None, notes: list | None = None) -> dict:
+    """수집 화면 맨 위 한 줄. 옛 보드 탭이 여기로 들어온다 (doc/control-panel.md §3.1).
+
+    **수집에 필요한 것만 막는다** — `pyserial` 과 RX 3대. torch·matplotlib 은 학습과 파형에만
+    쓰이므로 없어도 수집은 돌아가야 한다.
+
+    **포트를 다시 찾지 않는다.** 보드 목록은 `/api/rescan` 이 채운 캐시이고 Hz 는 마지막 세션
+    매니페스트에서 읽는다. 수집 중에 포트를 건드리면 수집기와 다툰다 (CLAUDE.md).
+    """
+    boards = Handler.boards_cache if boards is None else boards
+    job_running = JOB.running if job_running is None else job_running
+    if job_running:
+        return {"level": "ok", "text": "수집 중 — 보드 점검을 멈춥니다", "rows": []}
+
+    rows: list[dict] = []
+    rx = _registered_rx(boards)
+    last_hz = last_session_hz() if last_hz is None else last_hz
+    for r in sorted(rx, key=lambda x: x.get("device_id") or 0):
+        hz = last_hz.get(r.get("device_id"))
+        rows.append({"key": f"rx{r.get('device_id')}", "level": "ok", "action": None,
+                     "text": f"RX{r.get('device_id')} 연결됨"
+                             + (f" · 지난 세션 {hz}Hz" if hz else "")})
+    for b in boards:
+        for r in (b.get("via") or [b]):
+            if not r.get("registered") and r.get("sta_mac"):
+                rows.append({"key": f"new-{r['sta_mac']}", "level": "warn", "action": "register",
+                             "text": f"등록되지 않은 보드 {r['sta_mac']}"})
+
+    level = "ok" if len(rx) >= 3 else "block"
+    text = f"RX {len(rx)}대" if len(rx) >= 3 else f"RX {len(rx)}대 — 수집에는 3대가 필요합니다"
+
+    if pyserial is None:
+        pyserial = importlib.util.find_spec("serial") is not None
+    if not pyserial:
+        rows.append({"key": "pyserial", "level": "block", "action": None,
+                     "text": "pyserial 이 없습니다 — 수집기가 포트를 열 수 없습니다"})
+        level, text = "block", "pyserial 이 없습니다"
+
+    packages = VENV_PACKAGES if packages is None else packages
+    missing = sorted(k for k, v in packages.items() if not v)
+    if missing:
+        rows.append({"key": "venv", "level": "warn", "action": None,
+                     "text": f".venv 에 {', '.join(missing)} 가 없습니다 — 학습·파형에만 필요합니다"})
+        if level == "ok":
+            level = "warn"
+
+    for r in (readiness() if notes is None else notes):   # 좌표·커밋 경고는 그대로 쓴다
+        rows.append({"key": "note", "level": "warn", "action": None, "text": r["text"]})
+        if level == "ok":
+            level = "warn"
+    if level == "ok":
+        text = f"준비됐습니다 · {text}"
+    return {"level": level, "text": text, "rows": rows}
 
 
 def readiness() -> list[dict]:
@@ -436,8 +523,16 @@ img.wf{width:100%;border:1px solid var(--line);border-radius:10px;margin-top:.6r
 .presets span{color:var(--muted);font-size:.85rem}
 .prog{height:12px;border-radius:999px;background:var(--bg);border:1px solid var(--line);overflow:hidden}
 .prog i{display:block;height:100%;background:var(--accent)}
-.ready{border-radius:8px;padding:.55rem .75rem;margin-bottom:.6rem;font-size:.88rem;
+.ready{display:flex;align-items:center;gap:.5rem;border-radius:8px;padding:.55rem .75rem;
+ margin-bottom:.6rem;font-size:.88rem;cursor:pointer;
  background:var(--warnbg);color:var(--warn);border:1px solid var(--warn)}
+.ready.ok{background:var(--okbg);color:var(--ok);border-color:var(--ok)}
+.ready.block{background:var(--stbg);color:var(--st-suspended);border-color:var(--st-suspended)}
+.ready .sp{margin-left:auto;font-size:.79rem;opacity:.8}
+.readyrows{margin:-.3rem 0 .9rem;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.readyrows .r{display:flex;align-items:center;gap:.6rem;padding:.4rem .75rem;font-size:.85rem;
+ border-top:1px solid var(--line)}
+.readyrows .r:first-child{border-top:0}
 """
 
 PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
@@ -557,14 +652,14 @@ function render() {
       <p class="sub" style="margin-top:1rem">등록되지 않은 보드는 먼저 registry 에 추가해야 수집됩니다:
       <code>python scripts/device_registry.py add --port &lt;포트&gt; --board-name RXn</code></p></div>`;
   }
-  if (tab === 'collect' && changed('collect', [S.next_session_id, S.rx_count, busy, S.meta.label_target, S.readiness, order])) {
+  if (tab === 'collect' && changed('collect', [S.next_session_id, S.rx_count, busy, S.meta.label_target, S.ready, readyOpen, order])) {
     const opts = S.session_labels.map(l => `<option value="${l}" ${l===S.meta.label_target?'selected':''}>${l} — ${esc(S.label_desc[l])}</option>`).join('');
     document.getElementById('collect').innerHTML = `<div class="card">
       <h2>수집</h2>
       <p class="sub">라벨은 지금 고른 값이 그대로 데이터에 기록됩니다. 순번은 <code>session.json</code>이 있는 세션만 세어 자동으로 정합니다. 매니페스트가 없는 예전 <code>session_N</code> 폴더는 제외됩니다.</p>
       <div class="bar"><span>다음 순번</span><span class="big">s${S.next_session_id}</span>
         <span class="hint">RX ${S.rx_count}대 인식됨</span></div>
-      ${S.readiness.map(r => `<div class="ready ${r.level}">${esc(r.text)}</div>`).join('')}
+      ${renderReady(S.ready)}
       <label for="lab">라벨</label><select id="lab">${opts}</select>
       <label>블록 순서 <span class="hint">— 블록마다 새로 뽑습니다. 누르면 라벨이 선택됩니다</span></label>
       <div class="bar">${(order||[]).map((l,i)=>`<button class="act" onclick="document.getElementById('lab').value='${l}'">${i+1}. ${l}</button>`).join('')}
@@ -573,8 +668,8 @@ function render() {
         <div><label for="delay">시작 지연 (초) <span class="hint">— 자리 잡기·퇴장, 세션에 안 들어감</span></label>
         <input id="delay" type="number" value="10" min="0" step="1"></div></div>
       <div class="bar" style="margin-top:1rem">
-        <button class="act primary" ${busy||!S.rx_count?'disabled':''} onclick="startCollect()">수집 시작</button>
-        ${!S.rx_count?'<span class="hint">등록된 RX 보드가 없습니다</span>':''}</div></div>`;
+        <button class="act primary" ${busy||S.ready.level==='block'?'disabled':''} onclick="startCollect()">수집 시작</button>
+        ${S.ready.level==='block'?`<span class="hint">${esc(S.ready.text)}</span>`:''}</div></div>`;
   }
   if (tab === 'sessions' && changed('sessions', [S.sessions, shownPng])) {
     const rows = S.sessions.map(s => `<tr>
@@ -828,6 +923,25 @@ function startCollect(){
                        duration:parseFloat(document.getElementById('dur').value),
                        delay:parseFloat(document.getElementById('delay').value)});
 }
+let readyOpen = false;
+function toggleReady(){ readyOpen = !readyOpen; delete sig.collect; render(); }
+function registerBoard(mac){
+  const name = prompt('보드 이름', 'RX');
+  if (name !== null) post('/api/register', {sta_mac: mac, name: name});
+}
+//: 평소엔 한 줄, 막혔을 때만 펼친다 — 문제는 막힌 자리에서 푼다 (control-panel.md §2)
+function renderReady(r){
+  if (!r) return '';
+  const act = {register: m => `<button class="act" onclick="registerBoard('${esc(m)}')">등록</button>`};
+  const rows = readyOpen ? `<div class="readyrows">${r.rows.map(x => `<div class="r">
+      <span>${esc(x.text)}</span>
+      ${x.action === 'register' ? act.register(x.key.replace('new-','')) : ''}</div>`).join('')
+    || '<div class="r"><span>더 볼 것이 없습니다</span></div>'}
+    <div class="r"><button class="act" onclick="post('/api/rescan')">보드 다시 찾기</button></div></div>` : '';
+  return `<div class="ready ${esc(r.level)}" onclick="toggleReady()">
+      <span>${r.level === 'ok' ? '✓' : '⚠'} ${esc(r.text)}</span>
+      <span class="sp">자세히 ${readyOpen ? '▾' : '▸'}</span></div>${rows}`;
+}
 function drawOrder(){
   const prev = JSON.stringify(order); let o;
   do { o = [...S.labels]; for (let i = o.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [o[i],o[j]] = [o[j],o[i]]; } }
@@ -892,7 +1006,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "diag_png": DIAG_PNG_REL if (REPO_ROOT / DIAG_PNG_REL).is_file() else None,
                 "diag_png_mtime": int((REPO_ROOT / DIAG_PNG_REL).stat().st_mtime)
                 if (REPO_ROOT / DIAG_PNG_REL).is_file() else 0,
-                "readiness": readiness(),
+                "ready": ready_line(),
                 "training": training_state(),
                 "rt_models": realtime_models(),
                 # 실시간이 안 돌면 지난 실행의 화면을 띄우지 않는다 — 옛 결과를 지금으로 착각하게 된다
@@ -966,6 +1080,17 @@ def dispatch(path: str, body: dict) -> dict:
         err = JOB.start(f"수집 · {label} · {dur:.0f}초",
                         [PY, str(SCRIPT_DIR / "_collect_run.py"), label, str(dur), str(delay)])
         return {"error": err} if err else {"ok": True}
+
+    if path == "/api/register":
+        mac, name = (body.get("sta_mac") or "").strip(), (body.get("name") or "").strip()
+        if not mac:
+            return {"error": "sta_mac 이 필요합니다"}
+        r = subprocess.run([PY, str(SCRIPT_DIR / "device_registry.py"), "add",
+                            "--mac", mac, "--board-name", name or "RX"],
+                           capture_output=True, text=True, cwd=str(REPO_ROOT))
+        if r.returncode != 0:                  # 조용히 실패하지 않는다 — stderr 를 그대로 보인다
+            return {"error": (r.stderr or r.stdout).strip()[:400]}
+        return rescan()
 
     if path == "/api/diagnose":
         err = JOB.start("분리 가능성 진단",
