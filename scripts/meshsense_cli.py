@@ -50,7 +50,10 @@ BoardKind = Literal["tx", "rx"]
 
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from csi_session import create_session, finalize_session, next_session_id, set_session_note, summarize  # noqa: E402
+from csi_session import (  # noqa: E402
+    create_session, finalize_session, next_session_id, quality, set_session_note, summarize,
+    verdict_line,
+)
 from csi_store import LABELS  # noqa: E402
 from session_meta import read_label_target, read_session_id  # noqa: E402
 from train_sessions import (  # noqa: E402
@@ -898,9 +901,16 @@ def _collect_poc_interactive() -> bool:
         print("  ② mac_collector/device_registry.csv 에 보드 MAC 이 등록되어 있는지 확인")
         return False
 
+    # 품질 문장은 제어판과 같은 함수에서 나온다 (doc/control-panel.md §4.2)
+    devices = manifest.get("devices", [])
+    level = quality(devices)[0]
+    print("\n" + verdict_line(devices))
+
     # collection-protocol.md §7 품질 판정 — 불합격(종료 코드 5)이면 버리는 쪽이 기본값
     venv_py = _ensure_postprocess_venv(interactive=True)
-    failed = venv_py is not None and _run_python(MEASURE_SCRIPT, [str(session_dir)], python=venv_py) == 5
+    failed = (level == "recollect"
+              or (venv_py is not None
+                  and _run_python(MEASURE_SCRIPT, [str(session_dir)], python=venv_py) == 5))
     if _ask_yes_no("이 세션을 버릴까요?" + (" (품질 불합격)" if failed else ""), default_no=not failed):
         shutil.rmtree(session_dir)
         print(f"[삭제] {session_dir.relative_to(REPO_ROOT)} — 같은 라벨로 다시 찍으세요")

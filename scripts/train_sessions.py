@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from csi_session import read_manifest  # noqa: E402
+from csi_session import quality, read_manifest  # noqa: E402
 from csi_store import LABELS  # noqa: E402
 
 RAW_ROOT = ROOT / "mac_collector_output" / "raw"
@@ -49,16 +49,15 @@ def list_sessions(raw_root: Path = RAW_ROOT) -> list[dict]:
             continue
         devices = m.get("devices", [])
         span = max((x.get("span_s") or 0) for x in devices) if devices else 0
-        # 수집 품질 판정과 같은 눈높이: 스트림 손상·재부팅이 있으면 학습에서 빼는 쪽이 기본
-        broken = any(x.get("crc_fail") or x.get("boot_changes") or x.get("tx_back")
-                     for x in devices)
+        # 품질 판정은 csi_session.quality() 한 곳에서만 나온다. check 는 학습에 쓸 수 있다.
+        level, _ = quality(devices)
         out.append({
             "key": session_key(d.parent.name, d.name),
             "date": d.parent.name, "name": d.name, "label": label,
             "span_s": round(span, 1), "rx": len(devices),
             "hz": round(sum(x["frames"] for x in devices) / len(devices) / span, 1)
             if devices and span else 0.0,
-            "ok": bool(devices) and not broken and len(devices) == 3,
+            "ok": level != "recollect",
             "path": str(d.relative_to(ROOT)),
         })
     return out

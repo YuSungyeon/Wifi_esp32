@@ -32,7 +32,8 @@ SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from csi_session import (  # noqa: E402
-    LIVE_LABEL, SESSION_LABELS, next_session_id, read_manifest, repo_provenance, set_session_note,
+    LIVE_LABEL, SESSION_LABELS, next_session_id, quality, read_manifest, repo_provenance,
+    set_session_note,
 )
 from csi_store import LABELS  # noqa: E402
 from train_sessions import (  # noqa: E402
@@ -183,9 +184,7 @@ def session_rows() -> list[dict]:
             continue
         devs = m.get("devices", [])
         span = max((x.get("span_s") or 0) for x in devs) if devs else 0
-        # seq_gap 이 1% 를 넘으면 무선 경합 등 손실이 있는 세션 — 학습 전 확인 필요
-        bad = any(x.get("crc_fail") or x.get("boot_changes") or x.get("tx_back")
-                  or (x.get("seq_gap", 0) > 0.01 * max(x.get("frames", 1), 1)) for x in devs)
+        level, text = quality(devs)        # 품질 판정은 csi_session 한 곳에서만 나온다
         rows.append({
             "path": str(d.relative_to(REPO_ROOT)),
             "name": d.name, "date": d.parent.name,
@@ -196,7 +195,7 @@ def session_rows() -> list[dict]:
                          "crc_fail": x.get("crc_fail", 0),
                          "boot_changes": x.get("boot_changes", 0),
                          "tx_back": x.get("tx_back", 0)} for x in devs],
-            "warn": bad,
+            "quality": {"level": level, "text": text},
             "png": (d / "csi_waterfall.png").is_file(),
             "note": session_note(d),
         })
@@ -357,6 +356,7 @@ th{color:var(--muted);font-weight:600;font-size:.82rem}
  background:var(--bg);border:1px solid var(--line)}
 .tag.ok{background:var(--okbg);color:var(--ok);border-color:var(--ok)}
 .tag.warn{background:var(--warnbg);color:var(--warn);border-color:var(--warn)}
+.tag.bad{background:var(--stbg);color:var(--st-suspended);border-color:var(--st-suspended)}
 pre.log{background:var(--code);color:var(--codefg);border-radius:10px;padding:.8rem;
  font:12px/1.5 ui-monospace,Menlo,monospace;max-height:22rem;overflow:auto;white-space:pre-wrap;margin:0}
 .bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.8rem}
@@ -582,7 +582,9 @@ function render() {
       <td><span class="tag">${esc(s.label)}</span></td>
       <td>${s.span_s}s</td>
       <td>${s.devices.map(d=>`RX${d.id} ${d.hz}Hz`).join('<br>')||'—'}</td>
-      <td>${s.warn?'<span class="tag warn">품질 확인</span>':'<span class="tag ok">정상</span>'}</td>
+      <td>${s.quality.level === 'ok' ? '<span class="tag ok">정상</span>'
+        : `<span class="tag ${s.quality.level === 'check' ? 'warn' : 'bad'}" title="${esc(s.quality.text)}">${
+            s.quality.level === 'check' ? '확인' : '재수집'}</span>`}</td>
       <td>${s.png?`<button class="act" onclick="showPng('${esc(s.path)}')">파형</button>`:''}
           <button class="act" onclick="noteSession('${esc(s.path)}')" title="${esc(s.note)}">메모${s.note?' ✓':''}</button>
           <button class="act danger" onclick="delSession('${esc(s.path)}')">삭제</button></td></tr>`).join('');

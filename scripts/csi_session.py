@@ -194,3 +194,49 @@ def summarize(manifest: dict) -> Iterable[str]:
             f"{hz:.1f}Hz crc_fail={d['crc_fail']} invalid={d['invalid']} "
             f"resync={d['resync']} seq_gap={d['seq_gap']} boot_changes={d['boot_changes']}"
         )
+
+
+#: 품질 판정의 **유일한 정의**. 제어판 세션 목록·학습 목록·CLI 수집 직후 판정이 모두 이것을
+#: 쓴다. 전에는 두 벌이었다 — 제어판은 seq_gap 까지 봤고 학습 목록은 RX 3대만 봤다.
+#: 기준값은 `doc/collection-protocol.md` §7 과 같다. 순서가 곧 센 정도다.
+_LEVELS = ("ok", "check", "recollect")
+#: 화면에 쓰는 말. 제어판 태그와 CLI 판정 줄이 같은 말을 써야 사람이 둘을 같은 것으로 읽는다.
+VERDICT = {"ok": "정상", "check": "확인", "recollect": "재수집"}
+
+
+def quality(devices: list) -> tuple:
+    """세션 품질 → `(level, text)`. `level ∈ ok | check | recollect`.
+
+    여러 조건이 겹치면 **가장 센 level 하나**와 문장들을 ` / ` 로 잇는다. 옛 매니페스트에
+    없는 키는 0 으로 본다 — 키가 없다고 죽으면 지난 세션을 못 읽는다.
+    """
+    notes: list = []
+    worst = 0
+    if len(devices) != 3:
+        notes.append(f"RX {len(devices)}대만 기록됐습니다 — 3대가 필요합니다")
+        worst = 2
+    for d in devices:
+        rx = d.get("device_id", "?")
+        if d.get("tx_back", 0):
+            notes.append("TX 가 수집 중 재부팅했습니다 — 시간 격자가 깨져 "
+                         "같은 라벨로 다시 찍으세요")
+            worst = max(worst, 2)
+        if d.get("boot_changes", 0):
+            notes.append(f"RX{rx} 가 수집 중 재부팅했습니다 — 전원·케이블 확인 후 "
+                         "같은 라벨로 다시 찍으세요")
+            worst = max(worst, 2)
+        if d.get("crc_fail", 0):
+            notes.append(f"RX{rx} CRC 실패 {d['crc_fail']}건 — 케이블 확인")
+            worst = max(worst, 1)
+        frames = max(d.get("frames", 1), 1)
+        if d.get("seq_gap", 0) > 0.01 * frames:
+            notes.append(f"RX{rx} 손실 {100 * d['seq_gap'] / frames:.1f}% — "
+                         "학습엔 쓸 수 있으나 무선 경합 의심")
+            worst = max(worst, 1)
+    return _LEVELS[worst], " / ".join(notes)
+
+
+def verdict_line(devices: list) -> str:
+    """수집 직후 CLI 에 찍는 한 줄."""
+    level, text = quality(devices)
+    return f"[판정] {VERDICT[level]}" + (f" — {text}" if text else "")
