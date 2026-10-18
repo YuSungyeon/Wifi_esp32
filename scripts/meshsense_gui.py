@@ -120,6 +120,11 @@ class Job:
 JOB = Job()       # 플래시·수집·학습·진단 — 포트를 쓰므로 한 번에 하나
 RT_JOB = Job()    # 실시간 판단 — 파일만 읽으므로 수집과 같이 돈다
 LIVE_JOB = "실시간 측정 · 수집"
+#: 운영자가 `판단 정지` 를 눌렀는가. RX 끊김과 구분해 화면에 다른 말을 쓴다.
+PAUSED_BY_OPERATOR = [False]
+#: 엔진(`realtime/engine.py`)이 정본이다. 여기 베껴 둔 이유는 engine import 가 torch 를
+#: 끌어와 제어판 시작이 느려지기 때문이고, 두 값이 같은지는 테스트가 묶어 둔다.
+MARKS_NAME = "realtime_marks.jsonl"
 
 
 #: 학습·파형에만 쓰이는 패키지. 없어도 **수집은 막지 않는다**.
@@ -406,7 +411,32 @@ def realtime_view(raw_root: Path = RAW_ROOT) -> Optional[dict]:
         return None
     view["spans"] = timeline_spans(view.get("events", []), view.get("t", 0.0))
     view["stale_s"] = round(time.time() - p.stat().st_mtime, 1)
+    view["last_mark_s"] = last_mark(p.parent)
+    view["paused_by_operator"] = PAUSED_BY_OPERATOR[0]
     return view
+
+
+def last_mark(session_dir: Path) -> Optional[float]:
+    """마지막으로 누른 전환 표시의 시각. 없으면 None.
+
+    이 버튼이 전환 반응 지연의 **유일한 정답 입력**이다 (realtime-inference.md §6).
+    눌렀는지 화면이 보여 주지 않으면 10/14 세션처럼 정답 없는 녹화가 또 남는다.
+    """
+    f = session_dir / MARKS_NAME
+    last = None
+    for line in (f.read_text(encoding="utf-8").splitlines() if f.is_file() else []):
+        try:
+            last = json.loads(line).get("t", last)
+        except json.JSONDecodeError:
+            continue
+    return last
+
+
+def pause_note(paused_by_operator: bool) -> str:
+    """멈춘 이유. **운영자가 멈춘 것과 RX 가 끊긴 것을 같은 말로 쓰지 않는다** — 전자는
+    정상이고 후자는 이상이다 (설계 §6)."""
+    return ("운영자가 판단을 멈췄습니다 — 수집은 계속됩니다"
+            if paused_by_operator else "신호가 끊겨 판단을 멈췄습니다")
 
 
 def timeline_spans(events: list, now: float, minutes: int = 60) -> list:
@@ -595,20 +625,18 @@ img.wf{width:100%;border:1px solid var(--line);border-radius:10px;margin-top:.6r
 .tl .deciding,.tl .suspended{background:repeating-linear-gradient(45deg,var(--stbg),var(--stbg) 3px,
  var(--st-deciding) 3px,var(--st-deciding) 6px);opacity:.6}
 .axis{display:flex;justify-content:space-between;color:var(--muted);font-size:.75rem;margin-top:.3rem}
-.key{display:flex;gap:.9rem;flex-wrap:wrap;margin-top:.6rem;color:var(--muted);font-size:.8rem}
-.key span{display:flex;align-items:center;gap:.35rem}
-.key i{width:9px;height:9px;border-radius:2px;display:block}
+
 .chg td{padding:.45rem .3rem;font-size:.92rem}
 .chg .t{width:7rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .chg .c{width:4rem;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
 .dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:.35rem}
 .arrow{color:var(--muted);margin:0 .4rem}
-.statusbar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
-.statusbar .meta{margin-left:auto;display:flex;gap:1rem;flex-wrap:wrap;color:var(--muted);
+/* 상태줄·버튼은 기록 카드 맨 아래 한 줄 (control-panel.md §6) */
+.statusbar{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin-top:1rem;
+ padding-top:.7rem;border-top:1px solid var(--line)}
+.statusbar .meta{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center;color:var(--muted);
  font-size:.8rem;font-variant-numeric:tabular-nums}
 /* 학습 탭 */
-.datebox{border:1px solid var(--line);border-radius:10px;padding:.7rem .8rem;margin-bottom:.6rem;
- background:var(--card)}
 .datehead{display:flex;align-items:center;gap:.6rem;font-weight:600;font-size:.92rem}
 .datehead .hint{font-weight:400}
 .datehead button{margin-left:auto}
@@ -951,15 +979,16 @@ function actBars(r){
   return out;
 }
 function renderRealtime(r){
-  if (!r) return '';
+  if (!r) return `<div class="card"><h2>실시간 판단이 실행 중이 아닙니다</h2>
+    <p class="sub">아래에서 모델을 고르고 실시간 측정을 누르면 시작합니다.</p></div>`;
   const deciding = r.state === 'deciding';
-  const pct = deciding
-    ? Math.round(100 * (1 - Math.min(1, r.remaining_s / 60)))
-    : Math.round(r.confidence * 100);
+  const pct = deciding ? Math.round(100 * (1 - Math.min(1, r.remaining_s / 60)))
+                       : Math.round(r.confidence * 100);
   const sub = deciding
     ? (r.candidate ? `${esc(RT_LABEL[r.candidate] || r.candidate)} 확인 중`
                    : `확신이 기준(${Math.round(r.threshold*100)}%)에 못 미칩니다`)
     : `확신 ${Math.round(r.confidence*100)}%`;
+  //: 카드는 둘이다 — 상태 하나, 기록 하나. 넷이면 테두리가 네 번 나와 화면이 끊긴다.
   return `<div class="card hero s-${esc(r.state)}">
       <p class="state">${esc(RT_LABEL[r.state] || r.state)}</p>
       <p class="sub-state"><b>${deciding ? sub : held(r.held_s) + '째'}</b>
@@ -973,34 +1002,33 @@ function renderRealtime(r){
           <span>활동 — 창 ${r.activity_window_s}초 · 상태 판단에는 쓰지 않습니다</span>
           <span>지금</span></div>` : ''}
       ${r.note ? `<p class="note">${esc(r.note)}</p>` : ''}
+      ${r.paused_by_operator ? `<p class="note">${esc(S.pause_note)}</p>` : ''}
+      ${r.synthetic ? `<p class="note">합성 세션 — 녹화를 이어 붙인 것이라 실제 전환이 아닙니다</p>` : ''}
     </div>
     <div class="card"><h2>최근 기록</h2>
       <div class="tl">${(r.spans||[]).map(s =>
         `<i class="${esc(s.state)}" style="width:${s.pct}%"></i>`).join('')}</div>
       <div class="axis"><span>${spanLabel(r.spans)} 전</span><span>지금</span></div>
-      <div class="key">
-        <span><i style="background:var(--st-empty)"></i>빈 방</span>
-        <span><i style="background:var(--st-static)"></i>정지</span>
-        <span><i style="background:var(--st-motion)"></i>움직임</span>
-        <span><i style="background:var(--st-deciding)"></i>판단 중</span></div></div>
-    <div class="card"><h2>상태 변화 (${(r.events||[]).length})</h2>
+      ${r.truth ? `<p class="sub" style="margin:.7rem 0 .2rem">정답 (합성 대본, ${r.truth.hold_s}초마다)</p>
+        <div class="tl">${r.truth.segments.map(sg =>
+          `<i class="${esc(sg.state)}" style="width:${100 / r.truth.segments.length}%"></i>`).join('')}</div>` : ''}
       ${(r.events||[]).length ? `<table class="chg">${r.events.slice().reverse().map(e =>
         `<tr><td class="t">${esc(ago(e.t, r.t))}</td>
          <td><span class="dot" style="background:var(--st-${esc(e.from)})"></span>${esc(RT_LABEL[e.from]||e.from)}
          <span class="arrow">→</span><b><span class="dot" style="background:var(--st-${esc(e.to)})"></span>${esc(RT_LABEL[e.to]||e.to)}</b></td>
          <td class="c">${Math.round(e.confidence*100)}%</td></tr>`).join('')}</table>`
-        : `<p class="sub">아직 상태 변화가 없습니다.</p>`}</div>
-    <div class="card"><div class="statusbar">
-      <button class="act" onclick="post('/api/mark')">전환 표시</button>
-      <span class="meta">
-        <span class="tag ${r.n_rx >= 3 ? 'ok' : 'warn'}">RX ${r.n_rx}대</span>
-        <span>${r.hz}Hz</span><span>창 ${r.window_s}초</span>
-        <span>${esc(r.model || '')}</span><span>${esc(r.session)}</span>
-        <span>${r.stale_s > 5 ? '갱신 ' + Math.round(r.stale_s) + '초 전' : '갱신 중'}</span>
-      </span></div></div>`;
+        : `<p class="sub">아직 상태 변화가 없습니다.</p>`}
+      <div class="statusbar">
+        <span class="meta">
+          <span class="tag ${r.n_rx >= 3 ? 'ok' : 'warn'}">RX ${r.n_rx}대</span>
+          <span>${r.hz}Hz</span><span>창 ${r.window_s}초</span>
+          <span>${esc(r.model || '')}</span></span>
+        <span class="meta" style="margin-left:auto">
+          <span class="link" onclick="post('/api/mark')">전환 표시</span>
+          <span class="hint">${r.last_mark_s != null ? esc(held(r.t - r.last_mark_s)) + ' 전' : '아직 없음'}</span>
+          <span class="link" onclick="post('/api/rt/pause')">판단 정지</span></span></div>
+    </div>`;
 }
-let trainPick = new Set(), trainEval = null, trainPreset = 'balanced', trainName = '';
-let trainOpen = false;
 function trainToggle(key){ trainPick.has(key) ? trainPick.delete(key) : trainPick.add(key);
   if (trainEval && [...trainPick].some(k => k.startsWith(trainEval))) trainEval = null;
   delete sig.train; render(); }
@@ -1241,6 +1269,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "realtime": view if (view := realtime_view()) and (RT_JOB.running or view["stale_s"] < 5)
                 else None,
                 "rt_job": RT_JOB.state(), "live_job": LIVE_JOB,
+                "pause_note": pause_note(PAUSED_BY_OPERATOR[0]),
                 "job": JOB.state(),
             })
         elif u.path == "/api/img":
@@ -1393,7 +1422,14 @@ def dispatch(path: str, body: dict) -> dict:
         threading.Thread(target=attach, daemon=True).start()
         return {"ok": True}
 
+    if path == "/api/rt/pause":
+        #: 화면만 끄고 데이터는 계속 받는 쓰임이다 — 수집(JOB)은 건드리지 않는다
+        PAUSED_BY_OPERATOR[0] = True
+        RT_JOB.stop()
+        return {"ok": True}
+
     if path == "/api/live/stop":
+        PAUSED_BY_OPERATOR[0] = False
         RT_JOB.stop()
         if JOB.running and JOB.name == LIVE_JOB:
             JOB.stop()                                  # 러너가 reader 를 정상 마감한다
@@ -1427,7 +1463,7 @@ def dispatch(path: str, body: dict) -> dict:
                        if d.name == view.get("session")), None)
         if target is None:
             return {"error": "세션을 찾지 못했습니다"}
-        with (target / "realtime_marks.jsonl").open("a", encoding="utf-8") as fp:
+        with (target / MARKS_NAME).open("a", encoding="utf-8") as fp:
             fp.write(json.dumps({"wall": time.time(), "note": str(body.get("note", "")),
                                  "via": "gui"}, ensure_ascii=False) + "\n")
         return {"ok": True}

@@ -9,6 +9,7 @@ from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from csi_session import VERDICT, quality, verdict_line  # noqa: E402
@@ -243,6 +244,63 @@ class TrainScreenTest(unittest.TestCase):
     def test_a_date_no_model_used_reports_zero(self):
         row = next(d for d in self.state["dates"] if d["date"] == "20260910")
         self.assertEqual(row["trained_models"], 0)
+
+
+class RealtimePauseTest(unittest.TestCase):
+    """`판단 정지` 는 화면만 끈다 — 수집은 계속 돈다 (설계 §6)."""
+
+    def test_pause_stops_judgement_but_not_collection(self):
+        with mock.patch.object(gui.RT_JOB, "stop") as rt, \
+             mock.patch.object(gui.JOB, "stop") as job:
+            gui.dispatch("/api/rt/pause", {})
+        rt.assert_called_once()
+        job.assert_not_called()
+
+    def test_stop_ends_both(self):
+        with mock.patch.object(gui.RT_JOB, "stop") as rt, \
+             mock.patch.object(gui.JOB, "stop") as job, \
+             mock.patch.object(type(gui.JOB), "running", property(lambda s: True)), \
+             mock.patch.object(gui.JOB, "name", gui.LIVE_JOB):
+            gui.dispatch("/api/live/stop", {})
+        rt.assert_called_once()
+        job.assert_called_once()
+
+    def test_operator_pause_and_rx_loss_do_not_share_wording(self):
+        """둘 다 멈춤이지만 하나는 정상이고 하나는 이상이다."""
+        self.assertNotEqual(gui.pause_note(paused_by_operator=True),
+                            gui.pause_note(paused_by_operator=False))
+        self.assertIn("운영자", gui.pause_note(paused_by_operator=True))
+
+
+class MarkTest(unittest.TestCase):
+    """전환 표시는 전환 지연 측정의 유일한 정답 입력이다 — 눌렀는지 보여야 한다."""
+
+    def test_last_mark_time_is_reported(self):
+        import tempfile, json as _json
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "20261018" / "x_live_s1"
+            d.mkdir(parents=True)
+            (d / "realtime_status.json").write_text(_json.dumps({"state": "motion", "t": 120.0}))
+            (d / "realtime_marks.jsonl").write_text(
+                _json.dumps({"t": 30.0, "wall": 1.0, "note": "", "state": "empty"}) + "\n"
+                + _json.dumps({"t": 95.5, "wall": 2.0, "note": "", "state": "motion"}) + "\n")
+            view = gui.realtime_view(Path(t))
+        self.assertEqual(view["last_mark_s"], 95.5)
+
+    def test_no_marks_reports_none_not_a_crash(self):
+        import tempfile, json as _json
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "20261018" / "x_live_s1"
+            d.mkdir(parents=True)
+            (d / "realtime_status.json").write_text(_json.dumps({"state": "motion", "t": 120.0}))
+            self.assertIsNone(gui.realtime_view(Path(t))["last_mark_s"])
+
+
+class FileNameTest(unittest.TestCase):
+    def test_marks_file_name_matches_the_engine(self):
+        """제어판이 베껴 둔 이름이 엔진과 어긋나면 전환 표시가 조용히 사라진다."""
+        from realtime.engine import MARKS_NAME
+        self.assertEqual(gui.MARKS_NAME, MARKS_NAME)
 
 
 class VerdictLineTest(unittest.TestCase):
