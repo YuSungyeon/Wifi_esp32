@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from csi_session import VERDICT, quality, verdict_line  # noqa: E402
+import block_order as bo  # noqa: E402
 import meshsense_gui as gui  # noqa: E402
 
 #: 등록된 RX 3대가 보이는 상태 (SINK 없이 직결)
@@ -103,6 +104,71 @@ class ReadyLineTest(unittest.TestCase):
         line = gui.ready_line(boards=boards, job_running=False, **CLEAN)
         self.assertEqual(line["level"], "block")          # RX 3대가 아니다
         self.assertTrue(any(r["action"] == "register" for r in line["rows"]))
+
+
+class CollectPayloadTest(unittest.TestCase):
+    """수집 버튼이 무엇을 찍을지 말한다 (설계 §2 공통 규칙 1, §3.2)."""
+
+    def test_collect_button_label_comes_from_the_block(self):
+        self.assertEqual(gui.collect_label({"order": ["empty", "static", "motion"],
+                                            "done": ["empty"]}), "static")
+
+    def test_block_finished_asks_for_a_new_draw(self):
+        self.assertIsNone(gui.collect_label({"order": ["empty"], "done": ["empty"]}))
+
+    def test_recollect_verdict_puts_the_label_back(self):
+        """§4.2 가 '같은 라벨로 다시 찍으세요' 라고 하면 화면도 같은 말을 해야 한다."""
+        s = bo.advance({"order": ["empty", "static", "motion"], "done": []}, "empty", "ok")
+        self.assertEqual(gui.collect_label(bo.advance(s, "empty", "recollect")), "empty")
+
+    def test_folded_line_shows_the_values_without_opening(self):
+        self.assertEqual(gui.settings_summary({"condition.placement_id": "P2",
+                                               "condition.subject_id": "S1",
+                                               "operator.notes": ""}),
+                         "P2 · S1 · 메모 없음")
+
+    def test_folded_line_marks_what_is_missing(self):
+        self.assertEqual(gui.settings_summary({}), "배치 없음 · 피험자 없음 · 메모 없음")
+
+    def test_folded_line_shows_that_a_note_exists_not_its_text(self):
+        """접힌 줄은 한 줄이다 — 메모 본문은 펼쳐서 읽는다."""
+        out = gui.settings_summary({"condition.placement_id": "P2",
+                                    "condition.subject_id": "S1",
+                                    "operator.notes": "피험자가 RX102 시야를 가림"})
+        self.assertEqual(out, "P2 · S1 · 메모 있음")
+
+
+class CollectDoneTest(unittest.TestCase):
+    """수집이 끝나면 품질 판정이 블록을 진행시킨다 — 사람이 기억하지 않는다."""
+
+    OK = [{"device_id": i, "frames": 30000, "span_s": 300.0, "crc_fail": 0,
+           "boot_changes": 0, "tx_back": 0, "seq_gap": 0} for i in (101, 102, 103)]
+
+    def _after(self, rc, devices, done=()):
+        state = {"order": ["empty", "static", "motion"], "done": list(done),
+                 "date": "20261018", "placement": "P2", "subject": "S1"}
+        with mock.patch.object(gui.block_order, "load", return_value=state), \
+             mock.patch.object(gui.block_order, "save") as save, \
+             mock.patch.object(gui, "latest_session_dir",
+                               return_value=Path("/x")), \
+             mock.patch.object(gui, "read_manifest",
+                               return_value={"label": "empty", "devices": devices}):
+            note = gui.collect_done(rc)
+        return (save.call_args[0][0] if save.call_args else None), note
+
+    def test_clean_session_advances_the_block(self):
+        state, note = self._after(0, self.OK)
+        self.assertEqual(state["done"], ["empty"])
+        self.assertIn("정상", note)
+
+    def test_recollect_leaves_the_label_for_another_try(self):
+        state, note = self._after(0, self.OK[:2])
+        self.assertEqual(state["done"], [])
+        self.assertIn("재수집", note)
+
+    def test_failed_run_does_not_touch_the_block(self):
+        state, note = self._after(1, self.OK)
+        self.assertIsNone(state)
 
 
 class VerdictLineTest(unittest.TestCase):

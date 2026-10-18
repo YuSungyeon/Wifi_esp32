@@ -32,9 +32,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
+import block_order  # noqa: E402
 from csi_session import (  # noqa: E402
-    LIVE_LABEL, SESSION_LABELS, next_session_id, quality, read_manifest, repo_provenance,
-    set_session_note,
+    LIVE_LABEL, SESSION_LABELS, VERDICT, next_session_id, quality, read_manifest,
+    repo_provenance, set_session_note,
 )
 from csi_store import LABELS  # noqa: E402
 from train_sessions import (  # noqa: E402
@@ -222,6 +223,59 @@ def ready_line(boards: list | None = None, job_running: bool | None = None,
     if level == "ok":
         text = f"준비됐습니다 · {text}"
     return {"level": level, "text": text, "rows": rows}
+
+
+def collect_label(state: dict) -> str | None:
+    """수집 버튼이 찍을 라벨. 블록이 끝났으면 None — 새로 뽑아야 한다."""
+    return block_order.next_label(state)
+
+
+def settings_summary(meta: dict) -> str:
+    """`▸ 이번 실험 설정` 접힌 줄에 미리 적는 값.
+
+    **펼치지 않고도 맞는지 확인되는 것이 접기의 조건이다**(설계 §3.3). 메모는 있다/없다만
+    적는다 — 한 줄에 본문을 넣으면 접힌 줄이 아니게 된다.
+    """
+    place = (meta.get("condition.placement_id") or "").strip() or "배치 없음"
+    subj = (meta.get("condition.subject_id") or "").strip() or "피험자 없음"
+    note = "메모 있음" if (meta.get("operator.notes") or "").strip() else "메모 없음"
+    return f"{place} · {subj} · {note}"
+
+
+def block_state() -> dict:
+    """지금 블록. 조건(날짜·배치·피험자)이 바뀌었으면 새로 뽑아 사유를 함께 돌려준다."""
+    meta = read_meta(SESSION_META)
+    date = time.strftime("%Y%m%d")
+    place = (meta.get("condition.placement_id") or "").strip()
+    subj = (meta.get("condition.subject_id") or "").strip()
+    state = block_order.load()
+    reason = block_order.redraw_reason(state, date, place, subj)
+    if reason:
+        state = block_order.start(date, place, subj, state.get("order"))
+        block_order.save(state)
+    return {**state, "next": collect_label(state), "redrawn_reason": reason}
+
+
+def collect_done(rc: int) -> str:
+    """수집 JOB 이 끝난 뒤 — 품질 판정으로 블록을 진행시키고 한 줄을 돌려준다.
+
+    사람이 "어디까지 찍었더라" 를 기억하지 않게 하는 고리다. `recollect` 면 칸을 되돌려
+    같은 라벨이 다시 다음 차례가 된다 (설계 §3.2).
+    """
+    if rc != 0:
+        return ""
+    d = latest_session_dir()
+    if d is None:
+        return ""
+    try:
+        m = read_manifest(d)
+    except Exception:
+        return ""
+    label, devices = m.get("label"), m.get("devices", [])
+    level, text = quality(devices)
+    if label in LABELS:                       # live 세션은 블록에 속하지 않는다
+        block_order.save(block_order.advance(block_order.load(), label, level))
+    return f"판정 {VERDICT[level]}" + (f" — {text}" if text else "")
 
 
 def readiness() -> list[dict]:
@@ -533,6 +587,24 @@ img.wf{width:100%;border:1px solid var(--line);border-radius:10px;margin-top:.6r
 .readyrows .r{display:flex;align-items:center;gap:.6rem;padding:.4rem .75rem;font-size:.85rem;
  border-top:1px solid var(--line)}
 .readyrows .r:first-child{border-top:0}
+/* 수집 화면 — 위에서 아래로 읽으면 그게 작업 순서다 (control-panel.md §3) */
+.lbl{font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);
+ margin:1.1rem 0 .35rem}
+.seq{font-size:1.9rem;font-weight:800;letter-spacing:-.02em;line-height:1;margin:0;
+ font-variant-numeric:tabular-nums}
+.seq em{font-size:.85rem;font-weight:400;font-style:normal;color:var(--muted);margin-left:.5rem}
+.steps{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-bottom:.35rem}
+.steps i{font-style:normal;font-size:.85rem;padding:.32rem .7rem;border-radius:8px;cursor:pointer;
+ background:var(--bg);border:1px solid var(--line);color:var(--muted)}
+.steps i.done{color:var(--ok);border-color:var(--ok)}
+.steps i.now{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.setting{display:flex;align-items:baseline;gap:.5rem;margin:1.1rem 0 .2rem}
+.link{color:var(--accent);font-size:.8rem;text-decoration:underline;cursor:pointer}
+button.act.go{display:block;width:100%;margin:.9rem 0 .2rem;padding:.75rem;font-size:1rem}
+.fold{border-top:1px solid var(--line);margin-top:1.1rem;padding-top:.75rem;cursor:pointer;
+ font-size:.88rem;color:var(--muted)}
+.fold b{color:var(--fg);font-weight:600}
+.fold .vals{margin-left:.5rem}
 """
 
 PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
@@ -652,24 +724,39 @@ function render() {
       <p class="sub" style="margin-top:1rem">등록되지 않은 보드는 먼저 registry 에 추가해야 수집됩니다:
       <code>python scripts/device_registry.py add --port &lt;포트&gt; --board-name RXn</code></p></div>`;
   }
-  if (tab === 'collect' && changed('collect', [S.next_session_id, S.rx_count, busy, S.meta.label_target, S.ready, readyOpen, order])) {
-    const opts = S.session_labels.map(l => `<option value="${l}" ${l===S.meta.label_target?'selected':''}>${l} — ${esc(S.label_desc[l])}</option>`).join('');
+  if (tab === 'collect' && changed('collect', [S.next_session_id, busy, S.ready, S.block, S.meta, readyOpen, timeOpen, setOpen, projOpen])) {
+    const b = S.block, next = b.next;
+    //: 블록 세 칸이 곧 진행 상태다 — 어디까지 찍었는지 화면이 기억한다 (설계 §3.2)
+    const cells = (b.order||[]).map(l => {
+      const done = (b.done||[]).includes(l);
+      return `<i class="${done?'done':(l===next?'now':'')}" onclick="post('/api/block/goto',{label:'${l}'})"
+        title="${esc(S.label_desc[l]||'')}">${l}${done?' ✓':''}</i>`;
+    }).join('');
     document.getElementById('collect').innerHTML = `<div class="card">
-      <h2>수집</h2>
-      <p class="sub">라벨은 지금 고른 값이 그대로 데이터에 기록됩니다. 순번은 <code>session.json</code>이 있는 세션만 세어 자동으로 정합니다. 매니페스트가 없는 예전 <code>session_N</code> 폴더는 제외됩니다.</p>
-      <div class="bar"><span>다음 순번</span><span class="big">s${S.next_session_id}</span>
-        <span class="hint">RX ${S.rx_count}대 인식됨</span></div>
       ${renderReady(S.ready)}
-      <label for="lab">라벨</label><select id="lab">${opts}</select>
-      <label>블록 순서 <span class="hint">— 블록마다 새로 뽑습니다. 누르면 라벨이 선택됩니다</span></label>
-      <div class="bar">${(order||[]).map((l,i)=>`<button class="act" onclick="document.getElementById('lab').value='${l}'">${i+1}. ${l}</button>`).join('')}
-        <button class="act" onclick="drawOrder()">블록 순서 뽑기</button></div>
-      <div class="row"><div><label for="dur">수집 시간 (초)</label><input id="dur" type="number" value="300" min="5" step="5"></div>
-        <div><label for="delay">시작 지연 (초) <span class="hint">— 자리 잡기·퇴장, 세션에 안 들어감</span></label>
-        <input id="delay" type="number" value="10" min="0" step="1"></div></div>
-      <div class="bar" style="margin-top:1rem">
-        <button class="act primary" ${busy||S.ready.level==='block'?'disabled':''} onclick="startCollect()">수집 시작</button>
-        ${S.ready.level==='block'?`<span class="hint">${esc(S.ready.text)}</span>`:''}</div></div>`;
+      <p class="lbl">다음 세션</p>
+      <p class="seq">s${S.next_session_id}
+        <em>${esc(S.meta.date||'')} · ${esc(settingsSummary(S.meta))}</em></p>
+
+      <p class="lbl">블록 순서</p>
+      <div class="steps">${cells}
+        <span class="link" onclick="post('/api/block/draw')">다시 뽑기</span></div>
+      <p class="hint">${b.redrawn_reason ? esc(b.redrawn_reason) : '블록이 끝나면 새로 뽑습니다.'}</p>
+
+      ${timeOpen
+        ? `<div class="row" style="margin-top:.9rem">
+             <div><label for="dur">수집 시간 (초)</label><input id="dur" type="number" value="${durS}" min="5" step="5" oninput="durS=+this.value"></div>
+             <div><label for="delay">시작 지연 (초) <span class="hint">— 자리 잡기·퇴장, 세션에 안 들어감</span></label>
+             <input id="delay" type="number" value="${delayS}" min="0" step="1" oninput="delayS=+this.value"></div></div>`
+        : `<div class="setting"><span>${durS}초 녹화 · ${delayS}초 뒤 시작</span>
+             <span class="link" onclick="timeOpen=true;delete sig.collect;render()">바꾸기</span></div>`}
+
+      <button class="act primary go" ${busy||S.ready.level==='block'||!next?'disabled':''}
+        onclick="startCollect()">${next ? esc(next)+' 수집 시작'
+          : '블록을 마쳤습니다 — 다시 뽑으세요'}</button>
+      ${S.ready.level==='block'?`<p class="hint">${esc(S.ready.text)}</p>`:''}
+
+      ${renderSettings(S)}</div>`;
   }
   if (tab === 'sessions' && changed('sessions', [S.sessions, shownPng])) {
     const rows = S.sessions.map(s => `<tr>
@@ -918,12 +1005,40 @@ async function saveMeta(){
   await post('/api/meta', body);
   document.getElementById('metamsg').textContent = '저장했습니다 · ' + new Date().toLocaleTimeString();
 }
-function startCollect(){
-  post('/api/collect',{label:document.getElementById('lab').value,
-                       duration:parseFloat(document.getElementById('dur').value),
-                       delay:parseFloat(document.getElementById('delay').value)});
+function startCollect(){ post('/api/collect',{duration:durS, delay:delayS}); }
+let readyOpen = false, timeOpen = false, setOpen = false, projOpen = false;
+let durS = 300, delayS = 10;
+const BLOCK_FIELDS = ['condition.placement_id', 'condition.subject_id', 'operator.notes'];
+function settingsSummary(m){
+  const v = k => ((m[k]||'')+'').trim();
+  return `${v('condition.placement_id')||'배치 없음'} · ${v('condition.subject_id')||'피험자 없음'}`
+       + ` · ${v('operator.notes')?'메모 있음':'메모 없음'}`;
 }
-let readyOpen = false;
+//: 12칸을 3 + 7 로 나눈다. 블록마다 바뀌는 셋만 한 겹 안, 나머지는 두 겹 안 (설계 §3.3)
+function metaField(S, k){
+  const f = S.meta_fields.find(x => x[0] === k); if (!f) return '';
+  const [, title, kind, hint] = f, v = esc(S.meta[k] ?? '');
+  const lab = `<label for="${k}">${esc(title)}${hint?` <span class="hint">— ${esc(hint)}</span>`:''}</label>`;
+  if (kind === 'label') return lab + `<select id="${k}">${S.labels.map(l=>`<option ${l===S.meta[k]?'selected':''}>${l}</option>`).join('')}</select>`;
+  if (kind === 'textarea') return lab + `<textarea id="${k}">${v}</textarea>`;
+  return lab + `<input id="${k}" type="${kind==='number'?'number':'text'}" ${kind==='number'?'step="0.1"':''} value="${v}">`;
+}
+function renderSettings(S){
+  if (!setOpen) return `<div class="fold" onclick="setOpen=true;delete sig.collect;render()">
+    ▸ <b>이번 실험 설정</b><span class="vals">${esc(settingsSummary(S.meta))}</span></div>`;
+  const rest = S.meta_fields.map(f => f[0]).filter(k => !BLOCK_FIELDS.includes(k));
+  const proj = projOpen
+    ? rest.map(k => metaField(S, k)).join('')
+      + `<div class="chips">${S.known_devices.map(([id,n])=>`<button type="button" onclick="tog(${id})">${id} · ${esc(n)}</button>`).join('')}</div>`
+    : '';
+  return `<div class="fold" onclick="setOpen=false;delete sig.collect;render()">▾ <b>이번 실험 설정</b></div>
+    ${BLOCK_FIELDS.map(k => metaField(S, k)).join('')}
+    <div class="fold" style="margin-top:.8rem" onclick="event.stopPropagation();projOpen=!projOpen;delete sig.collect;render()">
+      ${projOpen?'▾':'▸'} <b>프로젝트 설정</b>
+      <span class="vals">${projOpen?'':'한 번 적으면 거의 안 바뀝니다'}</span></div>${proj}
+    <div class="bar" style="margin-top:1rem"><button class="act primary" onclick="saveMeta()">저장</button>
+      <span id="metamsg" class="hint"></span></div>`;
+}
 function toggleReady(){ readyOpen = !readyOpen; delete sig.collect; render(); }
 function registerBoard(mac){
   const name = prompt('보드 이름', 'RX');
@@ -1006,7 +1121,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "diag_png": DIAG_PNG_REL if (REPO_ROOT / DIAG_PNG_REL).is_file() else None,
                 "diag_png_mtime": int((REPO_ROOT / DIAG_PNG_REL).stat().st_mtime)
                 if (REPO_ROOT / DIAG_PNG_REL).is_file() else 0,
-                "ready": ready_line(),
+                "ready": ready_line(), "block": block_state(),
                 "training": training_state(),
                 "rt_models": realtime_models(),
                 # 실시간이 안 돌면 지난 실행의 화면을 띄우지 않는다 — 옛 결과를 지금으로 착각하게 된다
@@ -1072,13 +1187,36 @@ def dispatch(path: str, body: dict) -> dict:
                         on_done=after_flash)
         return {"error": err} if err else {"ok": True}
 
+    if path == "/api/block/draw":
+        st = block_state()
+        meta = read_meta(SESSION_META)
+        block_order.save(block_order.start(
+            time.strftime("%Y%m%d"), (meta.get("condition.placement_id") or "").strip(),
+            (meta.get("condition.subject_id") or "").strip(), st.get("order")))
+        return {"ok": True}
+
+    if path == "/api/block/goto":
+        #: 순서를 벗어나 찍고 싶으면 칸을 직접 눌러 "지금" 을 옮긴다 (설계 §3.2)
+        label = body.get("label")
+        st = block_order.load()
+        if label not in st.get("order", []):
+            return {"error": f"이번 블록에 없는 라벨: {label}"}
+        at = st["order"].index(label)
+        block_order.save({**st, "done": [l for l in st["order"][:at] if l in st.get("done", [])]
+                                        + [l for l in st["order"][:at]
+                                           if l not in st.get("done", [])]})
+        return {"ok": True}
+
     if path == "/api/collect":
-        label, dur = body.get("label"), float(body.get("duration") or 300)
+        #: 라벨은 화면이 고르지 않는다 — 블록 순서가 정한다 (설계 §3.2)
+        label = collect_label(block_order.load())
+        dur = float(body.get("duration") or 300)
         delay = max(0.0, float(body.get("delay") or 0))
         if label not in SESSION_LABELS:
-            return {"error": f"알 수 없는 라벨: {label}"}
+            return {"error": "블록을 마쳤습니다 — 순서를 다시 뽑으세요"}
         err = JOB.start(f"수집 · {label} · {dur:.0f}초",
-                        [PY, str(SCRIPT_DIR / "_collect_run.py"), label, str(dur), str(delay)])
+                        [PY, str(SCRIPT_DIR / "_collect_run.py"), label, str(dur), str(delay)],
+                        on_done=collect_done)
         return {"error": err} if err else {"ok": True}
 
     if path == "/api/register":
