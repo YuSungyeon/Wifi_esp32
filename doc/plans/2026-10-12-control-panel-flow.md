@@ -1,5 +1,12 @@
 # 제어판·CLI 흐름 구현 계획
 
+> 상태: **SUPERSEDED** (2026-10-18) — 이 계획은 탭 7개와 **단계 띠**를 전제로 쓰였다.
+> 설계가 탭 4개로 바뀌면서 Task 2(단계 띠)·Task 3(보드 탭)·Task 6(진단 탭)이 무효가 됐다.
+> 새 설계는 [doc/control-panel.md](../control-panel.md) 이고, 계획은 거기서 다시 쓴다.
+> **아직 유효한 부분**: Task 1(`csi_session.quality()` 단일 소스 — 새 설계 §4.2 에서 "RX
+> 3대" 한 줄이 늘었다), Task 7(CLI 메뉴 두 항목 — 새 설계 §7 그대로).
+> Task 5(`RT_JOB` 분리)는 그 뒤 구현됐다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 비개발자가 제어판만 보고 보드 → 수집 → 학습 → 실시간을 혼자 끝내게 하고, 개발자 CLI 메뉴에 빠진 두 단계(세션 보기·실시간)를 넣는다.
