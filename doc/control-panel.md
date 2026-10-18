@@ -1,6 +1,6 @@
 # 제어판·CLI 흐름 설계
 
-> 상태: **OFFICIAL DESIGN** (2026-10-18 개정, 구현 후 CURRENT 로 전환)
+> 상태: **CURRENT** (2026-10-18 설계·구현)
 > 범위: `scripts/meshsense_gui.py`(제어판), `scripts/meshsense_cli.py`(터미널 메뉴),
 > `scripts/csi_session.py`(품질 문장)
 >

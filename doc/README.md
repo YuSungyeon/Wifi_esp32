@@ -17,7 +17,7 @@
 | 5 | [바이너리·JSONL 데이터 규격](data-schema.md) | **CURRENT CONTRACT** — frame v4·`.csi` 저장소·JSONL 내보내기 |
 | 6 | [실시간 경로](realtime-uplink.md) | **CURRENT** — ESP-NOW 업링크 + USB 싱크 (무선 배치) |
 | 7 | [실시간 상태 판단](realtime-inference.md) | **CURRENT** — 배포된 30초 3분류 모델·0.3초 판단 간격·상태 기계·제어판 |
-| 7b | [제어판·CLI 흐름 설계](control-panel.md) | **OFFICIAL DESIGN** — 단계 띠·보드 등록·품질 문장·수집 중 실시간·CLI 메뉴 (2026-10-12) |
+| 7b | [제어판·CLI 흐름 설계](control-panel.md) | **CURRENT** — 탭 넷(수집·세션·학습·실시간), 보드·실험 정보·진단을 쓰이는 화면 안으로 (2026-10-18) |
 | 8 | [`seq`와 `tx_seq` 패턴](sequence-patterns.md) | **CURRENT** — 두 순번의 차이·이상 패턴·실데이터 집계 |
 | 9 | [공식 전처리 설계](../model_train/docs/preprocessing/design.md) | **CURRENT CONTRACT** — 기존 3초·192차원 기준 모델의 전처리 규칙 |
 | 10 | [후처리](postprocessing.md) | **CURRENT** — 수집률·시각화와 공식 3-RX 모델 pipeline 연결 |

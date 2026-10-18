@@ -125,9 +125,20 @@ RX가 재부팅돼 `seq`와 `timestamp_us`가 함께 감소하면 그전 데이�
 | `export_jsonl.py` | `.csi` → JSONL record schema v1 (전처리 입력) |
 | `check_separability.py` | 3-class 분리 가능성 진단 (세션 단위 LOSO, torch 불필요) |
 | `ablation.py` | 베이스라인·ablation 하네스 — RX 대수·윈도·서브캐리어·위상을 같은 베이스라인으로 비교, 조건 단위 분할 지원 |
-| `session_form.py` | `session_meta.yaml` 편집 웹 폼 (제어판 '실험 정보' 탭과 동일) |
+| `session_form.py` | `session_meta.yaml` 편집 웹 폼 (제어판 수집 탭 '이번 실험 설정' 과 동일) |
 | `measure_csi_hz.py` | 세션 품질 요약 (hz·crc_fail·boot_changes·tx_back·cross-RX) |
 | `_idf_flash.py` / `_collect_run.py` | 제어판이 백그라운드로 돌리는 플래시·수집 러너 |
+| `block_order.py` | 블록 순서와 진행 상태 (`mac_collector/block_order.json`) — 제어판·CLI 공용 |
+| `train_sessions.py` | 학습용 세션 목록·선택 규칙·제외 세션 |
+| `_train_run.py` | 학습 러너 — 프리셋·진행률·남은 시간 |
+
+**제어판 없이 직접 부를 수 있는 명령** (서브커맨드 CLI 는 만들지 않는다):
+
+```bash
+python scripts/_train_run.py --preset balanced --sessions 20260916_31 ... --eval 20260919
+python realtime/ui.py --session <세션> --follow          # 또는 --speed 2 로 재생
+python scripts/export_jsonl.py --print-labels
+```
 
 - **수집은 포트를 프로브하지 않는다.** 보드가 2초마다 보내는 IDENT 의 eFuse MAC 으로
   `device_id` 를 정한다. esptool 프로브는 DTR/RTS 로 보드를 리셋시켜 TX 의 `tx_seq` 까지
