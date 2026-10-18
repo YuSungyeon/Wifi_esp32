@@ -39,7 +39,8 @@ from csi_session import (  # noqa: E402
 )
 from csi_store import LABELS  # noqa: E402
 from train_sessions import (  # noqa: E402
-    available_eval_dates, check_selection, group_by_date, list_sessions,
+    EXCLUDED_SESSIONS, available_eval_dates, check_selection, group_by_date, is_excluded,
+    list_sessions,
 )
 from session_form import (  # noqa: E402
     DEVICE_REGISTRY, FIELDS, SESSION_META, known_devices, read_meta, write_meta,
@@ -338,17 +339,56 @@ def session_rows() -> list[dict]:
                          "tx_back": x.get("tx_back", 0)} for x in devs],
             "quality": {"level": level, "text": text},
             "png": (d / "csi_waterfall.png").is_file(),
-            "note": session_note(d),
+            "note": session_note(d), "placement": meta_field(d, "placement_id"),
         })
     return rows
 
 
 def session_note(d: Path) -> str:
+    return meta_field(d, "session_note")
+
+
+def meta_field(d: Path, key: str) -> str:
+    """세션 폴더에 복사된 실험 정보에서 한 줄. 스냅샷은 평평한 `키: 값` 이다."""
     p = d / "session_meta_snapshot.yaml"
     for line in (p.read_text(encoding="utf-8").splitlines() if p.is_file() else []):
-        if line.startswith("session_note:"):
-            return json.loads(line.split(":", 1)[1])
+        head, _, rest = line.partition(":")
+        if head.strip().split(".")[-1] == key:
+            rest = rest.strip()
+            try:
+                return str(json.loads(rest))
+            except ValueError:
+                return rest.strip("'\"")
     return ""
+
+
+def session_groups(rows: list) -> list:
+    """세션 목록을 날짜로 접는다 (doc/control-panel.md §4.1).
+
+    접힌 줄에 **라벨 개수와 배치**를 적어 다음에 무엇을 더 찍어야 할지 보이게 한다.
+    품질 경고도 접힌 줄까지 올라온다 — 지금은 펼쳐야 찾을 수 있다.
+    """
+    order = {"ok": 0, "check": 1, "recollect": 2}
+    out: dict = {}
+    for r in rows:
+        g = out.setdefault(r["date"], {"date": r["date"], "count": 0, "placements": set(),
+                                       "labels": {l: 0 for l in LABELS}, "live": 0,
+                                       "worst": "ok", "excluded": [], "rows": []})
+        g["count"] += 1
+        g["rows"].append(r)
+        if r["placement"]:
+            g["placements"].add(r["placement"])
+        if r["label"] in g["labels"]:
+            g["labels"][r["label"]] += 1
+        elif r["label"] == LIVE_LABEL:
+            g["live"] += 1
+        if order[r["quality"]["level"]] > order[g["worst"]]:
+            g["worst"] = r["quality"]["level"]
+        key = f"{r['date']}_{r['session_id']}"
+        if is_excluded(key):
+            g["excluded"].append(key)
+    return [{**g, "placements": sorted(g["placements"])}
+            for _, g in sorted(out.items(), reverse=True)]
 
 
 def realtime_view(raw_root: Path = RAW_ROOT) -> Optional[dict]:
@@ -605,6 +645,18 @@ button.act.go{display:block;width:100%;margin:.9rem 0 .2rem;padding:.75rem;font-
  font-size:.88rem;color:var(--muted)}
 .fold b{color:var(--fg);font-weight:600}
 .fold .vals{margin-left:.5rem}
+/* 세션 탭 — 날짜로 접는다 (control-panel.md §4.1) */
+.sum{display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.9rem}
+.sum i{font-style:normal;font-size:.8rem;padding:.28rem .62rem;border-radius:999px;
+ background:var(--bg);border:1px solid var(--line);color:var(--fg)}
+.sum i.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.grp{border:1px solid var(--line);border-radius:9px;margin-bottom:.45rem;overflow:hidden}
+.grp .hd{display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;background:var(--bg);
+ font-size:.87rem;cursor:pointer}
+.grp .hd .sp,.grp .r .sp{margin-left:auto;color:var(--muted);font-size:.79rem}
+.grp .rows{padding:.15rem 0 .35rem}
+.grp .r{display:flex;align-items:center;gap:.5rem;padding:.3rem .8rem;font-size:.84rem}
+.grp .r.off{opacity:.5}
 """
 
 PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
@@ -758,25 +810,50 @@ function render() {
 
       ${renderSettings(S)}</div>`;
   }
-  if (tab === 'sessions' && changed('sessions', [S.sessions, shownPng])) {
-    const rows = S.sessions.map(s => `<tr>
-      <td>${esc(s.date)}<br><span class="hint">${esc(s.name)}</span></td>
-      <td><span class="tag">${esc(s.label)}</span></td>
-      <td>${s.span_s}s</td>
-      <td>${s.devices.map(d=>`RX${d.id} ${d.hz}Hz`).join('<br>')||'—'}</td>
-      <td>${s.quality.level === 'ok' ? '<span class="tag ok">정상</span>'
-        : `<span class="tag ${s.quality.level === 'check' ? 'warn' : 'bad'}" title="${esc(s.quality.text)}">${
-            s.quality.level === 'check' ? '확인' : '재수집'}</span>`}</td>
-      <td>${s.png?`<button class="act" onclick="showPng('${esc(s.path)}')">파형</button>`:''}
-          <button class="act" onclick="noteSession('${esc(s.path)}')" title="${esc(s.note)}">메모${s.note?' ✓':''}</button>
-          <button class="act danger" onclick="delSession('${esc(s.path)}')">삭제</button></td></tr>`).join('');
-    const cnt = Object.entries(S.label_counts).map(([k,v])=>`${k} ${v}`).join(' · ');
+  if (tab === 'sessions' && changed('sessions', [S.session_groups, shownPng, openDates, toolOpen, busy, S.diag_png])) {
+    const cnt = S.label_counts, total = S.sessions.length;
+    const chips = `<div class="sum"><i class="on">전체 ${total}</i>` +
+      Object.entries(cnt).filter(([k]) => k !== 'live').map(([k,v]) => `<i>${esc(k)} ${v}</i>`).join('') +
+      (cnt.live ? `<i>live ${cnt.live}</i>` : '') + `</div>`;
+    const groups = S.session_groups.map(g => {
+      const open = openDates.includes(g.date);
+      const labs = Object.entries(g.labels).map(([k,v]) => `${esc(k)} ${v}`).join(' · ')
+        + (g.live ? ` · live ${g.live}` : '');
+      const rows = open ? `<div class="rows">${g.rows.map(r => {
+        const ex = S.excluded[`${r.date}_${r.session_id}`];
+        return `<div class="r${ex?' off':''}" ${ex?`title="${esc(ex)}"`:''}>
+          <span class="tag">${esc(r.label)}</span> s${r.session_id}
+          <span class="hint">${r.span_s}초 · RX${r.devices.length}${
+            r.devices.length?' · '+r.devices.map(d=>d.hz).join('/')+'Hz':''}</span>
+          ${r.quality.level==='ok'?'':`<span class="tag ${r.quality.level==='check'?'warn':'bad'}" title="${esc(r.quality.text)}">${r.quality.level==='check'?'확인':'재수집'}</span>`}
+          ${ex?'<span class="hint">학습·평가에서 제외됨</span>':''}
+          <span class="sp">${r.png?`<span class="link" onclick="showPng('${esc(r.path)}')">파형</span> · `:''}<span class="link" onclick="noteSession('${esc(r.path)}')">메모${r.note?' ✓':''}</span> · <span class="link" onclick="delSession('${esc(r.path)}')">삭제</span></span></div>`;
+      }).join('')}</div>` : '';
+      return `<div class="grp"><div class="hd" onclick="toggleDate('${g.date}')">
+          ${open?'▾':'▸'} <b>${esc(g.date)}</b>
+          <span class="hint">${g.count}세션${g.placements.length?' · 배치 '+g.placements.map(esc).join('·'):''}</span>
+          <span class="sp">${labs}${g.worst!=='ok'?` <span class="tag ${g.worst==='check'?'warn':'bad'}">⚠</span>`:''}</span>
+        </div>${rows}</div>`;
+    }).join('');
     document.getElementById('sessions').innerHTML = `<div class="card">
-      <h2>수집한 세션 (${S.sessions.length})</h2>
-      <p class="sub">라벨별 세션 수: ${cnt} — 라벨마다 2세션 이상이어야 학습·진단이 가능합니다.</p>
-      ${S.sessions.length?`<table><tr><th>날짜</th><th>라벨</th><th>길이</th><th>RX</th><th>품질</th><th></th></tr>${rows}</table>`
-        :`<p class="sub">아직 수집한 세션이 없습니다.</p>`}
-      ${shownPng ? `<img class="wf" src="/api/img?path=${encodeURIComponent(shownPng)}">` : ''}</div>`;
+      <h2>수집한 세션 (${total})</h2>
+      <p class="sub">라벨마다 2세션 이상이어야 학습·진단이 가능합니다. 날짜 줄을 누르면 펼쳐집니다.</p>
+      ${chips}${groups || '<p class="sub">아직 수집한 세션이 없습니다.</p>'}
+      ${shownPng ? `<img class="wf" src="/api/img?path=${encodeURIComponent(shownPng)}">` : ''}
+      <div class="setting"><span class="hint">이 데이터로</span>
+        <span class="link" onclick="toolOpen=toolOpen==='diag'?null:'diag';delete sig.sessions;render()">분리 가능성 진단</span>
+        <span class="hint">·</span>
+        <span class="link" onclick="toolOpen=toolOpen==='jsonl'?null:'jsonl';delete sig.sessions;render()">JSONL 내보내기</span></div>
+      ${toolOpen==='diag' ? `<p class="sub">지금 배치로 empty / static / motion 이 실제로 갈리는지 확인합니다.
+        세션 단위 교차검증이라 결과가 부풀려지지 않습니다.</p>
+        <div class="bar"><button class="act" ${busy?'disabled':''} onclick="post('/api/diagnose')">진단 실행</button></div>
+        ${S.diag_png ? `<img class="wf" src="/api/img?path=${encodeURIComponent(S.diag_png)}&v=${encodeURIComponent(S.diag_png_mtime)}">` : ''}` : ''}
+      ${toolOpen==='jsonl' ? `<p class="sub">공식 3-RX 전처리는 JSONL 을 읽습니다. 제어판 학습은
+        <code>.csi</code> 를 직접 읽으므로 이 단계가 필요 없습니다.</p>
+        <div class="bar"><button class="act" ${busy?'disabled':''} onclick="post('/api/export')">JSONL 내보내기</button></div>
+        <p class="sub">이후 터미널에서:
+        <code>python model_train/preprocessing/preprocess_3rx.py --raw-dir mac_collector_output/jsonl/raw/&lt;날짜&gt;</code></p>` : ''}
+      </div>`;
   }
   if (tab === 'train' && changed('train', [S.training, busy, trainPick.size, trainEval, trainPreset])) {
     document.getElementById('train').innerHTML = renderTrain(S.training, busy);
@@ -1007,6 +1084,11 @@ async function saveMeta(){
 }
 function startCollect(){ post('/api/collect',{duration:durS, delay:delayS}); }
 let readyOpen = false, timeOpen = false, setOpen = false, projOpen = false;
+let openDates = [], toolOpen = null;
+function toggleDate(d){
+  openDates = openDates.includes(d) ? openDates.filter(x => x !== d) : [...openDates, d];
+  delete sig.sessions; render();
+}
 let durS = 300, delayS = 10;
 const BLOCK_FIELDS = ['condition.placement_id', 'condition.subject_id', 'operator.notes'];
 function settingsSummary(m){
@@ -1115,6 +1197,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "rx_count": sum(1 for b in Handler.boards_cache
                                 for r in (b.get("via") or [b]) if r.get("registered")),
                 "sessions": rows, "label_counts": label_counts(rows),
+                "session_groups": session_groups(rows),
+                "excluded": EXCLUDED_SESSIONS,
                 "next_session_id": next_session_id(OUTPUT_DIR),
                 "labels": list(LABELS), "session_labels": list(SESSION_LABELS), "label_desc": LABEL_DESC,
                 "meta": meta, "meta_fields": FIELDS, "known_devices": known_devices(),

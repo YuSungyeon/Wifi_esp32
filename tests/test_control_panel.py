@@ -171,6 +171,51 @@ class CollectDoneTest(unittest.TestCase):
         self.assertIsNone(state)
 
 
+def _row(date, label, sid, level="ok", place="P3"):
+    return {"path": f"mac_collector_output/raw/{date}/x_{label}_s{sid}", "date": date,
+            "name": f"x_{label}_s{sid}", "label": label, "session_id": sid,
+            "span_s": 300.0, "devices": [], "png": False, "note": "", "placement": place,
+            "quality": {"level": level, "text": "" if level == "ok" else "흠"}}
+
+
+ROWS = ([_row("20260920", lab, i) for i, lab in enumerate(["empty", "static", "motion"], 1)]
+        + [_row("20260919", lab, i, place="P2") for i, lab in enumerate(["empty", "motion"], 4)])
+LIVE_ROW = _row("20260920", "live", 61)
+
+
+class SessionGroupTest(unittest.TestCase):
+    """세션이 80개를 넘었다 — 평소 궁금한 건 '어느 날 몇 개' 지 세션 하나하나가 아니다."""
+
+    def test_empty_sessions(self):
+        self.assertEqual(gui.session_groups([]), [])
+
+    def test_groups_are_newest_first_and_keep_every_session(self):
+        g = gui.session_groups(ROWS)
+        self.assertEqual([x["date"] for x in g], ["20260920", "20260919"])
+        self.assertEqual(sum(x["count"] for x in g), len(ROWS))
+
+    def test_live_session_is_listed_but_not_counted(self):
+        """live 는 여러 상태가 섞여 클래스가 아니다 — 전체에는 세고 라벨 칩에는 안 센다."""
+        g = gui.session_groups(ROWS + [LIVE_ROW])[0]
+        self.assertEqual(g["live"], 1)
+        self.assertNotIn("live", g["labels"])
+        self.assertEqual(g["count"], sum(g["labels"].values()) + g["live"])
+
+    def test_worst_quality_reaches_the_folded_row(self):
+        rows = ROWS[:2] + [_row("20260920", "motion", 3, level="check")]
+        self.assertEqual(gui.session_groups(rows)[0]["worst"], "check")
+        self.assertEqual(gui.session_groups(ROWS)[0]["worst"], "ok")
+
+    def test_excluded_session_is_listed_with_its_reason(self):
+        rows = ROWS + [_row("20260919", "static", 12, place="P2")]
+        g = next(x for x in gui.session_groups(rows) if x["date"] == "20260919")
+        self.assertEqual(g["excluded"], ["20260919_12"])
+
+    def test_placements_are_collected_and_deduplicated(self):
+        rows = ROWS + [_row("20260920", "static", 9, place="P1")]
+        self.assertEqual(gui.session_groups(rows)[0]["placements"], ["P1", "P3"])
+
+
 class VerdictLineTest(unittest.TestCase):
     """CLI 수집 직후 한 줄 — 제어판과 같은 문장을 쓴다."""
 
