@@ -77,3 +77,4 @@ presentations/
 model_train/phase60/cache/
 model_train/amp60/cache/
 mac_collector_output/demo/
+.superpowers/
