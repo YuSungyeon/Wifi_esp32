@@ -57,7 +57,7 @@ from csi_session import (  # noqa: E402
 from csi_store import LABELS  # noqa: E402
 from session_meta import read_label_target, read_session_id  # noqa: E402
 from train_sessions import (  # noqa: E402
-    available_eval_dates, check_selection, group_by_date, list_sessions,
+    EXCLUDED_SESSIONS, available_eval_dates, check_selection, group_by_date, list_sessions,
 )
 
 
@@ -1032,6 +1032,67 @@ def _menu_train() -> None:
             return
 
 
+def _usb_menu_items() -> List[str]:
+    """메뉴 항목. 분기와 어긋나지 않게 한 곳에 둔다 — 번호 메뉴의 고전적 실수다."""
+    return [
+        "보드 플래시 (PoC, MAC 자동 매칭)",
+        "수집 (라벨·시간 입력)",
+        "블록 순서 뽑기 (클래스 순서 무작위)",
+        "세션 보기 (날짜별 · 품질 원인)",
+        "모델 학습 (세션 선택)",
+        "실시간 (모델·세션 고르기)",
+        "세션 메타 편집 (브라우저 폼)",
+        "보드 관리 (registry 등록·검증)",
+        "파이프라인 선택으로 돌아가기",
+    ]
+
+
+def _menu_sessions() -> None:
+    """날짜별 세션과 품질 원인. 제어판 세션 탭과 같은 문장을 쓴다 (control-panel.md §4.2)."""
+    rows = list_sessions()
+    if not rows:
+        print("\n수집한 세션이 없습니다.")
+        return
+    print(f"\n--- 수집한 세션 {len(rows)}개 ---")
+    for date, items in group_by_date(rows).items():
+        print(f"\n  {date}  {len(items)}세션")
+        for s in items:
+            mark = "" if s["ok"] else "  ← 학습에서 빼기를 권합니다"
+            note = EXCLUDED_SESSIONS.get(s["key"])
+            print(f"    {s['label']:7s} s{s['key'].split('_')[1]:<4} "
+                  f"{s['span_s']:>6.1f}초 RX{s['rx']} {s['hz']}Hz{mark}")
+            if note:
+                print(f"       제외됨 — {note}")
+
+
+def _menu_realtime() -> None:
+    """모델과 세션을 고르고 realtime/ui.py 를 띄운다."""
+    from realtime.engine import available_models
+
+    models = available_models()
+    if not models:
+        print("\n쓸 수 있는 체크포인트가 없습니다.")
+        return
+    mi = _choose("모델", [f"{m['name']} · {m['mode']} · 창 {m['window_s']:.0f}초"
+                          + (" (기본)" if m["is_deployed"] else "") for m in models])
+    rows = list_sessions()[-12:]
+    if not rows:
+        print("\n세션이 없습니다.")
+        return
+    si = _choose("세션", [f"{r['date']} {r['name']}" for r in rows] + ["수집 중인 세션 따라가기"])
+    cmd = [sys.executable, str(REPO_ROOT / "realtime" / "ui.py"),
+           "--model", models[mi]["path"]]
+    if si == len(rows):
+        latest = sorted((OUTPUT_DIR / "raw").glob("*/*"), key=lambda d: d.stat().st_mtime)
+        if not latest:
+            print("\n수집 세션이 아직 없습니다.")
+            return
+        cmd += ["--session", str(latest[-1]), "--follow"]
+    else:
+        cmd += ["--session", str(REPO_ROOT / rows[si]["path"]), "--speed", "2"]
+    subprocess.run(cmd, cwd=str(REPO_ROOT))
+
+
 def _menu_usb_pipeline() -> None:
     """USB 수집 파이프라인 — esp-csi 베이스 PoC (USB 시리얼 100Hz, 모델 학습 데이터)."""
     order: Optional[List[str]] = None
@@ -1042,18 +1103,7 @@ def _menu_usb_pipeline() -> None:
         print(f"  TX 프로젝트: {SEND_POC_PROJECT.name}")
         print(f"  RX 프로젝트: {RECV_POC_PROJECT.name}")
         print(f"  reader:    {SERIAL_READER_SCRIPT.name}")
-        idx = _choose(
-            "선택",
-            [
-                "보드 플래시 (PoC, MAC 자동 매칭)",
-                "수집 (라벨·시간 입력)",
-                "블록 순서 뽑기 (클래스 순서 무작위)",
-                "모델 학습 (세션 선택)",
-                "세션 메타 편집 (브라우저 폼)",
-                "보드 관리 (registry 등록·검증)",
-                "파이프라인 선택으로 돌아가기",
-            ],
-        )
+        idx = _choose("선택", _usb_menu_items())
         if idx == 0:
             _flash_poc_board()
             _pause()
@@ -1063,10 +1113,15 @@ def _menu_usb_pipeline() -> None:
         elif idx == 2:
             order = _draw_block_order(order)
         elif idx == 3:
-            _menu_train()
+            _menu_sessions()
+            _pause()
         elif idx == 4:
-            _open_session_form()
+            _menu_train()
         elif idx == 5:
+            _menu_realtime()
+        elif idx == 6:
+            _open_session_form()
+        elif idx == 7:
             _menu_board_management()
         else:
             break

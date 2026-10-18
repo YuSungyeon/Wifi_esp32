@@ -346,6 +346,24 @@ class TabTest(unittest.TestCase):
                 self.assertNotIn(f"tab === '{gone}'", gui.JS)
 
 
+class CliMenuTest(unittest.TestCase):
+    """CLI 는 개발자용이라 번호 메뉴를 유지하고 빠진 두 단계만 넣는다 (설계 §7)."""
+
+    def test_menu_has_session_view_and_realtime(self):
+        import meshsense_cli as cli
+        items = " ".join(cli._usb_menu_items())
+        self.assertIn("세션 보기", items)
+        self.assertIn("실시간", items)
+
+    def test_menu_items_match_the_handlers(self):
+        """항목과 분기가 어긋나면 엉뚱한 기능이 돈다 — 번호 메뉴의 고전적 실수다."""
+        import inspect, re
+        import meshsense_cli as cli
+        src = inspect.getsource(cli._menu_usb_pipeline)
+        branches = {int(m) for m in re.findall(r"idx == (\d+)", src)}
+        self.assertEqual(branches, set(range(len(cli._usb_menu_items()) - 1)))
+
+
 class VerdictLineTest(unittest.TestCase):
     """CLI 수집 직후 한 줄 — 제어판과 같은 문장을 쓴다."""
 
