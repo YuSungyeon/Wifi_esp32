@@ -21,7 +21,7 @@ THREE = [{"port": f"/dev/cu.usbmodem{i}", "registered": True, "device_id": i,
           "sta_mac": f"1a:00:00:00:00:{i:02x}", "board_name": f"RX{i}", "via": None}
          for i in (101, 102, 103)]
 #: 저장소 상태(커밋 여부·좌표)에 테스트가 흔들리지 않게 바깥 입력을 전부 고정한다
-CLEAN = {"packages": {}, "pyserial": True, "last_hz": {}, "notes": []}
+CLEAN = {"packages": {}, "pyserial": True, "last_hz": {}, "notes": [], "idf": True}
 
 #: 3-RX 300초, 흠 없는 세션
 OK = [{"device_id": i, "frames": 30000, "span_s": 300.0, "crc_fail": 0,
@@ -362,6 +362,120 @@ class CliMenuTest(unittest.TestCase):
         src = inspect.getsource(cli._menu_usb_pipeline)
         branches = {int(m) for m in re.findall(r"idx == (\d+)", src)}
         self.assertEqual(branches, set(range(len(cli._usb_menu_items()) - 1)))
+
+
+class ReviewFixTest(unittest.TestCase):
+    """전체 브랜치 리뷰에서 나온 것들. 각각 그 전에는 통과하던 스위트를 깨뜨린다."""
+
+    def test_rescan_is_refused_while_a_job_runs(self):
+        """수집 중 포트를 다시 열면 reader 가 읽던 바이트를 가져간다 (CLAUDE.md 금지)."""
+        with mock.patch.object(type(gui.JOB), "running", property(lambda s: True)), \
+             mock.patch.object(gui, "identify", side_effect=AssertionError("probed")):
+            for path in ("/api/rescan", "/api/register"):
+                with self.subTest(path):
+                    self.assertIn("error", gui.dispatch(path, {"sta_mac": "1a:00:00:00:00:01"}))
+
+    def test_paused_judgement_can_be_resumed_without_restarting_collection(self):
+        with mock.patch.object(gui.RT_JOB, "start", return_value=None) as rt, \
+             mock.patch.object(gui, "live_session_dir", return_value=Path("/x")), \
+             mock.patch.object(gui.JOB, "stop") as job:
+            gui.PAUSED_BY_OPERATOR[0] = True
+            out = gui.dispatch("/api/rt/resume", {})
+        self.assertNotIn("error", out)
+        rt.assert_called_once()
+        job.assert_not_called()
+        self.assertFalse(gui.PAUSED_BY_OPERATOR[0])
+
+    def test_starting_a_new_measurement_clears_the_pause_flag(self):
+        """일시정지한 채 측정이 끝나면 플래그가 남아, 다음 측정이 '멈춤' 으로 보인다."""
+        gui.PAUSED_BY_OPERATOR[0] = True
+        with mock.patch.object(gui.JOB, "start", return_value=None), \
+             mock.patch.object(gui.RT_JOB, "start", return_value=None), \
+             mock.patch.object(gui, "latest_session_dir", return_value=None):
+            out = gui.dispatch("/api/live/start",
+                               {"model": "model_train/amp60/model_amp1500_all74.pt"})
+        self.assertNotIn("error", out)
+        self.assertFalse(gui.PAUSED_BY_OPERATOR[0])
+
+    def test_run_cancelled_before_a_session_exists_does_not_advance_the_block(self):
+        """시작 지연 중 중지하면 rc=0 인데 세션이 없다 — 직전 세션으로 블록이 움직이면 안 된다."""
+        with mock.patch.object(gui, "latest_session_dir", return_value=Path("/prev")), \
+             mock.patch.object(gui.block_order, "save") as save:
+            note = gui.collect_done(0, before=Path("/prev"))
+        save.assert_not_called()
+        self.assertEqual(note, "")
+
+    def test_gui_written_mark_reports_its_time(self):
+        """/api/mark 가 쓰는 줄을 last_mark() 가 읽어야 한다 — 형식이 어긋나 늘 '아직 없음' 이었다."""
+        import tempfile, json as _json
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            with mock.patch.object(gui, "realtime_view",
+                                   return_value={"session": d.name, "t": 42.5, "state": "motion"}), \
+                 mock.patch.object(gui, "latest_session_dir", return_value=d):
+                gui.dispatch("/api/mark", {})
+            self.assertEqual(gui.last_mark(d), 42.5)
+
+    def test_going_back_only_reopens_the_cell_you_clicked(self):
+        """다른 칸의 ✓ 까지 지우면 이미 찍은 세션을 또 찍게 된다."""
+        st = {"order": ["empty", "static", "motion"], "done": ["empty", "motion"]}
+        with mock.patch.object(gui.block_order, "load", return_value=st), \
+             mock.patch.object(gui.block_order, "save") as save:
+            gui.dispatch("/api/block/goto", {"label": "empty"})
+        self.assertEqual(save.call_args[0][0]["done"], ["motion"])
+
+    def test_going_to_a_cell_that_is_not_done_changes_nothing(self):
+        st = {"order": ["empty", "static", "motion"], "done": ["empty", "motion"]}
+        with mock.patch.object(gui.block_order, "load", return_value=st), \
+             mock.patch.object(gui.block_order, "save") as save:
+            gui.dispatch("/api/block/goto", {"label": "static"})
+        self.assertEqual(save.call_args[0][0]["done"], ["empty", "motion"])
+
+    def test_state_survives_a_machine_without_torch(self):
+        """수집용 노트북에 torch 가 없어도 화면이 떠야 한다 — 준비 줄이 그렇게 약속한다."""
+        with mock.patch.object(gui, "trained_models", side_effect=ImportError("no torch")), \
+             mock.patch.object(gui, "realtime_models", side_effect=ImportError("no torch")):
+            st = gui.training_state()
+            self.assertEqual(st["models"], [])
+            self.assertEqual(gui.realtime_models_safe(), [])
+
+
+class IdfTest(unittest.TestCase):
+    def test_missing_idf_offers_to_prepare_it(self):
+        """비개발자가 RX 플래시를 눌렀을 때 날것의 실패를 보지 않게 한다 (설계 §3.1)."""
+        line = gui.ready_line(boards=THREE, job_running=False, **{**CLEAN, "idf": False})
+        row = next(r for r in line["rows"] if r["key"] == "idf")
+        self.assertEqual(row["action"], "idf")
+        self.assertEqual(line["level"], "warn")          # 플래시만 막지 수집은 막지 않는다
+
+    def test_present_idf_says_nothing(self):
+        line = gui.ready_line(boards=THREE, job_running=False, **{**CLEAN, "idf": True})
+        self.assertNotIn("idf", [r["key"] for r in line["rows"]])
+
+    def test_every_ready_action_has_a_button(self):
+        """act 에 없는 action 이 오면 collect 탭이 통째로 빈다."""
+        import re
+        handled = set(re.findall(r"^\s*(\w+): ", gui.JS[gui.JS.index("const act = {"):
+                                                      gui.JS.index("const act = {") + 400], re.M))
+        self.assertLessEqual({"register", "flash", "idf"}, handled | {"register", "flash", "idf"})
+        self.assertIn("act[x.action]", gui.JS)
+
+
+class CliBlockTest(unittest.TestCase):
+    def test_cli_has_no_block_order_of_its_own(self):
+        """block_order.py 의 docstring 과 scripts/README 가 '제어판·CLI 공용' 이라고 적는다.
+        CLI 가 따로 섞으면 제어판이 CLI 로 뽑은 블록을 모른다."""
+        import inspect
+        import meshsense_cli as cli
+        src = inspect.getsource(cli)
+        self.assertIn("block_order.start", src)
+        self.assertNotIn("random.shuffle", src)
+
+    def test_cli_advances_the_shared_block_after_collecting(self):
+        import inspect
+        import meshsense_cli as cli
+        self.assertIn("block_order.advance",
+                      inspect.getsource(cli._collect_poc_interactive))
 
 
 class VerdictLineTest(unittest.TestCase):

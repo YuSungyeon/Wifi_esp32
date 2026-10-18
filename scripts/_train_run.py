@@ -63,6 +63,8 @@ SECONDS_PER_UNIT = 1.24e-5
 #: 실측: 위상 11789창×300스텝 1631초 / 진폭 2687창×300스텝 62초.
 TRAINER_RATE = {"phase60": 1.24e-5, "amp60": 2.56e-6}
 EPOCH_RE = re.compile(r"seed (\d+) epoch (\d+)/(\d+)")
+#: 러너 기본값. 화면이 예상 시간을 낼 때 그대로 읽는다 — 양쪽에 박아 두면 한쪽만 바뀐다.
+DEFAULT_EPOCHS, DEFAULT_SEEDS = 10, 3
 
 
 def preset_shape(preset: dict) -> dict:
@@ -77,7 +79,7 @@ def preset_shape(preset: dict) -> dict:
     stride = (int(args[args.index("--train-stride") + 1]) if "--train-stride" in args
               else TRAINER_STRIDE[trainer])
     return {"window": window, "train_stride": stride, "steps": preset["steps"],
-            "rate": TRAINER_RATE[trainer]}
+            "rate": TRAINER_RATE[trainer], "epochs": DEFAULT_EPOCHS, "seeds": DEFAULT_SEEDS}
 
 
 def predict_windows(sessions: list, window: int, stride: int) -> int:
@@ -110,8 +112,8 @@ def main() -> int:
     ap.add_argument("--name", default=None, help="체크포인트 이름 (기본: 날짜-프리셋)")
     ap.add_argument("--sessions", nargs="+", required=True)
     ap.add_argument("--eval", nargs="+", default=[])
-    ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
-    ap.add_argument("--epochs", type=int, default=10)
+    ap.add_argument("--seeds", type=int, nargs="+", default=list(range(DEFAULT_SEEDS)))
+    ap.add_argument("--epochs", type=int, default=DEFAULT_EPOCHS)
     args = ap.parse_args()
 
     preset = PRESETS[args.preset]

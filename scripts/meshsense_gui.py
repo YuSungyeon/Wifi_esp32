@@ -122,9 +122,13 @@ RT_JOB = Job()    # 실시간 판단 — 파일만 읽으므로 수집과 같이
 LIVE_JOB = "실시간 측정 · 수집"
 #: 운영자가 `판단 정지` 를 눌렀는가. RX 끊김과 구분해 화면에 다른 말을 쓴다.
 PAUSED_BY_OPERATOR = [False]
+#: 마지막으로 고른 모델. 일시정지에서 돌아올 때 같은 모델로 다시 붙인다.
+LIVE_MODEL = [""]
+MODEL_DEFAULT = "model_train/amp60/model_amp1500_all74.pt"
 #: 엔진(`realtime/engine.py`)이 정본이다. 여기 베껴 둔 이유는 engine import 가 torch 를
 #: 끌어와 제어판 시작이 느려지기 때문이고, 두 값이 같은지는 테스트가 묶어 둔다.
 MARKS_NAME = "realtime_marks.jsonl"
+IDF_EXPORT = REPO_ROOT / "esp-idf" / "export.sh"
 
 
 #: 학습·파형에만 쓰이는 패키지. 없어도 **수집은 막지 않는다**.
@@ -177,7 +181,8 @@ def last_session_hz() -> dict:
 
 def ready_line(boards: list | None = None, job_running: bool | None = None,
                packages: dict | None = None, pyserial: bool | None = None,
-               last_hz: dict | None = None, notes: list | None = None) -> dict:
+               last_hz: dict | None = None, notes: list | None = None,
+               idf: bool | None = None) -> dict:
     """수집 화면 맨 위 한 줄. 옛 보드 탭이 여기로 들어온다 (doc/control-panel.md §3.1).
 
     **수집에 필요한 것만 막는다** — `pyserial` 과 RX 3대. torch·matplotlib 은 학습과 파형에만
@@ -228,6 +233,14 @@ def ready_line(boards: list | None = None, job_running: bool | None = None,
         if level == "ok":
             level = "warn"
 
+    #: ESP-IDF 는 **플래시할 때만** 필요하다. 수집 담당자는 대개 플래시된 보드를 받으므로
+    #: 수집을 막지 않지만, 없으면 준비하기 버튼을 보여 날것의 실패를 막는다 (설계 §3.1).
+    if (IDF_EXPORT.is_file() if idf is None else idf) is False:
+        rows.append({"key": "idf", "level": "warn", "action": "idf",
+                     "text": "ESP-IDF 가 없습니다 — 펌웨어를 구우려면 먼저 준비해야 합니다"})
+        if level == "ok":
+            level = "warn"
+
     for r in (readiness() if notes is None else notes):   # 좌표·커밋 경고는 그대로 쓴다
         rows.append({"key": "note", "level": "warn", "action": None, "text": r["text"]})
         if level == "ok":
@@ -268,7 +281,7 @@ def block_state() -> dict:
     return {**state, "next": collect_label(state), "redrawn_reason": reason}
 
 
-def collect_done(rc: int) -> str:
+def collect_done(rc: int, before: Optional[Path] = None) -> str:
     """수집 JOB 이 끝난 뒤 — 품질 판정으로 블록을 진행시키고 한 줄을 돌려준다.
 
     사람이 "어디까지 찍었더라" 를 기억하지 않게 하는 고리다. `recollect` 면 칸을 되돌려
@@ -277,7 +290,9 @@ def collect_done(rc: int) -> str:
     if rc != 0:
         return ""
     d = latest_session_dir()
-    if d is None:
+    #: 시작 지연 중 중지하면 rc=0 인데 세션이 없다. 직전 세션으로 블록을 움직이면
+    #: 찍지도 않은 라벨이 끝난 것이 된다.
+    if d is None or (before is not None and d == before):
         return ""
     try:
         m = read_manifest(d)
@@ -499,7 +514,10 @@ def training_state() -> dict:
     봉인된 날짜가 더 이상 없기 때문이다 — 네 날짜 모두 이미 학습에 쓰였다. 잠금이 아니라
     사실이므로 체크포인트를 세어 만들고, 학습할 때마다 저절로 맞는다 (설계 §5).
     """
-    models = trained_models()
+    try:
+        models = trained_models()
+    except Exception:                      # torch 가 없는 기기 — 학습만 못 하고 나머지는 돈다
+        models = []
     used: dict = {}
     for m in models:
         for d in m.get("train_dates") or []:
@@ -508,6 +526,15 @@ def training_state() -> dict:
     groups = [{"date": date, "sessions": items, "trained_models": used.get(date, 0)}
               for date, items in group_by_date(sessions).items()]
     return {"dates": groups, "presets": PRESET_INFO, "models": models, "selected": []}
+
+
+def realtime_models_safe() -> list:
+    """`realtime_models()` 의 안전판. torch 가 없는 수집용 기기에서도 화면이 떠야 한다 —
+    준비 줄이 "학습·파형에만 필요합니다" 라고 약속한다 (설계 §3.1)."""
+    try:
+        return realtime_models()
+    except Exception:
+        return []
 
 
 def trained_models() -> list:
@@ -733,8 +760,6 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 
 JS = r"""
 let S = null, tab = 'collect', shownPng = null;
-let order = null;  // 이번 블록의 무작위 클래스 순서
-try { order = JSON.parse(localStorage.getItem('blockOrder')); } catch (e) {}
 // 섹션별 데이터 지문. 바뀐 섹션만 다시 그린다 —
 // 1.2초 폴링마다 전부 다시 그리면 입력 중인 폼이 통째로 날아간다.
 const sig = {};
@@ -796,7 +821,7 @@ function render() {
         title="${esc(S.label_desc[l]||'')}">${l}${done?' ✓':''}</i>`;
     }).join('');
     document.getElementById('collect').innerHTML = `<div class="card">
-      ${renderReady(S.ready)}
+      ${renderReady(S.ready, busy)}
       <p class="lbl">다음 세션</p>
       <p class="seq">s${S.next_session_id}
         <em>${esc(S.meta.date||'')} · ${esc(settingsSummary(S.meta))}</em></p>
@@ -891,9 +916,15 @@ function renderRealtimeStart(S){
   if (!models.length) return '';
   if (rtModel === null) rtModel = (models.find(m => m.is_deployed) || models[0]).path;
   const collecting = c.running && c.name === S.live_job;
-  if (j.running || collecting) return `<div class="card"><div class="bar" style="margin:0">
-      <span class="tag ok">${j.running ? esc(j.name) : '수집 시작 중 — 첫 판단까지 약 20초'}</span>
+  if (j.running || collecting) {
+    //: 멈춘 것과 시작 중인 것을 같은 말로 쓰지 않는다 — 전자는 돌아갈 길이 필요하다
+    const paused = collecting && !j.running && S.realtime && S.realtime.paused_by_operator;
+    return `<div class="card"><div class="bar" style="margin:0">
+      <span class="tag ${paused ? 'warn' : 'ok'}">${
+        j.running ? esc(j.name) : paused ? esc(S.pause_note) : '수집 시작 중 — 첫 판단까지 약 20초'}</span>
+      ${paused ? `<button class="act primary" onclick="post('/api/rt/resume')">판단 다시 켜기</button>` : ''}
       <button class="act danger" onclick="post('/api/live/stop')">종료</button></div></div>`;
+  }
   if (c.running) return `<div class="card"><h2>실시간 측정</h2>
     <p class="sub">${esc(c.name)} 이(가) 실행 중입니다. 끝난 뒤 시작할 수 있습니다.</p></div>`;
   const mopts = models.map(m => `<option value="${esc(m.path)}" ${rtModel===m.path?'selected':''}>
@@ -977,37 +1008,36 @@ function renderRealtime(r){
 //: 학습 탭이 고른 것 — 서버가 아니라 화면이 들고 있다. 새로고침하면 지워진다.
 let trainPick = new Set(), trainEval = null, trainPreset = 'balanced', trainName = '';
 let trainOpen = false;
-function trainToggle(key){ trainPick.has(key) ? trainPick.delete(key) : trainPick.add(key);
-  if (trainEval && [...trainPick].some(k => k.startsWith(trainEval))) trainEval = null;
-  delete sig.train; render(); }
 function trainToggleDate(date, keys){
   const all = keys.every(k => trainPick.has(k));
   keys.forEach(k => all ? trainPick.delete(k) : trainPick.add(k));
   if (trainEval && [...trainPick].some(k => k.startsWith(trainEval))) trainEval = null;
   delete sig.train; render(); }
-function trainSetEval(d){ trainEval = d || null; delete sig.train; render(); }
+function trainSetEval(d){ trainEval = d; delete sig.train; render(); }
 function trainSetPreset(p){ trainPreset = p; delete sig.train; render(); }
 function startTrain(){
   const locked = new Set([...trainPick].map(k => k.split('_')[0]));
   const free = (S.training.dates || []).map(g => g.date).filter(d => !locked.has(d)).sort().reverse();
-  const ev = free.includes(trainEval) ? trainEval : (free[0] || null);
+  const ev = trainEval === 'none' ? null
+    : (free.includes(trainEval) ? trainEval : (free[0] || null));
   post('/api/train', {sessions: [...trainPick], eval_dates: ev ? [ev] : [],
                       preset: trainPreset, name: trainName.trim()});
 }
 function renderTrain(t, busy){
   if (!t) return '';
   const counts = {empty:0, static:0, motion:0};
-  let span = 0;
+  const spans = [];
   t.dates.forEach(g => g.sessions.forEach(s => {
-    if (trainPick.has(s.key)) { counts[s.label]++; span += s.span_s || 0; }
+    if (trainPick.has(s.key)) { counts[s.label]++; spans.push(s.span_s || 0); }
   }));
   const total = trainPick.size;
   const ready = total > 0 && Object.values(counts).every(c => c >= 2);
   const lockedDates = new Set([...trainPick].map(k => k.split('_')[0]));
   //: 평가 날짜 기본값 — 학습에 안 쓴 날짜 중 가장 최근 (설계 §5)
   const free = t.dates.map(g => g.date).filter(d => !lockedDates.has(d)).sort().reverse();
-  const evalDate = trainEval !== undefined && trainEval !== null && free.includes(trainEval)
-    ? trainEval : (free[0] || null);
+  //: null 은 "아직 안 골랐다", 'none' 은 "평가 없이" 다. 둘을 같은 값으로 두면 고를 수 없다.
+  const evalDate = trainEval === 'none' ? null
+    : (free.includes(trainEval) ? trainEval : (free[0] || null));
   const preset = t.presets[trainPreset] || Object.values(t.presets)[0];
   const name = trainName || autoName(trainPreset);
 
@@ -1028,8 +1058,8 @@ function renderTrain(t, busy){
       </div></div>`;
   }).join('');
 
-  const windows = predictWindows(span, preset);
-  const secs = windows ? preset.rate * windows * preset.steps * 10 * 3 : 0;
+  const windows = predictWindows(spans, preset);
+  const secs = windows ? preset.rate * windows * preset.steps * preset.epochs * preset.seeds : 0;
   const eta = secs && secs < 36000 ? ` — 약 ${hms(secs)}` : '';
 
   const models = t.models.length ? `<table><tr><th>이름</th><th>구성</th><th>평가</th></tr>
@@ -1053,7 +1083,7 @@ function renderTrain(t, busy){
         ? `<div class="row" style="margin-top:.9rem">
              <div><label>평가 날짜</label>
                <div class="steps">${free.map(d => `<i class="${evalDate===d?'now':''}" onclick="trainSetEval('${d}')">${esc(d)}</i>`).join('')}
-                 <i class="${evalDate===null?'now':''}" onclick="trainSetEval(null)">평가 없이</i></div></div>
+                 <i class="${trainEval==='none'?'now':''}" onclick="trainSetEval('none')">평가 없이</i></div></div>
              <div><label for="trainname">모델 이름</label>
                <input id="trainname" type="text" maxlength="40" value="${esc(trainName)}"
                  placeholder="${esc(autoName(trainPreset))}" oninput="trainName = this.value"></div></div>`
@@ -1067,11 +1097,14 @@ function renderTrain(t, busy){
       <p class="lbl">학습한 모델 (${t.models.length})</p>
       ${models}</div>`;
 }
-//: 창 수 어림 — 학습기가 데이터를 읽기 전에 버튼에 시간을 쓰려면 필요하다 (_train_run.predict_windows)
-function predictWindows(spanSeconds, preset){
-  const frames = Math.round(spanSeconds * 100);
-  const w = preset.window || 6000, stride = preset.train_stride || 150;
-  return frames >= w ? Math.floor((frames - w) / stride) + 1 : 0;
+//: 창 수 어림 — `_train_run.predict_windows()` 와 **같은 식**이어야 한다. 합계 길이로 한 번에
+//: 세면 세션마다 버려지는 창 끝이 사라져 +23% 치우친다.
+function predictWindows(spans, preset){
+  const w = preset.window, stride = preset.train_stride;
+  return spans.reduce((n, sec) => {
+    const frames = Math.round(sec * 100);
+    return n + (frames >= w ? Math.floor((frames - w) / stride) + 1 : 0);
+  }, 0);
 }
 function autoName(preset){
   const d = new Date(), p = n => String(n).padStart(2,'0');
@@ -1132,18 +1165,19 @@ function registerBoard(mac){
   if (name !== null) post('/api/register', {sta_mac: mac, name: name});
 }
 //: 평소엔 한 줄, 막혔을 때만 펼친다 — 문제는 막힌 자리에서 푼다 (control-panel.md §2)
-function renderReady(r){
+function renderReady(r, busy){
   if (!r) return '';
   const act = {
     register: k => `<button class="act" onclick="registerBoard('${esc(k.replace('new-',''))}')">등록</button>`,
+    idf: () => `<button class="act" onclick="post('/api/idf')">ESP-IDF 준비하기</button>`,
     flash: k => { const port = k.replace('port-','');
       return `<button class="act" onclick="post('/api/flash',{port:'${esc(port)}',kind:'rx'})">RX 플래시</button>`
            + `<button class="act" onclick="post('/api/flash',{port:'${esc(port)}',kind:'tx'})">TX 플래시</button>`; }};
   const rows = readyOpen ? `<div class="readyrows">${r.rows.map(x => `<div class="r">
       <span>${esc(x.text)}</span>
-      ${x.action ? act[x.action](x.key) : ''}</div>`).join('')
+      ${x.action && act[x.action] ? act[x.action](x.key) : ''}</div>`).join('')
     || '<div class="r"><span>더 볼 것이 없습니다</span></div>'}
-    <div class="r"><button class="act" onclick="post('/api/rescan')">보드 다시 찾기</button></div></div>` : '';
+    <div class="r"><button class="act" ${busy?'disabled':''} onclick="post('/api/rescan')">보드 다시 찾기</button></div></div>` : '';
   return `<div class="ready ${esc(r.level)}" onclick="toggleReady()">
       <span>${r.level === 'ok' ? '✓' : '⚠'} ${esc(r.text)}</span>
       <span class="sp">자세히 ${readyOpen ? '▾' : '▸'}</span></div>${rows}`;
@@ -1208,10 +1242,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if (REPO_ROOT / DIAG_PNG_REL).is_file() else 0,
                 "ready": ready_line(), "block": block_state(),
                 "training": training_state(),
-                "rt_models": realtime_models(),
+                "rt_models": realtime_models_safe(),
                 # 실시간이 안 돌면 지난 실행의 화면을 띄우지 않는다 — 옛 결과를 지금으로 착각하게 된다
-                "realtime": view if (view := realtime_view()) and (RT_JOB.running or view["stale_s"] < 5)
-                else None,
+                #: 운영자가 멈춘 동안에는 마지막 판단을 남겨 둔다 — 화면이 비면
+                #: 돌아갈 버튼이 어디 있는지 알 수 없다. 그냥 끊긴 경우는 전처럼 지운다.
+                "realtime": view if (view := realtime_view())
+                and (RT_JOB.running or PAUSED_BY_OPERATOR[0] or view["stale_s"] < 5) else None,
                 "rt_job": RT_JOB.state(), "live_job": LIVE_JOB,
                 "pause_note": pause_note(PAUSED_BY_OPERATOR[0]),
                 "job": JOB.state(),
@@ -1255,6 +1291,9 @@ def rescan() -> dict:
 
 def dispatch(path: str, body: dict) -> dict:
     if path == "/api/rescan":
+        #: 수집 중 포트를 다시 열면 reader 가 읽던 바이트를 가져간다 (CLAUDE.md 금지)
+        if JOB.running:
+            return {"error": "수집 중에는 보드를 다시 찾지 않습니다"}
         return rescan()
 
     if path == "/api/stop":
@@ -1287,10 +1326,8 @@ def dispatch(path: str, body: dict) -> dict:
         st = block_order.load()
         if label not in st.get("order", []):
             return {"error": f"이번 블록에 없는 라벨: {label}"}
-        at = st["order"].index(label)
-        block_order.save({**st, "done": [l for l in st["order"][:at] if l in st.get("done", [])]
-                                        + [l for l in st["order"][:at]
-                                           if l not in st.get("done", [])]})
+        #: 고른 칸만 "남음" 으로 되돌린다. 뒤쪽 칸의 ✓ 를 지우면 이미 찍은 세션을 또 찍게 된다.
+        block_order.save({**st, "done": [l for l in st.get("done", []) if l != label]})
         return {"ok": True}
 
     if path == "/api/collect":
@@ -1300,12 +1337,15 @@ def dispatch(path: str, body: dict) -> dict:
         delay = max(0.0, float(body.get("delay") or 0))
         if label not in SESSION_LABELS:
             return {"error": "블록을 마쳤습니다 — 순서를 다시 뽑으세요"}
+        before = latest_session_dir()
         err = JOB.start(f"수집 · {label} · {dur:.0f}초",
                         [PY, str(SCRIPT_DIR / "_collect_run.py"), label, str(dur), str(delay)],
-                        on_done=collect_done)
+                        on_done=lambda rc: collect_done(rc, before))
         return {"error": err} if err else {"ok": True}
 
     if path == "/api/register":
+        if JOB.running:                        # 등록도 끝에서 rescan() 을 부른다
+            return {"error": "수집 중에는 보드를 다시 찾지 않습니다"}
         mac, name = (body.get("sta_mac") or "").strip(), (body.get("name") or "").strip()
         if not mac:
             return {"error": "sta_mac 이 필요합니다"}
@@ -1315,6 +1355,10 @@ def dispatch(path: str, body: dict) -> dict:
         if r.returncode != 0:                  # 조용히 실패하지 않는다 — stderr 를 그대로 보인다
             return {"error": (r.stderr or r.stdout).strip()[:400]}
         return rescan()
+
+    if path == "/api/idf":
+        err = JOB.start("ESP-IDF 준비", [PY, str(SCRIPT_DIR / "idf_bootstrap.py"), "-y"])
+        return {"error": err} if err else {"ok": True}
 
     if path == "/api/diagnose":
         err = JOB.start("분리 가능성 진단",
@@ -1345,6 +1389,8 @@ def dispatch(path: str, body: dict) -> dict:
             return {"error": "체크포인트가 아닙니다"}
         if RT_JOB.running:
             return {"error": "실시간 측정이 이미 돌고 있습니다"}
+        PAUSED_BY_OPERATOR[0] = False
+        LIVE_MODEL[0] = str(model)
         before = latest_session_dir()
         err = JOB.start(LIVE_JOB, [PY, str(SCRIPT_DIR / "_collect_run.py"), LIVE_LABEL, "0", "0"])
         if err:
@@ -1364,6 +1410,22 @@ def dispatch(path: str, body: dict) -> dict:
                 time.sleep(0.5)
 
         threading.Thread(target=attach, daemon=True).start()
+        return {"ok": True}
+
+    if path == "/api/rt/resume":
+        #: 멈춘 판단을 **같은 세션에** 다시 붙인다. 수집은 애초에 멈추지 않았다.
+        d = live_session_dir()
+        if d is None:
+            return {"error": "따라갈 수집 세션이 없습니다"}
+        if RT_JOB.running:
+            return {"error": "판단이 이미 돌고 있습니다"}
+        model = Path(LIVE_MODEL[0] or MODEL_DEFAULT)
+        err = RT_JOB.start(f"실시간 · {model.stem.replace('model_', '')} · {d.name}",
+                           [PY, str(REPO_ROOT / "realtime" / "ui.py"), "--session", str(d),
+                            "--model", str(model), "--plain", "--follow"])
+        if err:
+            return {"error": err}
+        PAUSED_BY_OPERATOR[0] = False
         return {"ok": True}
 
     if path == "/api/rt/pause":
@@ -1406,10 +1468,16 @@ def dispatch(path: str, body: dict) -> dict:
         target = next((d for d in sorted(RAW_ROOT.glob("*/*"), reverse=True)
                        if d.name == view.get("session")), None)
         if target is None:
+            target = latest_session_dir()
+        if target is None:
             return {"error": "세션을 찾지 못했습니다"}
+        #: `t` 가 정본이다 — 엔진이 쓰는 형식과 같아야 last_mark() 와 지연 계산이 읽는다.
+        #: 전에는 `wall` 만 써서 화면이 늘 "아직 없음" 이었다.
         with (target / MARKS_NAME).open("a", encoding="utf-8") as fp:
-            fp.write(json.dumps({"wall": time.time(), "note": str(body.get("note", "")),
-                                 "via": "gui"}, ensure_ascii=False) + "\n")
+            fp.write(json.dumps({"t": view.get("t"), "wall": time.time(),
+                                 "state": view.get("state"),
+                                 "note": str(body.get("note", "")), "via": "gui"},
+                                ensure_ascii=False) + "\n")
         return {"ok": True}
 
     if path == "/api/delete":

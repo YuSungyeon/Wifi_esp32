@@ -16,6 +16,7 @@ import glob
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import List, Literal, NamedTuple, Optional, Sequence, Tuple
 
@@ -54,6 +55,7 @@ from csi_session import (  # noqa: E402
     create_session, finalize_session, next_session_id, quality, set_session_note, summarize,
     verdict_line,
 )
+import block_order  # noqa: E402
 from csi_store import LABELS  # noqa: E402
 from session_meta import read_label_target, read_session_id  # noqa: E402
 from train_sessions import (  # noqa: E402
@@ -905,6 +907,8 @@ def _collect_poc_interactive() -> bool:
     devices = manifest.get("devices", [])
     level = quality(devices)[0]
     print("\n" + verdict_line(devices))
+    if manifest.get("label") in LABELS:          # live 세션은 블록에 속하지 않는다
+        block_order.save(block_order.advance(block_order.load(), manifest["label"], level))
 
     # collection-protocol.md §7 품질 판정 — 불합격(종료 코드 5)이면 버리는 쪽이 기본값
     venv_py = _ensure_postprocess_venv(interactive=True)
@@ -927,14 +931,19 @@ def _collect_poc_interactive() -> bool:
     return True
 
 
-def _draw_block_order(prev: Optional[List[str]]) -> List[str]:
-    """블록 안 클래스 순서를 무작위로. 직전 블록과 같은 순서는 다시 뽑는다."""
-    import random
-    order = list(LABELS)
-    while True:
-        random.shuffle(order)
-        if order != prev:
-            return order
+def _draw_block_order() -> List[str]:
+    """새 블록을 뽑아 **서버 파일에 저장**한다 — 제어판과 같은 블록을 본다.
+
+    전에는 여기 메모리에만 있어서 CLI 로 뽑은 순서가 제어판에 보이지 않았다.
+    """
+    from session_form import read_meta
+    meta = read_meta(SESSION_META)
+    st = block_order.start(time.strftime("%Y%m%d"),
+                           (meta.get("condition.placement_id") or "").strip(),
+                           (meta.get("condition.subject_id") or "").strip(),
+                           block_order.load().get("order"))
+    block_order.save(st)
+    return st["order"]
 
 
 TRAIN_RUN_SCRIPT = SCRIPT_DIR / "_train_run.py"
@@ -1095,11 +1104,13 @@ def _menu_realtime() -> None:
 
 def _menu_usb_pipeline() -> None:
     """USB 수집 파이프라인 — esp-csi 베이스 PoC (USB 시리얼 100Hz, 모델 학습 데이터)."""
-    order: Optional[List[str]] = None
     while True:
         print("\n--- USB 수집 파이프라인 (모델 학습 데이터 · esp-csi PoC) ---")
-        if order:
-            print(f"  이번 블록 순서: {' → '.join(order)}")
+        st = block_order.load()
+        if st["order"]:
+            cells = " → ".join(f"{l}{' ✓' if l in st['done'] else ''}" for l in st["order"])
+            nxt = block_order.next_label(st)
+            print(f"  이번 블록: {cells}" + (f"   다음: {nxt}" if nxt else "   (블록 완료)"))
         print(f"  TX 프로젝트: {SEND_POC_PROJECT.name}")
         print(f"  RX 프로젝트: {RECV_POC_PROJECT.name}")
         print(f"  reader:    {SERIAL_READER_SCRIPT.name}")
@@ -1111,7 +1122,7 @@ def _menu_usb_pipeline() -> None:
             _collect_poc_interactive()
             _pause()
         elif idx == 2:
-            order = _draw_block_order(order)
+            print(f"  새 블록: {' → '.join(_draw_block_order())}")
         elif idx == 3:
             _menu_sessions()
             _pause()

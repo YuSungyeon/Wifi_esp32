@@ -101,6 +101,12 @@ class PresetShapeTest(unittest.TestCase):
         self.assertEqual(preset_shape(PRESETS["balanced"])["train_stride"], 30)
         self.assertEqual(preset_shape(PRESETS["amplitude"])["train_stride"], 150)
 
+    def test_shape_carries_epochs_and_seeds_so_the_screen_need_not_guess(self):
+        """화면이 10·3 을 박아 두면 러너 기본값이 바뀌어도 모르고 계속 같은 시간을 말한다."""
+        from _train_run import preset_shape
+        sh = preset_shape(PRESETS["balanced"])
+        self.assertEqual((sh["epochs"], sh["seeds"]), (10, 3))
+
     def test_explicit_argument_wins_over_the_default(self):
         from _train_run import preset_shape
         p = dict(PRESETS["balanced"], args=["--window", "6000", "--train-stride", "60"])
@@ -117,6 +123,14 @@ class PredictWindowsTest(unittest.TestCase):
 
     def test_sessions_shorter_than_the_window_contribute_nothing(self):
         self.assertEqual(predict_windows([{"span_s": 10.0}], window=3000, stride=150), 0)
+
+    def test_summing_spans_first_biases_the_count(self):
+        """세션마다 창 끝이 버려진다 — 합계 길이로 한 번에 세면 과대평가된다.
+        화면의 predictWindows 가 같은 식을 쓰는지 묶어 두는 기준값이다."""
+        per_session = predict_windows([{"span_s": 300.0}] * 15, window=6000, stride=30)
+        lumped = predict_windows([{"span_s": 4500.0}], window=6000, stride=30)
+        self.assertEqual(per_session, 12015)
+        self.assertGreater(lumped / per_session, 1.2)
 
     def test_no_sessions_is_zero_not_a_crash(self):
         self.assertEqual(predict_windows([], window=3000, stride=150), 0)
