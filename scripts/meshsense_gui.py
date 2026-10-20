@@ -782,6 +782,23 @@ button.act.go{display:block;width:100%;margin:.9rem 0 .2rem;padding:.75rem;font-
 .grp .rows{padding:.15rem 0 .35rem}
 .grp .r{display:flex;align-items:center;gap:.5rem;padding:.3rem .8rem;font-size:.84rem}
 .grp .r.off{opacity:.5}
+/* 파형 모달 — 누른 자리에서 바로 뜬다. 닫기는 ✕·바깥·Esc 셋 다 (control-panel.md §4.1) */
+.wfveil{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.62);display:flex;
+ align-items:flex-start;justify-content:center;padding:1.2rem}
+.wfbox{background:var(--card);border:1px solid var(--line);border-radius:12px;
+ width:min(100%,52rem);max-height:100%;display:flex;flex-direction:column;
+ box-shadow:0 24px 70px rgba(0,0,0,.55)}
+.wfhead{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;border-bottom:1px solid var(--line)}
+.wfhead .meta{color:var(--muted);font-size:.78rem}
+.wfhead .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:1.05rem;line-height:1;
+ padding:.1rem .4rem;border-radius:6px}
+.wfhead .x:hover{background:var(--bg);color:var(--fg)}
+.wfbody{overflow:auto;padding:.7rem .8rem .9rem}
+.wfbody img{width:100%;display:block;border-radius:6px}   /* 폭 맞춤 — 3개 RX 가 한눈에 */
+.wfmid{display:flex;align-items:center;justify-content:center;gap:.6rem;min-height:12rem;
+ color:var(--muted);font-size:.88rem;text-align:center;padding:1rem}
+.wffoot{display:flex;gap:.6rem;align-items:center;padding:.5rem .8rem;
+ border-top:1px solid var(--line);color:var(--muted);font-size:.78rem}
 /* 모델 표가 관리 화면이다 (control-panel.md §5) */
 table.mt td{border-bottom:1px solid #23282f;vertical-align:middle}
 table.mt tr.off td{opacity:.45}
@@ -827,10 +844,12 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
     <pre class="log" id="log"></pre>
   </div>
 </main>
+<!-- 파형 모달. 섹션 바깥이라 어느 탭에서도 화면을 덮는다 -->
+<div id="wf"></div>
 <script>__JS__</script></body></html>"""
 
 JS = r"""
-let S = null, tab = 'collect', shownPng = null;
+let S = null, tab = 'collect';
 // 섹션별 데이터 지문. 바뀐 섹션만 다시 그린다 —
 // 1.2초 폴링마다 전부 다시 그리면 입력 중인 폼이 통째로 날아간다.
 const sig = {};
@@ -917,7 +936,7 @@ function render() {
 
       ${renderSettings(S)}</div>`;
   }
-  if (tab === 'sessions' && changed('sessions', [S.session_groups, shownPng, openDates, toolOpen, busy, S.diag_png])) {
+  if (tab === 'sessions' && changed('sessions', [S.session_groups, openDates, toolOpen, busy, S.diag_png])) {
     const cnt = S.label_counts, total = S.sessions.length;
     const chips = `<div class="sum"><i class="on">전체 ${total}</i>` +
       Object.entries(cnt).filter(([k]) => k !== 'live').map(([k,v]) => `<i>${esc(k)} ${v}</i>`).join('') +
@@ -934,7 +953,7 @@ function render() {
             r.devices.length?' · '+r.devices.map(d=>d.hz).join('/')+'Hz':''}</span>
           ${r.quality.level==='ok'?'':`<span class="tag ${r.quality.level==='check'?'warn':'bad'}" title="${esc(r.quality.text)}">${r.quality.level==='check'?'확인':'재수집'}</span>`}
           ${ex?'<span class="hint">학습·평가에서 제외됨</span>':''}
-          <span class="sp"><span class="link" onclick="showPng('${esc(r.path)}')">파형</span> · <span class="link" onclick="noteSession('${esc(r.path)}')">메모${r.note?' ✓':''}</span> · <span class="link" onclick="delSession('${esc(r.path)}')">삭제</span></span></div>`;
+          <span class="sp"><span class="link" onclick='openWaterfall(${JSON.stringify(r)})'>파형</span> · <span class="link" onclick="noteSession('${esc(r.path)}')">메모${r.note?' ✓':''}</span> · <span class="link" onclick="delSession('${esc(r.path)}')">삭제</span></span></div>`;
       }).join('')}</div>` : '';
       return `<div class="grp"><div class="hd" onclick="toggleDate('${g.date}')">
           ${open?'▾':'▸'} <b>${esc(g.date)}</b>
@@ -946,7 +965,6 @@ function render() {
       <h2>수집한 세션 (${total})</h2>
       <p class="sub">라벨마다 2세션 이상이어야 학습·진단이 가능합니다. 날짜 줄을 누르면 펼쳐집니다.</p>
       ${chips}${groups || '<p class="sub">아직 수집한 세션이 없습니다.</p>'}
-      ${shownPng ? `<img class="wf" src="/api/img?path=${encodeURIComponent(shownPng)}">` : ''}
       <div class="setting"><span class="hint">이 데이터로</span>
         <span class="link" onclick="toolOpen=toolOpen==='diag'?null:'diag';delete sig.sessions;render()">분리 가능성 진단</span>
         <span class="hint">·</span>
@@ -1310,13 +1328,40 @@ function noteSession(p){
   if (t !== null) post('/api/note', {path: p, text: t});
 }
 function delSession(p){ if(confirm(p+'\n\n이 세션을 삭제할까요?')) post('/api/delete',{path:p}); }
-//: 없으면 만들어서 보인다 — 쓰는 사람은 있었는지 없었는지 모른다
-async function showPng(p){
-  const png = p + '/csi_waterfall.png';
-  if (shownPng === png) { shownPng = null; render(); return; }
-  const row = (S.sessions || []).find(s => s.path === p);
-  if (row && !row.png && (await post('/api/png', {path: p})).error) return;
-  shownPng = png; delete sig.sessions; render();
+//: 모달을 **먼저** 띄우고 그 안에서 만든다 — 누르고 0.7초 동안 아무 반응이 없는 것보다
+//: 바로 떠서 "만드는 중" 이 보이는 쪽이 빠르게 느껴진다.
+let wf = null;
+function drawWaterfall(){
+  const box = document.getElementById('wf');
+  if (!wf) { box.innerHTML = ''; return; }
+  const body = wf.error
+    ? `<div class="wfmid">${esc(wf.error)}</div>`
+    : wf.src ? `<img src="${esc(wf.src)}" alt="워터폴">`
+             : `<div class="wfmid"><span class="spin"></span> 파형을 만드는 중입니다…</div>`;
+  box.innerHTML = `<div class="wfveil" onclick="if(event.target===this)closeWaterfall()">
+    <div class="wfbox">
+      <div class="wfhead"><b>${esc(wf.name)}</b><span class="meta">${esc(wf.meta)}</span>
+        <span class="x" onclick="closeWaterfall()">✕</span></div>
+      <div class="wfbody">${body}</div>
+      ${wf.src ? `<div class="wffoot"><span>가로축 초 · 세로축 서브캐리어 · 색은 진폭</span>
+        <a class="link" style="margin-left:auto" href="${esc(wf.src)}" target="_blank">새 창에서 원본 크기</a></div>` : ''}
+    </div></div>`;
+}
+function closeWaterfall(){ wf = null; drawWaterfall(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && wf) closeWaterfall(); });
+
+async function openWaterfall(r){
+  const hz = r.devices.length ? ` · RX ${r.devices.length}대` : '';
+  wf = {name: r.name, meta: `${r.date} · ${r.span_s}초${hz}`, src: null, error: null};
+  drawWaterfall();
+  if (!r.png) {
+    const out = await post('/api/png', {path: r.path});
+    if (!wf) return;                      // 기다리는 동안 닫았다
+    if (out.error) { wf.error = out.error; drawWaterfall(); return; }
+  }
+  if (!wf) return;
+  wf.src = '/api/img?path=' + encodeURIComponent(r.path + '/csi_waterfall.png');
+  drawWaterfall();
 }
 refresh(); setInterval(refresh, 1200);
 """

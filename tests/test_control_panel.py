@@ -403,7 +403,7 @@ class TabTest(unittest.TestCase):
             declared |= {x.split("=")[0].strip() for x in m.group(1).split(",")}
         for name in ("trainPick", "trainEval", "trainPreset", "trainName", "trainOpen",
                      "readyOpen", "timeOpen", "setOpen", "projOpen", "openDates",
-                     "toolOpen", "durS", "delayS", "rtModel", "shownPng", "tab", "sig"):
+                     "toolOpen", "durS", "delayS", "rtModel", "wf", "tab", "sig"):
             with self.subTest(name):
                 self.assertIn(name, declared)
 
@@ -742,10 +742,23 @@ class WaterfallTest(unittest.TestCase):
             with self.subTest(bad):
                 self.assertIn("error", gui.dispatch("/api/png", {"path": bad}))
 
+    def test_waterfall_opens_in_a_modal_not_at_the_bottom(self):
+        """목록 맨 아래에 붙으면 스크롤을 내려야 보이고 어느 세션 것인지도 그림 제목뿐이다."""
+        self.assertIn("function openWaterfall", gui.JS)
+        self.assertIn('id="wf"', gui.PAGE)
+        #: 세션 파형은 더 이상 목록 아래에 붙지 않는다 (진단 결과 이미지는 그대로 둔다)
+        self.assertNotIn("csi_waterfall.png", gui.JS.split("function openWaterfall")[0])
+
+    def test_modal_closes_three_ways(self):
+        """하나만 두면 사람은 반드시 다른 걸 먼저 시도한다."""
+        self.assertIn("closeWaterfall", gui.JS)            # ✕
+        self.assertIn("Escape", gui.JS)                    # Esc
+        self.assertIn("wfveil", gui.JS)                    # 바깥 누르기
+
     def test_the_button_is_always_offered(self):
         """있으면 바로, 없으면 만들어 보인다 — 화면에 두 상태가 있을 이유가 없다."""
         self.assertNotIn("r.png?", gui.JS)
-        self.assertIn("showPng", gui.JS)
+        self.assertIn("openWaterfall", gui.JS)
 
 
 class VerdictLineTest(unittest.TestCase):
