@@ -406,7 +406,8 @@ def session_groups(rows: list) -> list:
     for r in rows:
         g = out.setdefault(r["date"], {"date": r["date"], "count": 0, "placements": set(),
                                        "labels": {l: 0 for l in LABELS}, "live": 0,
-                                       "worst": "ok", "excluded": [], "rows": []})
+                                       "worst": "ok", "excluded": [], "rows": [],
+                                       "quality_counts": {"check": 0, "recollect": 0}})
         g["count"] += 1
         g["rows"].append(r)
         if r["placement"]:
@@ -415,13 +416,30 @@ def session_groups(rows: list) -> list:
             g["labels"][r["label"]] += 1
         elif r["label"] == LIVE_LABEL:
             g["live"] += 1
-        if order[r["quality"]["level"]] > order[g["worst"]]:
-            g["worst"] = r["quality"]["level"]
+        level = r["quality"]["level"]
+        if level != "ok":
+            g["quality_counts"][level] += 1
+        if order[level] > order[g["worst"]]:
+            g["worst"] = level
         key = f"{r['date']}_{r['session_id']}"
         if is_excluded(key):
             g["excluded"].append(key)
-    return [{**g, "placements": sorted(g["placements"])}
+    return [{**g, "placements": sorted(g["placements"]), "quality_hint": quality_hint(g["rows"])}
             for _, g in sorted(out.items(), reverse=True)]
+
+
+def quality_hint(rows: list, limit: int = 3) -> str:
+    """날짜 줄의 배지에 달 설명. **왜** 걸렸는지 펼치지 않고도 읽게 한다.
+
+    전부 적으면 툴팁이 화면을 덮는다 — 앞의 몇 개만 보이고 나머지는 수로 말한다.
+    """
+    bad = [r for r in rows if r["quality"]["level"] != "ok"]
+    if not bad:
+        return ""
+    head = [f"{r['name']} — {r['quality']['text']}" for r in bad[:limit]]
+    if len(bad) > limit:
+        head.append(f"… {len(bad) - limit}개 더")
+    return "\n".join(head)
 
 
 def realtime_view(raw_root: Path = RAW_ROOT) -> Optional[dict]:
@@ -901,7 +919,7 @@ function render() {
       return `<div class="grp"><div class="hd" onclick="toggleDate('${g.date}')">
           ${open?'▾':'▸'} <b>${esc(g.date)}</b>
           <span class="hint">${g.count}세션${g.placements.length?' · 배치 '+g.placements.map(esc).join('·'):''}</span>
-          <span class="sp">${labs}${g.worst!=='ok'?` <span class="tag ${g.worst==='check'?'warn':'bad'}">⚠</span>`:''}</span>
+          <span class="sp">${labs}${badges(g)}</span>
         </div>${rows}</div>`;
     }).join('');
     document.getElementById('sessions').innerHTML = `<div class="card">
@@ -1199,6 +1217,13 @@ async function saveMeta(){
 function startCollect(){ post('/api/collect',{duration:durS, delay:delayS}); }
 let readyOpen = false, timeOpen = false, setOpen = false, projOpen = false;
 let openDates = [], toolOpen = null;
+//: 느낌표 하나로는 "30개 중 2개" 와 "6개 중 3개" 가 같아 보인다. 비중까지 적는다.
+//: 정상은 적지 않는다 — 기본이라 매 줄에 배지가 붙으면 눈이 그걸 거른다.
+function badges(g){
+  const q = g.quality_counts || {}, t = esc(g.quality_hint || '');
+  const one = (n, label, cls) => n ? ` <span class="tag ${cls}" title="${t}">${label} ${n}/${g.count}</span>` : '';
+  return one(q.recollect, '재수집', 'bad') + one(q.check, '확인', 'warn');
+}
 function toggleDate(d){
   openDates = openDates.includes(d) ? openDates.filter(x => x !== d) : [...openDates, d];
   delete sig.sessions; render();

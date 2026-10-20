@@ -202,6 +202,39 @@ class SessionGroupTest(unittest.TestCase):
         self.assertNotIn("live", g["labels"])
         self.assertEqual(g["count"], sum(g["labels"].values()) + g["live"])
 
+    def test_folded_row_counts_how_many_and_out_of_how_many(self):
+        """느낌표 하나로는 30개 중 2개와 6개 중 3개가 같아 보인다."""
+        rows = ROWS[:2] + [_row("20260920", "motion", 3, level="check")]
+        g = gui.session_groups(rows)[0]
+        self.assertEqual(g["quality_counts"], {"check": 1, "recollect": 0})
+        self.assertEqual(g["count"], 3)
+
+    def test_a_clean_date_gets_no_badge_at_all(self):
+        """정상이 기본이라 매 줄에 배지가 붙으면 눈이 그걸 거른다."""
+        g = gui.session_groups(ROWS)[0]
+        self.assertEqual(g["quality_counts"], {"check": 0, "recollect": 0})
+        self.assertEqual(g["quality_hint"], "")
+
+    def test_hover_text_says_which_sessions_and_why(self):
+        rows = ROWS[:2] + [_row("20260920", "motion", 3, level="check")]
+        hint = gui.session_groups(rows)[0]["quality_hint"]
+        self.assertIn("x_motion_s3", hint)
+        self.assertIn("흠", hint)
+
+    def test_hover_text_does_not_list_every_session(self):
+        """30개가 다 걸리면 툴팁이 화면을 덮는다."""
+        rows = [_row("20260920", "motion", i, level="check") for i in range(1, 11)]
+        hint = gui.session_groups(rows)[0]["quality_hint"]
+        self.assertLessEqual(len(hint.splitlines()), 5)
+        self.assertIn("더", hint)
+
+    def test_recollect_is_counted_apart_from_check(self):
+        """재수집은 학습에 쓸 수 없다 — 확인과 같은 칸에 세면 안 된다."""
+        rows = [_row("20260920", "empty", 1, level="check"),
+                _row("20260920", "static", 2, level="recollect")]
+        g = gui.session_groups(rows)[0]
+        self.assertEqual(g["quality_counts"], {"check": 1, "recollect": 1})
+
     def test_worst_quality_reaches_the_folded_row(self):
         rows = ROWS[:2] + [_row("20260920", "motion", 3, level="check")]
         self.assertEqual(gui.session_groups(rows)[0]["worst"], "check")
