@@ -28,8 +28,9 @@ STORE = ROOT / "mac_collector" / "block_order.json"
 EMPTY: dict = {"order": [], "done": [], "drawn_at": "", "date": "", "placement": "", "subject": ""}
 
 
-def load(path: Path = STORE) -> dict:
+def load(path: Path | None = None) -> dict:
     """저장된 상태. 파일이 없거나 깨졌으면 빈 상태 — 수집 화면이 떠야 새로 뽑을 수 있다."""
+    path = STORE if path is None else path
     try:
         state = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -37,8 +38,8 @@ def load(path: Path = STORE) -> dict:
     return {**EMPTY, **state} if isinstance(state, dict) else dict(EMPTY)
 
 
-def save(state: dict, path: Path = STORE) -> None:
-    path = Path(path)
+def save(state: dict, path: Path | None = None) -> None:
+    path = Path(STORE if path is None else path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 

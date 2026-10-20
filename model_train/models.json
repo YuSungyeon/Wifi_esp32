@@ -52,8 +52,8 @@
     "realtime": false
   },
   "model_train/amp60/model_motion3s_wo19.pt": {
-    "name": "내 모델",
-    "note": "설명",
+    "name": "1단계 대조군 (9/19 제외)",
+    "note": "1단계가 특정 날짜에 기대는지 보려고 학습 날짜를 하나 뺀 것",
     "realtime": false
   },
   "model_train/phase60/model_15sessions.pt": {

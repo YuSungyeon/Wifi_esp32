@@ -7,6 +7,7 @@ import json
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +58,26 @@ class PinnedTest(unittest.TestCase):
         from realtime.engine import MODEL, STAGE1
         self.assertEqual(set(mr.PINNED),
                          {str(MODEL.relative_to(ROOT)), str(STAGE1.relative_to(ROOT))})
+
+
+class IsolationTest(unittest.TestCase):
+    """테스트가 진짜 레지스트리에 쓰면 안 된다 — 실제로 두 번 샜다.
+
+    `def update(..., path=STORE)` 처럼 기본값을 import 시점에 묶으면
+    `mock.patch.object(mr, "STORE", …)` 가 먹지 않는다.
+    """
+
+    def test_patching_the_store_actually_redirects_writes(self):
+        with tempfile.TemporaryDirectory() as t:
+            fake = Path(t) / "models.json"
+            real = mr.STORE
+            before = real.read_text(encoding="utf-8") if real.is_file() else None
+            with unittest.mock.patch.object(mr, "STORE", fake):
+                mr.update("model_train/amp60/model_zzz.pt", {"name": "샘"})
+                mr.forget("model_train/amp60/model_zzz.pt")
+            self.assertTrue(fake.is_file())
+            after = real.read_text(encoding="utf-8") if real.is_file() else None
+            self.assertEqual(after, before)
 
 
 class StoreTest(unittest.TestCase):

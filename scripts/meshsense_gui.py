@@ -34,6 +34,10 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 import block_order  # noqa: E402
 import model_registry  # noqa: E402
+#: 화면에서 지울 수 없는 체크포인트. 지우면 실시간이 뜨지 않거나(기본 모델)
+#: 조용히 느려진다(1단계 게이트 — 멈추지 않아 더 찾기 어렵다). 2026-10-20 실측으로 확인했다.
+#: 담당자 배포본은 지워도 멈추지 않으므로 막지 않고 팝업이 경고만 한다.
+PROTECTED = model_registry.PINNED
 from csi_session import (  # noqa: E402
     LIVE_LABEL, SESSION_LABELS, VERDICT, next_session_id, quality, read_manifest,
     set_session_note,
@@ -54,7 +58,9 @@ RECV_POC = REPO_ROOT / "esp32s3_csi_recv_poc"
 PY = sys.executable
 
 sys.path.insert(0, str(SCRIPT_DIR))
-from _train_run import PRESETS as _PRESETS, preset_shape  # noqa: E402
+from _train_run import (  # noqa: E402
+    PRESETS as _PRESETS, estimate_seconds, predict_windows, preset_shape,
+)
 
 PRESET_INFO = {k: {"label": v["label"], "detail": v["detail"], **preset_shape(v)}
                for k, v in _PRESETS.items()}
@@ -538,6 +544,24 @@ def realtime_models_safe() -> list:
         return []
 
 
+def retrain_seconds(bundle: dict) -> float:
+    """다시 만드는 데 걸릴 대략 시간. 팝업이 "그냥 두자" 를 판단하게 하려고 보인다.
+
+    세션 길이는 300초로 본다(수집 프로토콜 기준). `약` 을 붙여 쓴다.
+    """
+    window = bundle.get("window_frames") or 0
+    sessions = len(bundle.get("training_sessions") or [])
+    if not window or not sessions:
+        return 0.0
+    phase = bundle.get("mode") == "P"
+    stride = 30 if phase else 150
+    steps = window // (bundle.get("downsample") or 10) if phase else window // 10
+    windows = predict_windows([{"span_s": 300.0}] * sessions, window, stride)
+    seeds = len(bundle.get("state_dicts") or [1])
+    epochs = (bundle.get("config") or {}).get("epochs", 10)
+    return estimate_seconds(windows, steps, epochs, seeds, "phase60" if phase else "amp60")
+
+
 def trained_models() -> list:
     """model_train/*/model_*.pt 의 요약 — 체크포인트 기록 + 레지스트리의 이름·설명·노출.
 
@@ -557,8 +581,11 @@ def trained_models() -> list:
             m = b.get("metrics", {})
             rel = str(p.relative_to(REPO_ROOT))
             e = model_registry.entry(rel, store)
+            files = sorted(q.name for q in p.parent.glob(f"{p.stem}.*"))
             out.append({
                 "path": rel, "file": p.stem.replace("model_", ""), **e,
+                "files": files, "deletable": rel not in PROTECTED,
+                "retrain_s": retrain_seconds(b),
                 "mode": b.get("mode", "?"), "window_s": b.get("window_frames", 0) / 100,
                 "sessions": len(b.get("training_sessions", [])),
                 "train_dates": b.get("training_dates", []),
@@ -1017,6 +1044,16 @@ function renderRealtime(r){
 //: 학습 탭이 고른 것 — 서버가 아니라 화면이 들고 있다. 새로고침하면 지워진다.
 let trainPick = new Set(), trainEval = null, trainPreset = 'balanced', trainName = '', trainNote = '';
 let trainOpen = false, modelEdit = null;
+//: 되돌릴 수 없다 — 무엇이 지워지는지 먼저 말한다 (control-panel.md §5)
+function delModel(m){
+  const files = m.files.map(f => '  ' + f).join('\n');
+  const again = m.retrain_s ? `\n\n다시 만들려면 약 ${hms(m.retrain_s)} 학습해야 합니다.` : '';
+  const owner = m.path.indexOf('/robust/') >= 0
+    ? '\n\n담당자가 만든 공식 체크포인트입니다.' : '';
+  if (confirm(`${m.name}\n\n아래 ${m.files.length}개 파일을 지웁니다. 되돌릴 수 없습니다.\n`
+              + files + again + owner))
+    post('/api/model/delete', {path: m.path});
+}
 function saveModel(path){
   post('/api/model', {path: path,
     name: document.getElementById('mn').value, note: document.getElementById('md').value});
@@ -1091,7 +1128,10 @@ function renderTrain(t, busy){
         <td class="hint">${m.note ? esc(m.note) : '<i>설명 없음</i>'}</td>
         <td class="hint">${esc(m.mode)} · 창 ${m.window_s}초</td>
         <td class="hint">${m.score ? esc(m.score) : '—'}</td>
-        <td><span class="link" onclick="modelEdit=${editing?'null':`'${esc(m.path)}'`};delete sig.train;render()">${editing?'닫기':'수정'}</span></td></tr>`;
+        <td><span class="link" onclick="modelEdit=${editing?'null':`'${esc(m.path)}'`};delete sig.train;render()">${editing?'닫기':'수정'}</span>
+          · ${m.deletable
+            ? `<span class="link bad" onclick='delModel(${JSON.stringify(m)})'>삭제</span>`
+            : `<span class="link dis" title="코드가 쓰는 모델이라 화면에서는 지울 수 없습니다">삭제</span>`}</td></tr>`;
       return row + (editing ? `<tr class="editrow"><td colspan="6">
         <div class="ff"><label>이름</label><input class="inp" id="mn" value="${esc(m.name)}">
           <label>설명</label><input class="inp" id="md" value="${esc(m.note)}" placeholder="한 줄로 — 어떤 자료로 학습했고 어디에 쓰는지"></div>
@@ -1401,6 +1441,23 @@ def dispatch(path: str, body: dict) -> dict:
                 rel, {k: body[k] for k in ("name", "note", "realtime") if k in body})}
         except ValueError as exc:
             return {"error": str(exc)}
+
+    if path == "/api/model/delete":
+        #: 되돌릴 수 없다. 화면이 먼저 무엇이 지워지는지 보이고 확인을 받는다.
+        rel = str(body.get("path", ""))
+        if rel in PROTECTED:
+            return {"error": "코드가 쓰는 모델이라 화면에서는 지울 수 없습니다"}
+        target = (REPO_ROOT / rel).resolve()
+        if not str(target).startswith(str(REPO_ROOT / "model_train")) or target.suffix != ".pt":
+            return {"error": "체크포인트가 아닙니다"}
+        if not target.is_file():
+            return {"error": "없는 파일입니다"}
+        gone = []
+        for q in sorted(target.parent.glob(f"{target.stem}.*")):
+            q.unlink()
+            gone.append(q.name)
+        model_registry.forget(rel)
+        return {"ok": True, "deleted": gone}
 
     if path == "/api/idf":
         err = JOB.start("ESP-IDF 준비", [PY, str(SCRIPT_DIR / "idf_bootstrap.py"), "-y"])

@@ -543,6 +543,19 @@ class ModelAdminTest(unittest.TestCase):
         listed = [m for m in gui.trained_models() if m["realtime"] and m["mode"] != "A-motion"]
         self.assertEqual(len(listed), len(available_models()))
 
+    def test_listing_tells_the_screen_what_a_delete_would_cost(self):
+        """팝업이 '파일 N개 · 재학습 약 N분' 을 말하려면 목록이 그 값을 들고 있어야 한다."""
+        m = next(m for m in gui.trained_models() if m["path"].endswith("amp1500_60sessions.pt"))
+        self.assertGreaterEqual(len(m["files"]), 2)
+        self.assertGreater(m["retrain_s"], 0)
+        self.assertTrue(m["deletable"])
+
+    def test_the_two_models_code_points_at_are_not_deletable(self):
+        import model_registry as mr
+        for m in gui.trained_models():
+            with self.subTest(m["file"]):
+                self.assertEqual(m["deletable"], m["path"] not in mr.PINNED)
+
     def test_training_note_lands_on_the_new_model(self):
         """학습이 끝난 뒤가 아니라 시작할 때 받는다 — 그때가 가장 잘 아는 시점이다."""
         import model_registry as mr
@@ -559,6 +572,58 @@ class ModelAdminTest(unittest.TestCase):
     def test_unknown_path_is_refused(self):
         self.assertIn("error", gui.dispatch("/api/model", {"path": "../etc/passwd",
                                                            "name": "x"}))
+
+
+class ModelDeleteTest(unittest.TestCase):
+    """삭제는 되돌릴 수 없다 — 무엇이 지워지는지 먼저 말하고, 막을 것은 막는다."""
+
+    def setUp(self):
+        import shutil, tempfile
+        import model_registry as mr
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        #: macOS 의 /var 는 /private/var 의 심볼릭 링크다 — 풀어 두지 않으면
+        #: 엔드포인트의 경로 접두사 검사와 어긋난다
+        root = Path(self.tmp.name).resolve()
+        g = mock.patch.object(mr, "STORE", root / "models.json")
+        g.start(); self.addCleanup(g.stop)
+        #: 진짜 체크포인트를 건드리지 않게 사본으로 논다
+        self.dir = root / "model_train" / "amp60"
+        self.dir.mkdir(parents=True)
+        for suffix in (".pt", ".metrics.json", ".holdout.json"):
+            (self.dir / f"model_toy{suffix}").write_text("x" * 100)
+        g2 = mock.patch.object(gui, "REPO_ROOT", root)
+        g2.start(); self.addCleanup(g2.stop)
+        self.rel = "model_train/amp60/model_toy.pt"
+
+    def test_delete_removes_the_checkpoint_and_everything_beside_it(self):
+        """체크포인트마다 .metrics.json 이, 위상 모델에는 .holdout.json 까지 딸려 있다."""
+        out = gui.dispatch("/api/model/delete", {"path": self.rel})
+        self.assertNotIn("error", out)
+        self.assertEqual(sorted(p.name for p in self.dir.iterdir()), [])
+
+    def test_delete_also_drops_the_name_and_note(self):
+        """남겨 두면 같은 이름으로 다시 학습했을 때 옛 설명이 되살아난다."""
+        import model_registry as mr
+        mr.update(self.rel, {"name": "장난감", "note": "설명"})
+        gui.dispatch("/api/model/delete", {"path": self.rel})
+        self.assertNotIn(self.rel, mr.load())
+
+    def test_the_two_models_code_points_at_cannot_be_deleted(self):
+        import model_registry as mr
+        for p in mr.PINNED:
+            with self.subTest(p):
+                out = gui.dispatch("/api/model/delete", {"path": p})
+                self.assertIn("error", out)
+
+    def test_the_owner_checkpoint_can_be_deleted(self):
+        """지워도 실시간은 멈추지 않는다(실측). 막는 대신 팝업이 경고한다."""
+        self.assertNotIn("model_train/robust/model.pt", gui.PROTECTED)
+
+    def test_a_path_outside_model_train_is_refused(self):
+        for bad in ("../etc/passwd", "scripts/meshsense_gui.py", "model_train/amp60/cache"):
+            with self.subTest(bad):
+                self.assertIn("error", gui.dispatch("/api/model/delete", {"path": bad}))
 
 
 class VerdictLineTest(unittest.TestCase):

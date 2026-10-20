@@ -26,8 +26,9 @@ PINNED = ("model_train/amp60/model_amp1500_all74.pt",
 FIELDS = ("name", "note", "realtime")
 
 
-def load(path: Path = STORE) -> dict:
+def load(path: Path | None = None) -> dict:
     """저장된 값. 파일이 없거나 깨졌으면 빈 dict — 화면은 파일 이름으로 뜬다."""
+    path = STORE if path is None else path
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -35,8 +36,8 @@ def load(path: Path = STORE) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def save(store: dict, path: Path = STORE) -> None:
-    path = Path(path)
+def save(store: dict, path: Path | None = None) -> None:
+    path = Path(STORE if path is None else path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(store, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
                     encoding="utf-8")
@@ -57,7 +58,7 @@ def entry(model_path: str, store: dict | None = None) -> dict:
     }
 
 
-def update(model_path: str, changes: dict, path: Path = STORE) -> dict:
+def update(model_path: str, changes: dict, path: Path | None = None) -> dict:
     """한 모델의 값을 고친다. 준 칸만 바꾸고 나머지는 둔다."""
     key = str(model_path)
     if key in PINNED and changes.get("realtime") is False:
@@ -76,6 +77,14 @@ def update(model_path: str, changes: dict, path: Path = STORE) -> dict:
     store[key] = cur
     save(store, path)
     return entry(key, store)
+
+
+def forget(model_path: str, path: Path | None = None) -> None:
+    """레지스트리에서 지운다. 체크포인트를 지울 때 같이 부른다 — 남겨 두면 같은 이름으로
+    다시 학습했을 때 옛 설명이 되살아나 틀린 설명이 붙는다."""
+    store = load(path)
+    if store.pop(str(model_path), None) is not None:
+        save(store, path)
 
 
 if __name__ == "__main__":  # 셀프체크: 실제 체크포인트에 붙여 본다
