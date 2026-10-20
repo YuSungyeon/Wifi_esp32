@@ -88,7 +88,7 @@ def source_snapshot(output):
                "model_train/preprocessing/preprocess_3rx.py", "model_train/lstm/LSTM.py",
                "model_train/cnn1d/CNN1D.py", "model_train/analysis/prepare_phase_experiment.py",
                "model_train/analysis/run_phase_experiment.py",
-               "model_train/docs/model-training/amplitude-phase-classification-design.md"]
+               "model_train/docs/model-training/archive/amplitude-phase-classification-design.md"]
     hashes = {}
     for name in sources:
         src = ROOT / name

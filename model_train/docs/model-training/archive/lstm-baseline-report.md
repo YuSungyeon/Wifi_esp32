@@ -5,7 +5,7 @@
 >
 > 대상 데이터: `model_train/preprocessing/output/20260616`
 >
-> 모델·평가 기준: [수신기 3대의 LSTM 학습 방법](../lstm-training.md)
+> 모델·평가 기준: [수신기 3대의 LSTM 학습 방법](lstm-training.md)
 >
 > 전처리 기준: [수신기 3대의 CSI 전처리 설계](../../preprocessing/design.md)
 

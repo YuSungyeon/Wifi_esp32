@@ -3,7 +3,7 @@
 > 상태: **HISTORICAL — 9회 학습·최종 test 완료**
 > 보관 기록: 당시 조건과 결과를 보존한다. 현재 모델은 [모델 학습 문서 안내](../../README.md)를 참고한다.
 > 실행일: 2026-09-24 · 수집일: 2026-09-19·20
-> 설계: [진폭·위상 분류 실험 설계](../amplitude-phase-classification-design.md)
+> 설계: [진폭·위상 분류 실험 설계](amplitude-phase-classification-design.md)
 > 로컬 산출물: `model_train/analysis/output/20260924-phase-ablation/`
 
 ## 1. 결론

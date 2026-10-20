@@ -118,7 +118,7 @@ Window 3:  1%, 98%, 1% → static
 다수결은 `empty`지만 실제 집계 방식은 `static`을 선택한다.
 Session 10·19의 대표 예측도 이 확률 평균 방식으로 계산된 결과다.
 근거: [LSTM.py의 session_level_results](../../../lstm/LSTM.py),
-[공식 평가 규칙](../lstm-training.md).
+[공식 평가 규칙](lstm-training.md).
 
 ### 3.3 학습 자료의 평균 F1도 기록함
 

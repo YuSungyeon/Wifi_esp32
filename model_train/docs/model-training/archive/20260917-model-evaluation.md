@@ -110,8 +110,8 @@ s43의 빈 방/정지 점수는 모델 1이 46.93%/45.41%, 모델 2가
 구간·세션·첫 구간의 정확도, 클래스별 재현율, 혼동 행렬과 평균 F1을 계산한다.
 개별 구간 확률과 모델별 확률을 저장해 다시 집계할 수 있게 한다.
 
-실행 코드: [저장 모델 평가](../../robust/evaluate_raw.py).
-예측은 기존 [추론 코드](../../robust/predict.py)를 호출했다.
+실행 코드: [저장 모델 평가](../../../robust/evaluate_raw.py).
+예측은 기존 [추론 코드](../../../robust/predict.py)를 호출했다.
 실행 전 절차와 코드 사본은 산출물의 `source/`에 보존했다.
 
 ## 결과를 다시 확인한 내용
@@ -140,7 +140,7 @@ s43의 빈 방/정지 점수는 모델 1이 46.93%/45.41%, 모델 2가
 
 ## 산출물과 재현
 
-- [공유용 결과·구간별 예측 JSON](assets/20260917-evaluation/results.json)
+- [공유용 결과·구간별 예측 JSON](../assets/20260917-evaluation/results.json)
 - 로컬 전체 기록: `model_train/analysis/output/20261001-20260917-frozen-evaluation/`
   (`protocol.json`, `results.json`, 세션별 모델 3개의 확률, `source/`)
 - 평가한 모델: `model_train/analysis/output/20260924-robust-three-class/neural/model.pt`

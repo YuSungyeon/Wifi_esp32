@@ -24,4 +24,4 @@ RX·주파수 순서, 정규화와 윈도우 목록의 hash를 확인해야 사�
 `complex_csi()`의 실수·허수 순서 수정으로 과거 위상 캐시는 새 실험에서 재사용하지 않는다.
 진폭 계산값과 기존 진폭 모델 입력은 이 수정의 영향을 받지 않는다.
 
-상세 기준은 [실험 설계](../model_train/docs/model-training/amplitude-phase-classification-design.md)를 따른다.
+상세 기준은 [실험 설계](../model_train/docs/model-training/archive/amplitude-phase-classification-design.md)를 따른다.

@@ -1,7 +1,7 @@
 # 모델 실험·학습·문서 작업 기록 — 2026년 9~10월
 
 > 상태: **COMPLETED** — 위상 비교 및 긴 문맥 3분류 학습·기존 데이터 검증 완료
-> 설계 정본: [진폭·위상 기반 3클래스 분류 실험 설계](../../model_train/docs/model-training/amplitude-phase-classification-design.md)
+> 설계 정본: [진폭·위상 기반 3클래스 분류 실험 설계](../../model_train/docs/model-training/archive/amplitude-phase-classification-design.md)
 
 ## 2026-10-01 — 평가 결과·문서 정리 GitHub 반영
 
@@ -162,7 +162,7 @@
   다만 같은 날짜·세션 번호가 과거 파일럿 후보 비교의 C·D·E 묶음에 기록돼 있다.
   당시 실행 산출물이 없어 현재 원본과의 바이트 동일성은 확인하지 못했으며,
   프로젝트 전체에서 한 번도 쓰지 않은 새 시험 자료라는 주장은 하지 않는다.
-- **산출물**: [데이터 확인 보고서](../../model_train/docs/model-training/20260917-data-audit.md),
+- **산출물**: [데이터 확인 보고서](../../model_train/docs/model-training/archive/20260917-data-audit.md),
   로컬 `analysis/output/20261001-20260917-data-audit/audit.json`.
 - **범위**: 원본 데이터·가중치는 그대로 두고 품질과 입력 형식만 확인했다.
   모델 예측·정확도 계산·추가 학습은 수행하지 않았다.
@@ -202,7 +202,7 @@
 - **검증**: 테스트 15개 통과. 원본·manifest·모델·감사 결과·학습 목록 총 35파일
   해시 일치, 모델 가중치·BatchNorm 통계 불변, 유효 구간 시작점 149개 일치,
   개별 모델 평균과 앙상블 확률 일치. 저장 확률에서 sklearn으로 지표를 재계산해 일치했다.
-- **산출물**: [9/17 최종 모델 평가](../../model_train/docs/model-training/20260917-model-evaluation.md),
+- **산출물**: [9/17 최종 모델 평가](../../model_train/docs/model-training/archive/20260917-model-evaluation.md),
   공유용 구간별 예측 JSON, 로컬 `analysis/output/20261001-20260917-frozen-evaluation/`.
 - **판단**: 움직임은 맞혔지만 빈 방·정지 구분의 일반화 문제가 남았다.
   현재 8세션만으로 실사용 안정성을 확정하지 않는다. 추가 학습은 수행하지 않았다.
@@ -227,7 +227,7 @@
 - **검증**: 테스트 17개 통과, 전체·날짜별 지표 9묶음 독립 재검산 통과,
   입력 63파일 해시 불변, 모델 가중치·BatchNorm 통계 불변, 280개 시작점 일치.
   기존 9/17의 모든 확률과 판정이 정확히 재현됐다. 학습 파일과 키·해시 중복은 없었다.
-- **산출물**: [전체 데이터 확인·평가 보고서](../../model_train/docs/model-training/20260916-17-model-evaluation.md),
+- **산출물**: [전체 데이터 확인·평가 보고서](../../model_train/docs/model-training/archive/20260916-17-model-evaluation.md),
   데이터·예측 JSON, 로컬 `analysis/output/20261001-20260916-17-{data-audit,frozen-evaluation}/`.
 - **해석**: 동일 날짜·세션 번호의 이전 파일럿 사용 기록을 명시했다.
   움직임에 비해 빈 방·정지 구분이 약하다. 이번 작업은 품질 확인과 고정 모델 평가다.

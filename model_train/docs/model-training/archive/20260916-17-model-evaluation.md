@@ -161,7 +161,7 @@ s33은 빈 방과 정지 점수 차이가 약 0.11%p로 거의 같은 상태다.
 
 ## 데이터 사용 이력
 
-[이전 파일럿 보고서](archive/cnn1d-pilot-cv-report.md)와 실행 코드에는 같은
+[이전 파일럿 보고서](cnn1d-pilot-cv-report.md)와 실행 코드에는 같은
 9/16 s31~s37, 9/17 s38~s45를 후보 비교에 사용한 기록이 있다.
 당시 실행 산출물이 없어 현재 파일과 당시 파일의 바이트 동일성은 미확인이다.
 이번 결과는 최종 모델의 학습 자료 밖에서 하는 추가 평가이며, 프로젝트에서
@@ -181,10 +181,10 @@ s37을 TX-RX101 직선상 정지라고 적은 것도 이전 기록이다. 이번
 - 기존 9/17 8세션의 모든 구간 확률과 판정을 정확히 재현.
 - robust 테스트 17개 통과. 날짜를 포함한 세션 구분과 날짜별 집계를 검사했다.
 
-실행 코드: [원본 품질 확인](../../robust/audit_raw.py),
-[저장 모델 평가](../../robust/evaluate_raw.py).
-공유용 근거: [데이터 확인 JSON](assets/20260916-17-evaluation/audit.json),
-[평가·구간별 예측 JSON](assets/20260916-17-evaluation/results.json).
+실행 코드: [원본 품질 확인](../../../robust/audit_raw.py),
+[저장 모델 평가](../../../robust/evaluate_raw.py).
+공유용 근거: [데이터 확인 JSON](../assets/20260916-17-evaluation/audit.json),
+[평가·구간별 예측 JSON](../assets/20260916-17-evaluation/results.json).
 
 로컬 전체 산출물은 다음 디렉터리에 보존했다.
 

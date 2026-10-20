@@ -4,7 +4,7 @@
 
 현재 학습한 모델을 확인하려면 [모델 학습 문서 안내](../model_train/docs/README.md)에서
 [쉬운 결과 설명](../model_train/docs/model-training/robust-three-class-report-easy.md)부터 읽습니다.
-최근 자료 구성과 결과는 [9월 16·17일 데이터 확인·최종 모델 평가](../model_train/docs/model-training/20260916-17-model-evaluation.md)에 있습니다.
+최근 자료 구성과 결과는 [9월 16·17일 데이터 확인·최종 모델 평가](../model_train/docs/model-training/archive/20260916-17-model-evaluation.md)에 있습니다.
 
 ## 읽는 순서
 

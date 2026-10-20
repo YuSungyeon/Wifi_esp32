@@ -237,7 +237,7 @@ RX   START   END     SPAN   OBSERVED  MISSING  RATIO   MAX_GAP
 현재 모델 코드와 실험:
 
 - [공식 전처리 설계](../model_train/docs/preprocessing/design.md)
-- [LSTM 모델 설계와 학습](../model_train/docs/model-training/lstm-training.md)
+- [LSTM 모델 설계와 학습](../model_train/docs/model-training/archive/lstm-training.md)
 - [1차원 CNN 모델 설계와 학습](../model_train/docs/model-training/cnn1d-training.md)
 - [이전 LSTM 기준 모델 학습·평가 결과](../model_train/docs/model-training/archive/lstm-baseline-report.md)
 - [구형 LSTM 전처리 구현](../model_train/docs/preprocessing/archive/legacy-preprocessing.md)

@@ -6,7 +6,7 @@
 > 2절의 성능 수치는 **외부 공개 벤치마크(SenseFi)** 결과이며, 이 프로젝트 데이터로 측정한 값이 아니다.
 > 자체 데이터의 완료된 LSTM 결과와 남은 비교 계획은 5~6절에 기록한다.
 > 작성일: 2026-08-10
-> 관련 문서: [CSI 전처리 설계](../../preprocessing/design.md) · [수신·송신 순번 분석](../../preprocessing/sequence-analysis.md) · [수신기 3대의 LSTM 학습 방법](../lstm-training.md) · [LSTM 기준 모델 평가 결과](lstm-baseline-report.md)
+> 관련 문서: [CSI 전처리 설계](../../preprocessing/design.md) · [수신·송신 순번 분석](../../preprocessing/sequence-analysis.md) · [수신기 3대의 LSTM 학습 방법](lstm-training.md) · [LSTM 기준 모델 평가 결과](lstm-baseline-report.md)
 
 ## 1. 무엇이 모델 선택을 좌우하는가 (이 프로젝트의 조건)
 

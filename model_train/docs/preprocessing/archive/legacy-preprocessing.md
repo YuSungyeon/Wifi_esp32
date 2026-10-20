@@ -377,7 +377,7 @@ from Preprocessing import LABEL, LABEL_NAME, SPLIT, X, y
 5. 여러 session을 session 단위로 train/validation/test 분리
 6. tensor, label, device order, mapping version 저장
 
-현재 모델의 Tensor 변환과 학습은 [수신기 3대의 LSTM 학습 방법](../../model-training/lstm-training.md)을 참조한다.
+현재 모델의 Tensor 변환과 학습은 [수신기 3대의 LSTM 학습 방법](../../model-training/archive/lstm-training.md)을 참조한다.
 
 ## 6. 참고: 공식 설계를 이해하기 위한 기존 설명
 

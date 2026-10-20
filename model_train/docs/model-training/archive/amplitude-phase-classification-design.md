@@ -2,10 +2,10 @@
 
 > 상태: **HISTORICAL** — 진폭·위상 비교 실험 전의 설계를 보존한 기록이다.
 > 작성일: 2026-09-23
-> 실행 결과: 2026-09-24에 비교 학습·평가 완료. [이전 실험 결과](archive/amplitude-phase-classification-report.md)를 참고한다.
-> 읽는 법: 아래 CURRENT/PLANNED는 작성 당시 상태다. 현재 모델은 [30초 모델 설계](robust-three-class-design.md)를 따른다.
+> 실행 결과: 2026-09-24에 비교 학습·평가 완료. [이전 실험 결과](amplitude-phase-classification-report.md)를 참고한다.
+> 읽는 법: 아래 CURRENT/PLANNED는 작성 당시 상태다. 현재 모델은 [30초 모델 설계](../robust-three-class-design.md)를 따른다.
 > 대상: 2026-09-19·20에 수집한 60세션, RX101·102·103, `empty / static / motion`
-> 기준: [현재 전처리 계약](../preprocessing/design.md) · [수집 프로토콜](../../../doc/collection-protocol.md)
+> 기준: [현재 전처리 계약](../../preprocessing/design.md) · [수집 프로토콜](../../../../doc/collection-protocol.md)
 
 ## 1. 목적과 판단할 질문
 
@@ -47,10 +47,10 @@
 원본이 남아 있으므로 **재수집 없이 위상 활용 가능성을 시험할 수 있다.** 다만
 위상이 실제로 분류에 쓸 만한지는 진단 후 판단한다.
 
-구현 근거: [`csi_store.py`](../../../scripts/csi_store.py),
-[`export_jsonl.py`](../../../scripts/export_jsonl.py),
-[`preprocess_3rx.py`](../../preprocessing/preprocess_3rx.py),
-[`LSTM.py`](../../lstm/LSTM.py), [`CNN1D.py`](../../cnn1d/CNN1D.py).
+구현 근거: [`csi_store.py`](../../../../scripts/csi_store.py),
+[`export_jsonl.py`](../../../../scripts/export_jsonl.py),
+[`preprocess_3rx.py`](../../../preprocessing/preprocess_3rx.py),
+[`LSTM.py`](../../../lstm/LSTM.py), [`CNN1D.py`](../../../cnn1d/CNN1D.py).
 
 ### 2.2. 먼저 해결할 두 가지
 
@@ -170,7 +170,7 @@ b: 직선 전체의 높이, 즉 공통 각도 성분
 ### 4.1. 공통 시간 구간
 
 원본을 파일 순서대로 읽고 CRC·헤더·RX 식별을 검사한다. 재부팅·손상 레코드 판정,
-정상 구간 선택과 `tx_seq` 정렬은 [현재 전처리 규칙](../preprocessing/design.md)을
+정상 구간 선택과 `tx_seq` 정렬은 [현재 전처리 규칙](../../preprocessing/design.md)을
 재사용한다. 역행한 순번을 정렬해서 정상인 것처럼 만들거나 재부팅 경계를 보간하지 않는다.
 
 기본값은 현재와 같은 공통 구간 27,000프레임 이상, RX별 실제 관측률 0.85 이상,
@@ -368,7 +368,7 @@ empty→static과 static→empty의 오분류 세션 수를 따로 보고한다.
 | 모델 보고서 | 같은 세션·윈도우·seed의 A/P/AP 비교와 실패 세션 설명 |
 
 이 표의 신규 도구는 아직 존재하지 않으므로 실행 명령을 제시하지 않는다. 공식
-입력 계약으로 채택할 때는 [문서 정책](../../../doc/documentation-policy.md)에 따라
+입력 계약으로 채택할 때는 [문서 정책](../../../../doc/documentation-policy.md)에 따라
 ADR과 전처리·모델 계약도 갱신한다.
 
 실행 구현은 기존 192차원 CLI를 유지하는 실험용 adapter를 사용한다. 기존
@@ -408,4 +408,4 @@ ADR과 전처리·모델 계약도 갱신한다.
 
 문서 작성 시점의 완료 항목은 데이터 목록·현재 코드 확인과 본 설계 작성이다.
 **다음 착수 작업은 1~2번: 원본 해석 검증과 train·validation 위상 품질 진단이다.**
-작업 이력은 [위상 분류 실험 작업 기록](../../../doc/sprint/2026-09-phase-classification.md)에 남긴다.
+작업 이력은 [위상 분류 실험 작업 기록](../../../../doc/sprint/2026-09-phase-classification.md)에 남긴다.

@@ -2,21 +2,21 @@
 
 > 상태: **CURRENT — 공식 3-RX LSTM 학습·검증·최종 평가와 baseline 실험 완료**
 >
-> 입력 생성 코드: [`preprocess_3rx.py`](../../preprocessing/preprocess_3rx.py)
+> 입력 생성 코드: [`preprocess_3rx.py`](../../../preprocessing/preprocess_3rx.py)
 >
-> 학습 코드: [`LSTM.py`](../../lstm/LSTM.py) · 테스트: [`test_lstm.py`](../../../tests/test_lstm.py)
+> 학습 코드: [`LSTM.py`](../../../lstm/LSTM.py) · 테스트: [`test_lstm.py`](../../../../tests/test_lstm.py)
 >
-> 전처리 기준: [수신기 3대의 CSI 전처리 설계](../preprocessing/design.md)
+> 전처리 기준: [수신기 3대의 CSI 전처리 설계](../../preprocessing/design.md)
 >
-> 모델 비교 근거: [초기 모델 후보 비교와 선택 근거](archive/model-comparison.md)
+> 모델 비교 근거: [초기 모델 후보 비교와 선택 근거](model-comparison.md)
 >
-> 실제 실험 결과: [LSTM 기준 모델 학습·평가 결과](archive/lstm-baseline-report.md)
+> 실제 실험 결과: [LSTM 기준 모델 학습·평가 결과](lstm-baseline-report.md)
 
 이 문서는 `preprocess_3rx.py`가 만든 3-RX 전처리 결과만 입력으로 사용하는 LSTM
 baseline의 공식 설계이자 현재 구현 기준이다. `LSTM.py`는 구형
 `Preprocessing.py`를 실행하거나 import하지 않고, 저장된 공식 split을 직접 읽는다.
 
-데이터 처리·학습·평가 runner는 [1D-CNN](cnn1d-training.md)에서도 재사용한다.
+데이터 처리·학습·평가 runner는 [1D-CNN](../cnn1d-training.md)에서도 재사용한다.
 `ModelSpec`으로 모델 구조와 설정 타입을 주입하며 LSTM 명령의 기본 구조는 동일하다.
 새 run의 config에는 `model_type`과 `parameter_count`, checkpoint에는 `model_type`을
 추가 기록한다. 모델 종류가 없는 기존 checkpoint는 LSTM으로 해석한다.
@@ -71,7 +71,7 @@ model_train/preprocessing/output/20260616/
 | `y.npy` | window별 class 번호, `int64` |
 | `windows.jsonl` | window의 session, 시작 `tx_seq`, 관측률 등 출처 metadata |
 | `normalization.npz` | train에서 계산한 `mean`, `std`, `std_safe` |
-| [`manifest.json`](../preprocessing/manifest-reference.md) | class map, RX 순서, split, 전처리 설정과 제외 근거 |
+| [`manifest.json`](../../preprocessing/manifest-reference.md) | class map, RX 순서, split, 전처리 설정과 제외 근거 |
 
 현재 생성된 20260616 데이터의 shape와 class별 window 수는 다음과 같다.
 
@@ -513,5 +513,5 @@ conda run -n wifi-csi-lstm python model_train/lstm/LSTM.py test \
 `tests/test_lstm.py`의 소형 end-to-end 학습·test와 저장소 전체 테스트가 통과했다.
 실제 `20260616` 데이터는 28,585개 window의 계약과 전체 유한값 검사를 통과했다.
 실제 seed·class-weight 6개 학습과 선택된 balanced seed 3개의 최종 test 결과는
-[LSTM 기준 모델 학습·평가 결과](archive/lstm-baseline-report.md)에
+[LSTM 기준 모델 학습·평가 결과](lstm-baseline-report.md)에
 별도로 기록한다.

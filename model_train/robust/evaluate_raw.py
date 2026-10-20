@@ -181,7 +181,7 @@ def main():
     p.add_argument("--audit", required=True, type=Path)
     p.add_argument("--training-inventory", required=True, type=Path)
     p.add_argument("--report-document", type=lambda p: Path(p).resolve(),
-                   default=ROOT / "model_train/docs/model-training/20260917-model-evaluation.md")
+                   default=ROOT / "model_train/docs/model-training/archive/20260917-model-evaluation.md")
     p.add_argument("--output", required=True, type=Path, help="new output directory; existing paths are refused")
     evaluate(p.parse_args())
 
