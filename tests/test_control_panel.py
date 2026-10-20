@@ -215,6 +215,12 @@ class SessionGroupTest(unittest.TestCase):
         self.assertEqual(g["quality_counts"], {"check": 0, "recollect": 0})
         self.assertEqual(g["quality_hint"], "")
 
+    def test_badge_draws_its_own_tooltip_not_the_browser_one(self):
+        """브라우저 기본 title 은 1~2초 기다려야 뜨고 올릴 수 있다는 표시도 없다."""
+        self.assertIn("data-tip", gui.JS)
+        self.assertIn(".tag[data-tip]:hover::after", gui.CSS)
+        self.assertNotIn('title="${t}"', gui.JS)
+
     def test_hover_text_says_which_sessions_and_why(self):
         rows = ROWS[:2] + [_row("20260920", "motion", 3, level="check")]
         hint = gui.session_groups(rows)[0]["quality_hint"]

@@ -664,6 +664,14 @@ th{color:var(--muted);font-weight:600;font-size:.82rem}
 .tag.ok{background:var(--okbg);color:var(--ok);border-color:var(--ok)}
 .tag.warn{background:var(--warnbg);color:var(--warn);border-color:var(--warn)}
 .tag.bad{background:var(--stbg);color:var(--st-suspended);border-color:var(--st-suspended)}
+/* 배지의 설명은 직접 그린다 — 브라우저 기본 title 은 1~2초 기다려야 뜨고,
+   올릴 수 있다는 표시도 없어서 "아무것도 안 뜬다" 로 읽힌다 */
+.tag[data-tip]{position:relative;cursor:help;border-bottom-style:dashed}
+.tag[data-tip]:hover::after{content:attr(data-tip);position:absolute;z-index:20;
+ top:calc(100% + 6px);right:0;white-space:pre-line;text-align:left;width:max-content;
+ max-width:min(34rem,80vw);padding:.5rem .7rem;border-radius:8px;font-size:.78rem;
+ line-height:1.6;font-weight:400;color:var(--fg);background:var(--card);
+ border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.45)}
 pre.log{background:var(--code);color:var(--codefg);border-radius:10px;padding:.8rem;
  font:12px/1.5 ui-monospace,Menlo,monospace;max-height:22rem;overflow:auto;white-space:pre-wrap;margin:0}
 .bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.8rem}
@@ -755,9 +763,12 @@ button.act.go{display:block;width:100%;margin:.9rem 0 .2rem;padding:.75rem;font-
 .sum i{font-style:normal;font-size:.8rem;padding:.28rem .62rem;border-radius:999px;
  background:var(--bg);border:1px solid var(--line);color:var(--fg)}
 .sum i.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-.grp{border:1px solid var(--line);border-radius:9px;margin-bottom:.45rem;overflow:hidden}
+/* overflow 를 자르지 않는다 — 자르면 배지 설명이 날짜 줄 밖으로 못 나간다.
+   대신 둥근 모서리는 .hd 가 직접 갖는다 (접혀 있으면 네 귀, 펼치면 위 두 귀). */
+.grp{border:1px solid var(--line);border-radius:9px;margin-bottom:.45rem}
 .grp .hd{display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;background:var(--bg);
- font-size:.87rem;cursor:pointer}
+ font-size:.87rem;cursor:pointer;border-radius:8px 8px 0 0}
+.grp:not(:has(.rows)) .hd{border-radius:8px}
 .grp .hd .sp,.grp .r .sp{margin-left:auto;color:var(--muted);font-size:.79rem}
 .grp .rows{padding:.15rem 0 .35rem}
 .grp .r{display:flex;align-items:center;gap:.5rem;padding:.3rem .8rem;font-size:.84rem}
@@ -1221,7 +1232,8 @@ let openDates = [], toolOpen = null;
 //: 정상은 적지 않는다 — 기본이라 매 줄에 배지가 붙으면 눈이 그걸 거른다.
 function badges(g){
   const q = g.quality_counts || {}, t = esc(g.quality_hint || '');
-  const one = (n, label, cls) => n ? ` <span class="tag ${cls}" title="${t}">${label} ${n}/${g.count}</span>` : '';
+  const one = (n, label, cls) => n
+    ? ` <span class="tag ${cls}" data-tip="${t}">${label} ${n}/${g.count}</span>` : '';
   return one(q.recollect, '재수집', 'bad') + one(q.check, '확인', 'warn');
 }
 function toggleDate(d){
