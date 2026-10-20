@@ -428,6 +428,13 @@ def session_groups(rows: list) -> list:
             for _, g in sorted(out.items(), reverse=True)]
 
 
+#: 한 날짜에서 이만큼 걸리면 "그날 뭔가 달랐다" 는 신호로 본다. 2개 미만이거나 비중이
+#: 작으면(1/30 같은) 조언을 띄우지 않는다 — 매번 뜨는 조언은 읽히지 않는다.
+#: ponytail: 두 값 모두 눈대중이다. 전환 세션을 모으면 실측으로 다시 잡는다.
+ADVICE_MIN, ADVICE_SHARE = 2, 0.2
+ADVICE = "같은 날짜에 자주 나오면 보드 위치나 주변 전파를 확인해 보세요."
+
+
 def quality_hint(rows: list, limit: int = 3) -> str:
     """날짜 줄의 배지에 달 설명. **왜** 걸렸는지 펼치지 않고도 읽게 한다.
 
@@ -439,6 +446,8 @@ def quality_hint(rows: list, limit: int = 3) -> str:
     head = [f"{r['name']} — {r['quality']['text']}" for r in bad[:limit]]
     if len(bad) > limit:
         head.append(f"… {len(bad) - limit}개 더")
+    if len(bad) >= ADVICE_MIN and len(bad) >= ADVICE_SHARE * len(rows):
+        head += ["", ADVICE]
     return "\n".join(head)
 
 

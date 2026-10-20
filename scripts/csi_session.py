@@ -218,20 +218,23 @@ def quality(devices: list) -> tuple:
     for d in devices:
         rx = d.get("device_id", "?")
         if d.get("tx_back", 0):
-            notes.append("TX 가 수집 중 재부팅했습니다 — 시간 격자가 깨져 "
-                         "같은 라벨로 다시 찍으세요")
+            notes.append("TX 가 수집 중에 꺼졌다 켜졌습니다 — 보드끼리 시간을 맞출 수 "
+                         "없으니 같은 라벨로 다시 찍으세요")
             worst = max(worst, 2)
         if d.get("boot_changes", 0):
             notes.append(f"RX{rx} 가 수집 중 재부팅했습니다 — 전원·케이블 확인 후 "
                          "같은 라벨로 다시 찍으세요")
             worst = max(worst, 2)
         if d.get("crc_fail", 0):
-            notes.append(f"RX{rx} CRC 실패 {d['crc_fail']}건 — 케이블 확인")
+            notes.append(f"RX{rx} 이 받은 자료 {d['crc_fail']}건이 깨져 있었습니다 — "
+                         "케이블을 확인하세요")
             worst = max(worst, 1)
         frames = max(d.get("frames", 1), 1)
         if d.get("seq_gap", 0) > 0.01 * frames:
-            notes.append(f"RX{rx} 손실 {100 * d['seq_gap'] / frames:.1f}% — "
-                         "학습엔 쓸 수 있으나 무선 경합 의심")
+            #: 왜 빠졌는지는 단정하지 않는다 — 전파 간섭·보드 버퍼·USB 어느 쪽도 될 수 있다.
+            #: 증상만 적고 판단은 사람에게 넘긴다.
+            notes.append(f"RX{rx} 이 신호의 {100 * d['seq_gap'] / frames:.1f}% 를 "
+                         "놓쳤습니다 — 학습에는 써도 되는 수준입니다")
             worst = max(worst, 1)
     return _LEVELS[worst], " / ".join(notes)
 

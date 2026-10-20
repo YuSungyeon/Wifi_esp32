@@ -37,6 +37,24 @@ class QualityTest(unittest.TestCase):
         old = {"device_id": 101, "frames": 30000, "span_s": 300.0}
         self.assertEqual(quality([old, *OK[1:]]), ("ok", ""))
 
+    def test_messages_avoid_jargon(self):
+        """수집 담당자는 비개발자다 — CRC·무선 경합·시간 격자는 설명 없이 못 읽는다."""
+        texts = [quality([dict(OK[0], **{k: v}), *OK[1:]])[1]
+                 for k, v in (("tx_back", 1), ("boot_changes", 1),
+                              ("crc_fail", 3), ("seq_gap", 400))]
+        for t in texts + [quality(OK[:2])[1]]:
+            with self.subTest(t[:30]):
+                for word in ("CRC", "무선 경합", "시간 격자"):
+                    self.assertNotIn(word, t)
+
+    def test_every_message_says_what_to_do(self):
+        """증상만 적으면 읽는 사람이 다음 행동을 모른다."""
+        cases = [(dict(seq_gap=400), "써도 되는"), (dict(crc_fail=3), "확인"),
+                 (dict(boot_changes=1), "다시 찍"), (dict(tx_back=1), "다시 찍")]
+        for change, expect in cases:
+            with self.subTest(expect):
+                self.assertIn(expect, quality([dict(OK[0], **change), *OK[1:]])[1])
+
     def test_tx_reboot_demands_recollection(self):
         level, text = quality([dict(OK[0], tx_back=1), *OK[1:]])
         self.assertEqual(level, "recollect")
@@ -227,11 +245,22 @@ class SessionGroupTest(unittest.TestCase):
         self.assertIn("x_motion_s3", hint)
         self.assertIn("흠", hint)
 
+    def test_hover_adds_advice_when_a_large_share_is_flagged(self):
+        """6개 중 3개면 그날 뭔가 달랐다는 신호다. 1/30 은 그냥 넘어가면 된다."""
+        many = [_row("20260910", "empty", i, level="check") for i in (1, 2, 3)]
+        many += [_row("20260910", "empty", i) for i in (4, 5, 6)]
+        self.assertIn("자주", gui.session_groups(many)[0]["quality_hint"])
+
+        few = [_row("20260920", "empty", 1, level="check")]
+        few += [_row("20260920", "static", i) for i in range(2, 31)]
+        self.assertNotIn("자주", gui.session_groups(few)[0]["quality_hint"])
+
     def test_hover_text_does_not_list_every_session(self):
         """30개가 다 걸리면 툴팁이 화면을 덮는다."""
         rows = [_row("20260920", "motion", i, level="check") for i in range(1, 11)]
         hint = gui.session_groups(rows)[0]["quality_hint"]
-        self.assertLessEqual(len(hint.splitlines()), 5)
+        listed = [l for l in hint.splitlines() if " — " in l]
+        self.assertLessEqual(len(listed), 3)
         self.assertIn("더", hint)
 
     def test_recollect_is_counted_apart_from_check(self):
@@ -674,7 +703,7 @@ class VerdictLineTest(unittest.TestCase):
     def test_problem_session_names_the_level_and_the_reason(self):
         line = verdict_line([dict(OK[0], crc_fail=3), *OK[1:]])
         self.assertTrue(line.startswith("[판정] 확인 — "))
-        self.assertIn("CRC 실패 3건", line)
+        self.assertIn("3건", line)
 
     def test_every_level_has_a_korean_word(self):
         self.assertEqual(set(VERDICT), {"ok", "check", "recollect"})
