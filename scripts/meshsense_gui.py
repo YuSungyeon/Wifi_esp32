@@ -35,7 +35,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 import block_order  # noqa: E402
 from csi_session import (  # noqa: E402
     LIVE_LABEL, SESSION_LABELS, VERDICT, next_session_id, quality, read_manifest,
-    repo_provenance, set_session_note,
+    set_session_note,
 )
 from csi_store import LABELS  # noqa: E402
 from train_sessions import (  # noqa: E402
@@ -306,13 +306,13 @@ def collect_done(rc: int, before: Optional[Path] = None) -> str:
 
 
 def readiness() -> list[dict]:
-    """수집 전에 걸러야 재수집을 면하는 것들. 논문용 데이터는 출처와 배치가 남아야 한다."""
+    """수집 전에 걸러야 재수집을 면하는 것. 배치도는 나중에 복원할 수 없다.
+
+    코드 커밋 여부는 더 이상 경고하지 않는다 — 수집 코드가 고정돼 늘 켜져 있었고, 늘 켜진
+    경고는 진짜일 때도 무시된다. 출처는 `session.json` 의 `provenance` 에 계속 남는다.
+    """
     out = []
-    prov = repo_provenance()
-    if prov.get("git_dirty"):
-        out.append({"level": "warn", "text":
-                    "커밋되지 않은 코드 변경이 있습니다 — 이 상태로 찍은 데이터는 "
-                    "어느 코드로 만들었는지 재현할 수 없습니다."})
+
     def zero(v: str) -> bool:
         # CSV 값은 문자열이라 "0" 도 참이다. 숫자로 보고 판단한다.
         try:
@@ -621,7 +621,6 @@ img.wf{width:100%;border:1px solid var(--line);border-radius:10px;margin-top:.6r
 .chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.45rem}
 .chips button{font:inherit;font-size:.85rem;padding:.25rem .6rem;cursor:pointer;background:var(--bg);
  color:var(--fg);border:1px solid var(--line);border-radius:999px}
-.big{font-size:1.7rem;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
 /* 실시간 탭 — 상태색은 글자와 왼쪽 띠에만. 카드 전체를 칠하면 오래 켜두기 어렵다 */
 :root{--st-empty:#64748b;--st-static:#2a6df4;--st-motion:#ea580c;--st-deciding:#b45309;
  --st-suspended:#b42318;--stbg:#eef1f5}
@@ -668,24 +667,6 @@ img.wf{width:100%;border:1px solid var(--line);border-radius:10px;margin-top:.6r
  padding-top:.7rem;border-top:1px solid var(--line)}
 .statusbar .meta{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center;color:var(--muted);
  font-size:.8rem;font-variant-numeric:tabular-nums}
-/* 학습 탭 */
-.datehead{display:flex;align-items:center;gap:.6rem;font-weight:600;font-size:.92rem}
-.datehead .hint{font-weight:400}
-.datehead button{margin-left:auto}
-.slist{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:.3rem;margin-top:.6rem}
-.slist label{display:flex;align-items:center;gap:.4rem;margin:0;font-weight:400;font-size:.85rem;
- padding:.2rem .35rem;border-radius:6px;cursor:pointer}
-.slist label:hover{background:var(--bg)}
-.slist input{width:auto;margin:0}
-.slist .bad{color:var(--warn)}
-.slist .lab{font-variant-numeric:tabular-nums;color:var(--muted)}
-.locked{opacity:.5}
-.presets{display:grid;gap:.4rem}
-.presets label{display:flex;gap:.6rem;align-items:baseline;margin:0;padding:.5rem .6rem;
- border:1px solid var(--line);border-radius:8px;font-weight:400;cursor:pointer}
-.presets input{width:auto;margin:0}
-.presets b{font-weight:600;min-width:7rem}
-.presets span{color:var(--muted);font-size:.85rem}
 .prog{height:12px;border-radius:999px;background:var(--bg);border:1px solid var(--line);overflow:hidden}
 .prog i{display:block;height:100%;background:var(--accent)}
 .ready{display:flex;align-items:center;gap:.5rem;border-radius:8px;padding:.55rem .75rem;
@@ -1227,15 +1208,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             rows = session_rows()
             meta = read_meta(SESSION_META)
             self._json({
-                "boards": Handler.boards_cache,
-                # SINK 포트는 뒤에 붙은 RX 들(via)로 센다
-                "rx_count": sum(1 for b in Handler.boards_cache
-                                for r in (b.get("via") or [b]) if r.get("registered")),
                 "sessions": rows, "label_counts": label_counts(rows),
                 "session_groups": session_groups(rows),
                 "excluded": EXCLUDED_SESSIONS,
                 "next_session_id": next_session_id(OUTPUT_DIR),
-                "labels": list(LABELS), "session_labels": list(SESSION_LABELS), "label_desc": LABEL_DESC,
+                "labels": list(LABELS), "label_desc": LABEL_DESC,
                 "meta": meta, "meta_fields": FIELDS, "known_devices": known_devices(),
                 "diag_png": DIAG_PNG_REL if (REPO_ROOT / DIAG_PNG_REL).is_file() else None,
                 "diag_png_mtime": int((REPO_ROOT / DIAG_PNG_REL).stat().st_mtime)
