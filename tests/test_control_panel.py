@@ -694,6 +694,60 @@ class ModelDeleteTest(unittest.TestCase):
                 self.assertIn("error", gui.dispatch("/api/model/delete", {"path": bad}))
 
 
+class WaterfallTest(unittest.TestCase):
+    """파형은 누를 때 만든다 — 0.7초면 되고, '없는 세션' 이라는 상태가 사라진다."""
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name).resolve()
+        self.sess = root / "raw" / "20260916" / "205009_motion_s31"
+        self.sess.mkdir(parents=True)
+        (self.sess / "session.json").write_text("{}")
+        for g, v in (("REPO_ROOT", root), ("RAW_ROOT", root / "raw")):
+            guard = mock.patch.object(gui, g, v)
+            guard.start(); self.addCleanup(guard.stop)
+        self.rel = str(self.sess.relative_to(root))
+
+    def _run(self, rc=0, make=True):
+        def fake(cmd, **kw):
+            if make:
+                (self.sess / "csi_waterfall.png").write_bytes(b"png")
+            return mock.Mock(returncode=rc, stdout="", stderr="matplotlib 없음")
+        return mock.patch.object(gui.subprocess, "run", side_effect=fake)
+
+    def test_missing_png_is_made_on_demand(self):
+        with self._run() as run:
+            out = gui.dispatch("/api/png", {"path": self.rel})
+        self.assertNotIn("error", out)
+        run.assert_called_once()
+        self.assertTrue((self.sess / "csi_waterfall.png").is_file())
+
+    def test_existing_png_is_not_remade(self):
+        (self.sess / "csi_waterfall.png").write_bytes(b"old")
+        with self._run() as run:
+            gui.dispatch("/api/png", {"path": self.rel})
+        run.assert_not_called()
+        self.assertEqual((self.sess / "csi_waterfall.png").read_bytes(), b"old")
+
+    def test_failure_explains_itself_instead_of_a_broken_image(self):
+        with self._run(rc=1, make=False):
+            out = gui.dispatch("/api/png", {"path": self.rel})
+        self.assertIn("error", out)
+        self.assertIn("matplotlib", out["error"])
+
+    def test_a_path_outside_the_session_folder_is_refused(self):
+        for bad in ("../../etc", "scripts", ""):
+            with self.subTest(bad):
+                self.assertIn("error", gui.dispatch("/api/png", {"path": bad}))
+
+    def test_the_button_is_always_offered(self):
+        """있으면 바로, 없으면 만들어 보인다 — 화면에 두 상태가 있을 이유가 없다."""
+        self.assertNotIn("r.png?", gui.JS)
+        self.assertIn("showPng", gui.JS)
+
+
 class VerdictLineTest(unittest.TestCase):
     """CLI 수집 직후 한 줄 — 제어판과 같은 문장을 쓴다."""
 

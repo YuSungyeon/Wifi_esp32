@@ -934,7 +934,7 @@ function render() {
             r.devices.length?' · '+r.devices.map(d=>d.hz).join('/')+'Hz':''}</span>
           ${r.quality.level==='ok'?'':`<span class="tag ${r.quality.level==='check'?'warn':'bad'}" title="${esc(r.quality.text)}">${r.quality.level==='check'?'확인':'재수집'}</span>`}
           ${ex?'<span class="hint">학습·평가에서 제외됨</span>':''}
-          <span class="sp">${r.png?`<span class="link" onclick="showPng('${esc(r.path)}')">파형</span> · `:''}<span class="link" onclick="noteSession('${esc(r.path)}')">메모${r.note?' ✓':''}</span> · <span class="link" onclick="delSession('${esc(r.path)}')">삭제</span></span></div>`;
+          <span class="sp"><span class="link" onclick="showPng('${esc(r.path)}')">파형</span> · <span class="link" onclick="noteSession('${esc(r.path)}')">메모${r.note?' ✓':''}</span> · <span class="link" onclick="delSession('${esc(r.path)}')">삭제</span></span></div>`;
       }).join('')}</div>` : '';
       return `<div class="grp"><div class="hd" onclick="toggleDate('${g.date}')">
           ${open?'▾':'▸'} <b>${esc(g.date)}</b>
@@ -1310,7 +1310,14 @@ function noteSession(p){
   if (t !== null) post('/api/note', {path: p, text: t});
 }
 function delSession(p){ if(confirm(p+'\n\n이 세션을 삭제할까요?')) post('/api/delete',{path:p}); }
-function showPng(p){ shownPng = (shownPng === p+'/csi_waterfall.png') ? null : p+'/csi_waterfall.png'; render(); }
+//: 없으면 만들어서 보인다 — 쓰는 사람은 있었는지 없었는지 모른다
+async function showPng(p){
+  const png = p + '/csi_waterfall.png';
+  if (shownPng === png) { shownPng = null; render(); return; }
+  const row = (S.sessions || []).find(s => s.path === p);
+  if (row && !row.png && (await post('/api/png', {path: p})).error) return;
+  shownPng = png; delete sig.sessions; render();
+}
 refresh(); setInterval(refresh, 1200);
 """
 
@@ -1508,6 +1515,22 @@ def dispatch(path: str, body: dict) -> dict:
     if path == "/api/idf":
         err = JOB.start("ESP-IDF 준비", [PY, str(SCRIPT_DIR / "idf_bootstrap.py"), "-y"])
         return {"error": err} if err else {"ok": True}
+
+    if path == "/api/png":
+        #: 누를 때 만든다(세션당 0.7초). 그래서 화면에 "파형 없는 세션" 이라는 상태가 없다.
+        #: `.csi` 는 읽기만 하고 PNG 만 새로 쓴다 — 사용자가 눌러서 요청한 변경이다.
+        d = (REPO_ROOT / str(body.get("path", ""))).resolve()
+        if not str(d).startswith(str(RAW_ROOT)) or not (d / "session.json").is_file():
+            return {"error": "세션 디렉터리가 아닙니다"}
+        png = d / "csi_waterfall.png"
+        if png.is_file():
+            return {"ok": True}
+        r = subprocess.run([PY, str(SCRIPT_DIR / "visualize_csi.py"), "--session-dir", str(d)],
+                           capture_output=True, text=True, cwd=str(REPO_ROOT), timeout=120)
+        if r.returncode != 0 or not png.is_file():
+            return {"error": "파형을 만들지 못했습니다 — "
+                             + ((r.stderr or r.stdout).strip().splitlines() or ["원인 불명"])[-1][:200]}
+        return {"ok": True}
 
     if path == "/api/diagnose":
         err = JOB.start("분리 가능성 진단",
