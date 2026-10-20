@@ -491,6 +491,76 @@ class CliBlockTest(unittest.TestCase):
                       inspect.getsource(cli._collect_poc_interactive))
 
 
+class ModelAdminTest(unittest.TestCase):
+    """학습 탭의 모델 표가 관리 화면이다 — 이름·설명·실시간 노출 (시안 2026-10-20)."""
+
+    def setUp(self):
+        import tempfile
+        import model_registry as mr
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        guard = mock.patch.object(mr, "STORE", Path(self.tmp.name) / "models.json")
+        guard.start()
+        self.addCleanup(guard.stop)
+
+    def test_every_listed_model_carries_name_note_and_switch(self):
+        for m in gui.trained_models():
+            with self.subTest(m["file"]):
+                self.assertIn("name", m)
+                self.assertIn("note", m)
+                self.assertIn("realtime", m)
+                self.assertIn("pinned", m)
+
+    def test_renaming_does_not_touch_the_file(self):
+        """파일 이름은 절대 바뀌지 않는다 — 보이는 이름만 바뀐다."""
+        target = next(m for m in gui.trained_models() if not m["pinned"])
+        before = Path(ROOT / target["path"]).read_bytes()
+        gui.dispatch("/api/model", {"path": target["path"], "name": "내 모델", "note": "설명"})
+        self.assertEqual(Path(ROOT / target["path"]).read_bytes(), before)
+        after = next(m for m in gui.trained_models() if m["path"] == target["path"])
+        self.assertEqual((after["name"], after["note"]), ("내 모델", "설명"))
+        self.assertEqual(after["file"], target["file"])      # 파일 이름은 그대로 보인다
+
+    def test_turning_a_model_off_removes_it_from_the_realtime_list(self):
+        from realtime.engine import available_models
+        target = next(m for m in gui.trained_models()
+                      if not m["pinned"] and m["mode"] != "A-motion")
+        gui.dispatch("/api/model", {"path": target["path"], "realtime": False})
+        self.assertNotIn(target["path"], [m["path"] for m in available_models()])
+
+    def test_a_pinned_model_cannot_be_turned_off(self):
+        import model_registry as mr
+        out = gui.dispatch("/api/model", {"path": mr.PINNED[0], "realtime": False})
+        self.assertIn("error", out)
+
+    def test_every_checkpoint_is_listed_so_it_can_be_managed(self):
+        """표가 관리 화면이다 — 잘라 내면 그 모델은 이름도 설명도 못 단다."""
+        on_disk = {str(q.relative_to(ROOT)) for q in ROOT.glob("model_train/*/model*.pt")}
+        self.assertEqual({m["path"] for m in gui.trained_models()}, on_disk)
+
+    def test_realtime_count_matches_what_the_realtime_tab_offers(self):
+        from realtime.engine import available_models
+        listed = [m for m in gui.trained_models() if m["realtime"] and m["mode"] != "A-motion"]
+        self.assertEqual(len(listed), len(available_models()))
+
+    def test_training_note_lands_on_the_new_model(self):
+        """학습이 끝난 뒤가 아니라 시작할 때 받는다 — 그때가 가장 잘 아는 시점이다."""
+        import model_registry as mr
+        trainer = "phase60" if False else "amp60"
+        with mock.patch.object(gui.JOB, "start", return_value=None) as start, \
+             mock.patch.object(gui, "check_selection", return_value=[]):
+            out = gui.dispatch("/api/train", {"sessions": ["20260916_31"], "preset": "amplitude",
+                                              "name": "테스트모델", "note": "설명 초안"})
+        self.assertNotIn("error", out)
+        cmd = start.call_args[0][1]
+        self.assertIn("--note", cmd)
+        self.assertEqual(cmd[cmd.index("--note") + 1], "설명 초안")
+
+    def test_unknown_path_is_refused(self):
+        self.assertIn("error", gui.dispatch("/api/model", {"path": "../etc/passwd",
+                                                           "name": "x"}))
+
+
 class VerdictLineTest(unittest.TestCase):
     """CLI 수집 직후 한 줄 — 제어판과 같은 문장을 쓴다."""
 

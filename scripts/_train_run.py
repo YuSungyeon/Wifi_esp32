@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
 PY = str(ROOT / ".venv" / "bin" / "python") if (ROOT / ".venv" / "bin" / "python").is_file() \
     else sys.executable
 
@@ -110,6 +111,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--preset", choices=tuple(PRESETS), default="balanced")
     ap.add_argument("--name", default=None, help="체크포인트 이름 (기본: 날짜-프리셋)")
+    ap.add_argument("--note", default="", help="화면에 보일 한 줄 설명 (model_train/models.json)")
     ap.add_argument("--sessions", nargs="+", required=True)
     ap.add_argument("--eval", nargs="+", default=[])
     ap.add_argument("--seeds", type=int, nargs="+", default=list(range(DEFAULT_SEEDS)))
@@ -163,6 +165,13 @@ def main() -> int:
     rc = proc.wait()
     print(f"[{'완료' if rc == 0 else '실패'}] 총 {hms(time.monotonic() - started)} (코드 {rc})",
           flush=True)
+    if rc == 0 and args.note:
+        #: 설명은 체크포인트 밖에 둔다 — 고칠 때마다 가중치를 다시 쓰지 않는다
+        import model_registry
+        pt = TRAINERS[preset["trainer"]].parent / f"model_{name}.pt"
+        if pt.is_file():
+            model_registry.update(str(pt.relative_to(ROOT)), {"note": args.note})
+            print(f"[설명] {args.note}", flush=True)
     if rc == 0:
         out = TRAINERS[preset["trainer"]].parent / f"model_{name}.metrics.json"
         if out.is_file():

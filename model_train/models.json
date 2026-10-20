@@ -1,0 +1,83 @@
+{
+  "model_train/amp60/model_amp1000_15sessions.pt": {
+    "name": "창 10초 대조군 (9/16·17 학습)",
+    "note": "창 길이 비교용 대조군. 실시간에 쓰지 말 것",
+    "realtime": false
+  },
+  "model_train/amp60/model_amp1000_60sessions.pt": {
+    "name": "창 10초 대조군 (9/19·20 학습)",
+    "note": "창 길이 비교용 대조군. 실시간에 쓰지 말 것",
+    "realtime": false
+  },
+  "model_train/amp60/model_amp1000_all74.pt": {
+    "name": "창 10초 · 74세션",
+    "note": "기본보다 더 짧은 창. 전환은 더 빠르지만 창 정답률이 낮다",
+    "realtime": false
+  },
+  "model_train/amp60/model_amp1500_15sessions.pt": {
+    "name": "창 15초 대조군 (9/16·17 학습)",
+    "note": "날짜 교차 비교용. 9/19·20 에서 59/59 — 실시간에 쓰지 말 것",
+    "realtime": false
+  },
+  "model_train/amp60/model_amp1500_60sessions.pt": {
+    "name": "창 15초 대조군 (9/19·20 학습)",
+    "note": "날짜 교차 비교용. 9/16·17 을 못 봤다 — 실시간에 쓰지 말 것",
+    "realtime": false
+  },
+  "model_train/amp60/model_amp1500_all74.pt": {
+    "name": "실시간 기본 (진폭 15초)",
+    "note": "74세션 전부 학습. 창이 짧아 전환이 빠르다 — 가진 날짜를 다 써서 봉인 평가가 없다"
+  },
+  "model_train/amp60/model_amp3000_all74.pt": {
+    "name": "창 30초 · 74세션",
+    "note": "담당자 배포본과 같은 창을 우리 학습기로. 창 정답률은 가장 높고 전환은 가장 느리다"
+  },
+  "model_train/amp60/model_amp30_15sessions.pt": {
+    "name": "창 30초 대조군 (9/16·17 학습)",
+    "note": "진폭 대 위상 대칭 비교용. 9/19·20 에서 창 0.964 — 실시간에 쓰지 말 것",
+    "realtime": false
+  },
+  "model_train/amp60/model_amp30_60sessions.pt": {
+    "name": "창 30초 대조군 (9/19·20 학습)",
+    "note": "진폭 대 위상 대칭 비교용. 9/16·17 에서 13/15 — 실시간에 쓰지 말 것",
+    "realtime": false
+  },
+  "model_train/amp60/model_motion3s.pt": {
+    "name": "1단계 움직임 (진폭 3초)",
+    "note": "3.6초 움직임을 잡아 상태 모델 앞단 게이트로 쓴다. 봉인 9/20 에서 30/30"
+  },
+  "model_train/amp60/model_motion3s_wo1617.pt": {
+    "name": "1단계 대조군 (9/16·17 제외)",
+    "note": "1단계가 특정 날짜에 기대는지 보려고 학습 날짜를 하나 뺀 것",
+    "realtime": false
+  },
+  "model_train/amp60/model_motion3s_wo19.pt": {
+    "name": "내 모델",
+    "note": "설명",
+    "realtime": false
+  },
+  "model_train/phase60/model_15sessions.pt": {
+    "name": "위상 60초 5Hz (v1)",
+    "note": "위상 모델 중 짧은 사건에 가장 민감(20초). 60세션 평가 58/60"
+  },
+  "model_train/phase60/model_15sessions_30s.pt": {
+    "name": "위상 30초 10Hz",
+    "note": "같은 창에서 진폭과 맞대 보려고 만든 것. 창 0.923 으로 가장 낮다"
+  },
+  "model_train/phase60/model_15sessions_v2.pt": {
+    "name": "위상 90초 10Hz (v2)",
+    "note": "위상 모델 중 봉인 정확도 최고(0.981). 대신 60초 미만 사건을 못 본다"
+  },
+  "model_train/phase60/model_15sessions_v3.pt": {
+    "name": "위상 60초 10Hz (v3)",
+    "note": "위상 모델의 균형점. 봉인 0.959 · 전환 지연 31초. 입력 비교 근거로 남긴다"
+  },
+  "model_train/phase60/model_60sessions.pt": {
+    "name": "위상 60초 (9/19·20 학습)",
+    "note": "진폭 대 위상 대칭 비교의 반대 방향. 9/16·17 에서 14/15"
+  },
+  "model_train/robust/model.pt": {
+    "name": "담당자 배포본 (진폭 30초)",
+    "note": "모델 담당자가 9/19·20 60세션으로 학습한 공식 체크포인트. 조건이 다른 날에는 12/15"
+  }
+}

@@ -269,6 +269,28 @@ class ModelChoiceTest(unittest.TestCase):
         self.assertEqual(s1["i_motion"], 1)
         self.assertEqual(len(s1["models"]), 3)
 
+    def test_listed_models_carry_their_name_and_note(self):
+        """목록에 이름만 뜨면 어느 게 기본이고 어느 게 대조군인지 알 수 없다."""
+        for m in self.models:
+            with self.subTest(m["path"]):
+                self.assertIn("name", m)
+                self.assertIn("note", m)
+
+    def test_models_turned_off_do_not_appear(self):
+        import model_registry as mr
+        from realtime.engine import available_models
+        off = next(m["path"] for m in self.models if m["path"] not in mr.PINNED)
+        store = {off: {"realtime": False}}
+        self.assertNotIn(off, [m["path"] for m in available_models(store=store)])
+        self.assertIn(off, [m["path"] for m in available_models(store=store, only_realtime=False)])
+
+    def test_pinned_models_stay_even_if_turned_off(self):
+        import model_registry as mr
+        from realtime.engine import available_models
+        store = {p: {"realtime": False} for p in mr.PINNED}
+        listed = [m["path"] for m in available_models(store=store, only_realtime=False)]
+        self.assertIn(mr.PINNED[0], listed)
+
     def test_stage1_is_not_offered_as_a_state_model(self):
         """이진 모델을 상태 모델 자리에 끼우면 화면이 조용히 틀린다 — 목록에서 뺀다."""
         self.assertNotIn("motion3s", [m["name"] for m in self.models])

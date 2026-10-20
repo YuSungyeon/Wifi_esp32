@@ -37,8 +37,16 @@ MODEL_DIRS = (ROOT / "model_train" / "robust", ROOT / "model_train" / "phase60",
               ROOT / "model_train" / "amp60")
 
 
-def available_models() -> list[dict]:
-    """실시간에 쓸 수 있는 체크포인트. 화면이 고르게 하려고 요약만 읽는다."""
+def available_models(store: dict | None = None, only_realtime: bool = True) -> list[dict]:
+    """실시간에 쓸 수 있는 체크포인트. 화면이 고르게 하려고 요약만 읽는다.
+
+    이름·설명·노출 여부는 체크포인트가 아니라 `model_train/models.json` 에 있다
+    (`scripts/model_registry.py`). `only_realtime=False` 면 꺼 둔 것까지 돌려준다 —
+    관리 화면은 목록 전체를 보여야 한다.
+    """
+    import model_registry
+
+    store = model_registry.load() if store is None else store
     out = []
     for d in MODEL_DIRS:
         for p in sorted(d.glob("model*.pt")):
@@ -48,8 +56,14 @@ def available_models() -> list[dict]:
                 continue
             if len(b.get("class_names", [0, 0, 0])) != 3:
                 continue        # 이진 1단계 모델은 상태 모델 자리에 올리지 않는다
+            rel = str(p.relative_to(ROOT))
+            e = model_registry.entry(rel, store)
+            if only_realtime and not e["realtime"]:
+                continue
             m = b.get("metrics", {})
-            out.append({"path": str(p.relative_to(ROOT)), "name": p.stem.replace("model_", ""),
+            out.append({"path": rel, "name": e["name"], "note": e["note"],
+                        "pinned": e["pinned"], "realtime": e["realtime"],
+                        "file": p.stem.replace("model_", ""),
                         "mode": b.get("mode", "?"), "window_s": b.get("window_frames", 0) / 100,
                         "score": m.get("sessions"), "window_acc": m.get("window_accuracy"),
                         "trained_at": b.get("trained_at", ""),

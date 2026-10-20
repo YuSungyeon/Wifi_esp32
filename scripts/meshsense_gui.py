@@ -33,6 +33,7 @@ SCRIPT_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 import block_order  # noqa: E402
+import model_registry  # noqa: E402
 from csi_session import (  # noqa: E402
     LIVE_LABEL, SESSION_LABELS, VERDICT, next_session_id, quality, read_manifest,
     set_session_note,
@@ -538,19 +539,26 @@ def realtime_models_safe() -> list:
 
 
 def trained_models() -> list:
-    """model_train/*/model_*.pt 의 요약. 체크포인트 안의 기록을 그대로 읽는다."""
+    """model_train/*/model_*.pt 의 요약 — 체크포인트 기록 + 레지스트리의 이름·설명·노출.
+
+    이름과 설명은 체크포인트 밖(`model_train/models.json`)에 있다. 파일 이름은 `file` 로
+    따로 돌려줘 화면이 "어느 파일인지" 를 잃지 않게 한다.
+    """
     import torch
 
+    store = model_registry.load()
     out = []
-    for d in (ROOT := REPO_ROOT / "model_train", ):
-        for p in sorted(d.glob("*/model_*.pt"), key=lambda f: f.stat().st_mtime, reverse=True):
+    for d in (REPO_ROOT / "model_train", ):
+        for p in sorted(d.glob("*/model*.pt"), key=lambda f: f.stat().st_mtime, reverse=True):
             try:
                 b = torch.load(p, map_location="cpu", weights_only=False)
             except Exception:
                 continue
             m = b.get("metrics", {})
+            rel = str(p.relative_to(REPO_ROOT))
+            e = model_registry.entry(rel, store)
             out.append({
-                "path": str(p.relative_to(REPO_ROOT)), "name": p.stem.replace("model_", ""),
+                "path": rel, "file": p.stem.replace("model_", ""), **e,
                 "mode": b.get("mode", "?"), "window_s": b.get("window_frames", 0) / 100,
                 "sessions": len(b.get("training_sessions", [])),
                 "train_dates": b.get("training_dates", []),
@@ -559,7 +567,7 @@ def trained_models() -> list:
                 "trained_at": b.get("trained_at", ""),
                 "size_kb": round(p.stat().st_size / 1024),
             })
-    return out[:12]
+    return out
 
 
 def label_counts(rows) -> dict:
@@ -709,6 +717,23 @@ button.act.go{display:block;width:100%;margin:.9rem 0 .2rem;padding:.75rem;font-
 .grp .rows{padding:.15rem 0 .35rem}
 .grp .r{display:flex;align-items:center;gap:.5rem;padding:.3rem .8rem;font-size:.84rem}
 .grp .r.off{opacity:.5}
+/* 모델 표가 관리 화면이다 (control-panel.md §5) */
+table.mt td{border-bottom:1px solid #23282f;vertical-align:middle}
+table.mt tr.off td{opacity:.45}
+table.mt .nm{font-weight:600}
+table.mt .nm .file{display:block;font-weight:400;font-size:.72rem;color:var(--muted);
+ font-family:ui-monospace,monospace}
+table.mt .editrow td{background:var(--bg)}
+.sw{width:34px;height:19px;border-radius:999px;background:var(--stbg);border:1px solid var(--line);
+ position:relative;display:inline-block;cursor:pointer}
+.sw i{position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;
+ background:var(--muted);display:block}
+.sw.on{background:var(--accent);border-color:var(--accent)}
+.sw.on i{left:17px;background:#fff}
+.ff{display:grid;grid-template-columns:4rem 1fr;gap:.4rem .7rem;align-items:center;padding:.3rem 0 .5rem}
+.ff label{font-size:.78rem;color:var(--muted);margin:0}
+.ff .inp{background:var(--card);border:1px solid var(--line);border-radius:7px;
+ padding:.33rem .55rem;font-size:.85rem;color:var(--fg);width:100%}
 """
 
 PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
@@ -872,7 +897,7 @@ function render() {
         <code>python model_train/preprocessing/preprocess_3rx.py --raw-dir mac_collector_output/jsonl/raw/&lt;날짜&gt;</code></p>` : ''}
       </div>`;
   }
-  if (tab === 'train' && changed('train', [S.training, busy, trainPick.size, trainEval, trainPreset, trainName, trainOpen])) {
+  if (tab === 'train' && changed('train', [S.training, busy, trainPick.size, trainEval, trainPreset, trainName, trainNote, trainOpen, modelEdit])) {
     document.getElementById('train').innerHTML = renderTrain(S.training, busy);
   }
   if (tab === 'realtime' && changed('realtime', [S.realtime, S.rt_models, S.rt_job, S.job.running, S.job.name, rtModel])) {
@@ -910,6 +935,7 @@ function renderRealtimeStart(S){
     <p class="sub">${esc(c.name)} 이(가) 실행 중입니다. 끝난 뒤 시작할 수 있습니다.</p></div>`;
   const mopts = models.map(m => `<option value="${esc(m.path)}" ${rtModel===m.path?'selected':''}>
       ${esc(m.name)} · 창 ${m.window_s}초${m.is_deployed ? ' (기본)' : ''}</option>`).join('');
+  const chosen = models.find(m => m.path === rtModel) || models[0];
   const crashed = j.name && ![0, null, -15].includes(j.rc)
     ? `<p class="note">지난 실시간이 오류로 끝났습니다: ${esc((j.log || []).slice(-1)[0] || '')}</p>` : '';
   const stalled = c.name === S.live_job && (c.log || []).some(l => l.includes('스트림 정지'))
@@ -918,6 +944,8 @@ function renderRealtimeStart(S){
     <p class="sub">누르면 수집(라벨 live, 학습에 안 씀)과 실시간 판단이 함께 시작되고, 종료를 누를 때까지 계속됩니다.</p>
     <label for="rtm">모델</label>
     <select id="rtm" onchange="rtSet(this.value)">${mopts}</select>
+    <p class="hint" style="margin:.45rem 0 0">${chosen && chosen.note ? esc(chosen.note)
+      : '설명이 없습니다 — 학습 탭에서 적을 수 있습니다'}</p>
     <div class="bar" style="margin-top:1rem">
       <button class="act primary" onclick="startLive()">실시간 측정</button></div>${stalled}${crashed}</div>`;
 }
@@ -987,8 +1015,13 @@ function renderRealtime(r){
     </div>`;
 }
 //: 학습 탭이 고른 것 — 서버가 아니라 화면이 들고 있다. 새로고침하면 지워진다.
-let trainPick = new Set(), trainEval = null, trainPreset = 'balanced', trainName = '';
-let trainOpen = false;
+let trainPick = new Set(), trainEval = null, trainPreset = 'balanced', trainName = '', trainNote = '';
+let trainOpen = false, modelEdit = null;
+function saveModel(path){
+  post('/api/model', {path: path,
+    name: document.getElementById('mn').value, note: document.getElementById('md').value});
+  modelEdit = null;
+}
 function trainToggleDate(date, keys){
   const all = keys.every(k => trainPick.has(k));
   keys.forEach(k => all ? trainPick.delete(k) : trainPick.add(k));
@@ -1002,7 +1035,7 @@ function startTrain(){
   const ev = trainEval === 'none' ? null
     : (free.includes(trainEval) ? trainEval : (free[0] || null));
   post('/api/train', {sessions: [...trainPick], eval_dates: ev ? [ev] : [],
-                      preset: trainPreset, name: trainName.trim()});
+                      preset: trainPreset, name: trainName.trim(), note: trainNote.trim()});
 }
 function renderTrain(t, busy){
   if (!t) return '';
@@ -1043,10 +1076,29 @@ function renderTrain(t, busy){
   const secs = windows ? preset.rate * windows * preset.steps * preset.epochs * preset.seeds : 0;
   const eta = secs && secs < 36000 ? ` — 약 ${hms(secs)}` : '';
 
-  const models = t.models.length ? `<table><tr><th>이름</th><th>구성</th><th>평가</th></tr>
-    ${t.models.map(m => `<tr><td>${esc(m.name)}<br><span class="hint">${esc(m.trained_at)}</span></td>
-      <td>${esc(m.mode)} · 창 ${m.window_s}초</td>
-      <td>${m.score ? esc(m.score) + `<br><span class="hint">창 ${m.window_acc}</span>` : '—'}</td></tr>`).join('')}</table>`
+  const onCount = t.models.filter(m => m.realtime && m.mode !== 'A-motion').length;
+  const models = t.models.length ? `<table class="mt">
+    <tr><th style="width:3.2rem">실시간</th><th>이름</th><th>설명</th>
+        <th style="width:5.5rem">구성</th><th style="width:5rem">평가</th><th style="width:3rem"></th></tr>
+    ${t.models.map(m => {
+      const editing = modelEdit === m.path;
+      const row = `<tr class="${m.realtime ? '' : 'off'}">
+        <td><span class="sw ${m.realtime?'on':''}" title="${m.pinned?'코드가 쓰는 모델이라 끌 수 없습니다':'실시간 선택지에 넣기'}"
+          ${m.pinned?'':`onclick="post('/api/model',{path:'${esc(m.path)}',realtime:${!m.realtime}})"`}><i></i></span></td>
+        <td class="nm">${esc(m.name)}
+          ${m.is_deployed?'<span class="tag ok">기본</span>':''}${m.mode==='A-motion'?'<span class="tag warn">1단계</span>':''}
+          <span class="file">${esc(m.path)}</span></td>
+        <td class="hint">${m.note ? esc(m.note) : '<i>설명 없음</i>'}</td>
+        <td class="hint">${esc(m.mode)} · 창 ${m.window_s}초</td>
+        <td class="hint">${m.score ? esc(m.score) : '—'}</td>
+        <td><span class="link" onclick="modelEdit=${editing?'null':`'${esc(m.path)}'`};delete sig.train;render()">${editing?'닫기':'수정'}</span></td></tr>`;
+      return row + (editing ? `<tr class="editrow"><td colspan="6">
+        <div class="ff"><label>이름</label><input class="inp" id="mn" value="${esc(m.name)}">
+          <label>설명</label><input class="inp" id="md" value="${esc(m.note)}" placeholder="한 줄로 — 어떤 자료로 학습했고 어디에 쓰는지"></div>
+        <div class="bar"><button class="act primary" onclick="saveModel('${esc(m.path)}')">저장</button>
+          <button class="act" onclick="modelEdit=null;delete sig.train;render()">취소</button>
+          <span class="hint">파일 이름은 바뀌지 않습니다 — 보이는 이름만 바뀝니다</span></div></td></tr>` : '');
+    }).join('')}</table>`
     : `<p class="sub">아직 학습한 모델이 없습니다.</p>`;
 
   return `<div class="card">
@@ -1067,7 +1119,10 @@ function renderTrain(t, busy){
                  <i class="${trainEval==='none'?'now':''}" onclick="trainSetEval('none')">평가 없이</i></div></div>
              <div><label for="trainname">모델 이름</label>
                <input id="trainname" type="text" maxlength="40" value="${esc(trainName)}"
-                 placeholder="${esc(autoName(trainPreset))}" oninput="trainName = this.value"></div></div>`
+                 placeholder="${esc(autoName(trainPreset))}" oninput="trainName = this.value">
+               <label for="trainnote">설명 <span class="hint">— 지금이 가장 잘 아는 시점입니다</span></label>
+               <input id="trainnote" type="text" maxlength="120" value="${esc(trainNote)}"
+                 placeholder="어떤 자료로 학습했고 어디에 쓰는지" oninput="trainNote = this.value"></div></div>`
         : `<div class="setting"><span>평가는 <b>${evalDate ? esc(evalDate) : '없이'}</b>로 · 이름 <b>${esc(name)}</b></span>
              <span class="link" onclick="trainOpen=true;delete sig.train;render()">바꾸기</span></div>`}
 
@@ -1075,7 +1130,7 @@ function renderTrain(t, busy){
         ${ready ? `${total}세션으로 학습 시작${eta}` : '세션을 더 고르세요'}</button>
       ${busy?'<p class="hint">다른 작업이 실행 중입니다</p>':''}
 
-      <p class="lbl">학습한 모델 (${t.models.length})</p>
+      <p class="lbl">학습한 모델 (${t.models.length}) · 실시간 선택지 ${onCount}개</p>
       ${models}</div>`;
 }
 //: 창 수 어림 — `_train_run.predict_windows()` 와 **같은 식**이어야 한다. 합계 길이로 한 번에
@@ -1333,6 +1388,20 @@ def dispatch(path: str, body: dict) -> dict:
             return {"error": (r.stderr or r.stdout).strip()[:400]}
         return rescan()
 
+    if path == "/api/model":
+        #: 보이는 이름·설명·실시간 노출만 바꾼다. **체크포인트 파일은 건드리지 않는다.**
+        rel = str(body.get("path", ""))
+        target = (REPO_ROOT / rel).resolve()
+        if not str(target).startswith(str(REPO_ROOT / "model_train")) or target.suffix != ".pt":
+            return {"error": "체크포인트가 아닙니다"}
+        if not target.is_file():
+            return {"error": "없는 파일입니다"}
+        try:
+            return {"ok": True, "entry": model_registry.update(
+                rel, {k: body[k] for k in ("name", "note", "realtime") if k in body})}
+        except ValueError as exc:
+            return {"error": str(exc)}
+
     if path == "/api/idf":
         err = JOB.start("ESP-IDF 준비", [PY, str(SCRIPT_DIR / "idf_bootstrap.py"), "-y"])
         return {"error": err} if err else {"ok": True}
@@ -1433,6 +1502,8 @@ def dispatch(path: str, body: dict) -> dict:
         cmd = [PY, str(SCRIPT_DIR / "_train_run.py"), "--preset", preset, "--sessions", *keys]
         if name:
             cmd += ["--name", name]
+        if (note := str(body.get("note") or "").strip()):
+            cmd += ["--note", note]
         if eval_dates:
             cmd += ["--eval", *eval_dates]
         err = JOB.start(f"학습 · {PRESET_INFO[preset]['label']} · {len(keys)}세션", cmd)
