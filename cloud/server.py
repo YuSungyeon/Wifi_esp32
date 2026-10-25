@@ -50,7 +50,35 @@ DESC = {"empty": "방에 아무도 없어요", "static": "사람이 있고 가�
         "motion": "사람이 움직이고 있어요", "deciding": "상태를 판단하는 중이에요",
         "suspended": "수신기가 모자라 판단을 멈췄어요", "offline": "집 기기 신호가 끊겼어요"}
 CLS = {"empty": "e", "static": "s", "motion": "m", "deciding": "d", "suspended": "x", "offline": "x"}
-KIND = {"emergency": "움직임 없음", "intrusion": "외출 중 움직임", "offline": "집 기기 연결 끊김"}
+KIND = {"emergency": "움직임 없음", "intrusion": "외출 중 움직임", "offline": "집 기기 연결 끊김",
+        "rule": "나만의 상황"}
+WHEN = {"always": "항상", "awake": "깨어 있는 시간", "sleep": "수면 시간", "custom": "직접 지정"}
+RULE_STATES = {"empty": "빈 방이", "static": "정지가", "motion": "움직임이"}   # 조사까지 붙여 둔다
+RULE_KINDS = {"hold": "계속되면", "absent": "한 번도 없으면"}
+NOTIFY = {"me": "나에게", "escalate": "나에게, 확인 없으면 지인에게", "all": "나와 지인에게 바로"}
+MAX_RULES = 10
+#: 예시로 시작 (§3.5) — 버튼 이름, 편집기에 미리 채울 값
+PRESETS = {
+    "night": ("밤에 집에 안 들어옴", {"when": "sleep", "state": "empty", "kind": "hold", "minutes": 30, "notify": "me"}),
+    "away": ("낮에 너무 오래 비어 있음", {"when": "awake", "state": "empty", "kind": "hold", "minutes": 240, "notify": "me"}),
+    "wake": ("아침까지 안 일어남", {"when": "custom", "start": "07:00", "end": "10:00", "state": "motion",
+                                "kind": "absent", "minutes": 120, "notify": "escalate"}),
+}
+NEW_RULE = {"when": "awake", "start": "22:00", "end": "06:00", "state": "empty", "kind": "hold",
+            "minutes": 60, "notify": "me"}
+
+
+def span(m: int) -> str:
+    return f"{m}분" if m < 60 else f"{m // 60}시간" + (f" {m % 60}분" if m % 60 else "")
+
+
+def rule_text(r: dict) -> str:
+    """상황 한 줄을 사람 말로. 목록·문자·확인 페이지가 같은 문장을 쓴다."""
+    when = {"always": "", "custom": f"{r.get('start')}–{r.get('end')}에 "}.get(r["when"], WHEN[r["when"]] + "에 ")
+    m = int(r["minutes"])
+    if r["kind"] == "hold":
+        return f"{when}{RULE_STATES[r['state']]} " + (f"{span(m)} 계속되면" if m else "나타나면")
+    return f"{when}{RULE_STATES[r['state']]} {span(m)} 없으면"
 
 BASE = "http://127.0.0.1:8000"   # 문자에 넣는 확인 링크의 앞부분 (--base)
 SECRET = b""
@@ -67,7 +95,7 @@ create table if not exists events(id integer primary key, device_id integer not 
   since real not null, received real not null);
 create index if not exists events_since on events(device_id, since);
 create table if not exists alerts(id integer primary key, device_id integer not null, kind text not null,
-  token text unique, created real not null, confirmed real, escalated real, resolved real, status text);
+  rule text, label text, token text unique, created real not null, confirmed real, escalated real, resolved real, status text);
 """
 
 
@@ -143,25 +171,46 @@ def hm(ts: float) -> str:
     return datetime.fromtimestamp(ts, home.TZ).strftime("%H:%M")
 
 
-def raise_alert(dev, user, kind: str, now: float, text: str, numbers: list[str],
-                token: str | None = None, resolved: bool = False) -> None:
+def raise_alert(dev, user, kind: str, now: float, text: str, numbers: list[str], label: str = "",
+                rule: str | None = None, token: str | None = None, resolved: bool = False) -> None:
     status = send_sms(numbers, text)
-    q("insert into alerts(device_id,kind,token,created,resolved,status) values(?,?,?,?,?,?)",
-      (dev["id"], kind, token, now, now if resolved else None, status))
+    q("insert into alerts(device_id,kind,rule,label,token,created,resolved,status) values(?,?,?,?,?,?,?,?)",
+      (dev["id"], kind, rule, label or KIND[kind], token, now, now if resolved else None, status))
+
+
+def last_end(dev, state: str) -> float | None:
+    """그 상태가 마지막으로 **끝난** 시각(다음 이벤트의 시작). 본 적 없으면 None."""
+    r = q("select min(since) t from events where device_id=? and since > "
+          "(select max(since) from events where device_id=? and state=?)",
+          (dev["id"], dev["id"], state), one=True)
+    return r["t"] if r else None
+
+
+def rule_due(dev, r: dict, cfg: dict, now: float) -> bool:
+    """나만의 상황 하나가 지금 참인가(§3.5). 시간대가 시작된 시각부터 센다."""
+    ws = home.window_start(now, r["when"], cfg, r.get("start", ""), r.get("end", ""))
+    if ws is None:
+        return False
+    need = int(r["minutes"]) * 60
+    if r["kind"] == "hold":
+        return dev["state"] == r["state"] and now - max(dev["since"], ws) >= need
+    if dev["state"] == r["state"]:
+        return False
+    return now - max(last_end(dev, r["state"]) or dev["created"], ws) >= need
 
 
 def tick(now: float) -> None:
-    """알림 검사 한 번(§3.3). 조건이 참이 되는 순간 한 번, 거짓이 되면 닫고 다시 무장한다."""
+    """알림 검사 한 번(§3.3·§3.5). 조건이 참이 되는 순간 한 번, 거짓이 되면 닫고 다시 무장한다."""
     for dev in q("select d.* from devices d"):
         user = q("select * from users where id=?", (dev["user_id"],), one=True)
         if user is None or dev["last_seen"] is None:
             continue
         cfg = config(user)
-        open_ = {a["kind"]: a for a in q("select * from alerts where device_id=? and resolved is null",
-                                          (dev["id"],))}
+        open_ = {a["rule"] or a["kind"]: a
+                 for a in q("select * from alerts where device_id=? and resolved is null", (dev["id"],))}
         gone = stale(dev, now)
 
-        off = open_.get("offline")
+        off = open_.pop("offline", None)
         if gone and not off:
             raise_alert(dev, user, "offline", now,
                         f"[MeshSense] 집 기기 신호가 {OFFLINE_S // 60}분째 없습니다 ({hm(now)})",
@@ -169,25 +218,34 @@ def tick(now: float) -> None:
         elif off and not gone:
             q("update alerts set resolved=? where id=?", (now, off["id"]))
 
+        # (열쇠, 참인가, 알릴 사람, 문장) — 긴급 알림도 "나에게, 확인 없으면 지인에게" 인 상황 하나다
         minutes = int(cfg["static_alert_min"])
-        due = (not gone and dev["state"] == "static"
-               and home.emergency_held(now, dev["since"], cfg) >= minutes * 60)
-        em = open_.get("emergency")
-        if due and not em:
-            token = secrets.token_urlsafe(9)
-            raise_alert(dev, user, "emergency", now,
-                        f"[MeshSense] {minutes}분째 움직임 없음. 괜찮으면 눌러 주세요\n{BASE}/c/{token}",
-                        [user["phone"]], token=token)
-        elif em and not due:
-            q("update alerts set resolved=? where id=?", (now, em["id"]))
-        elif (em and em["confirmed"] is None and em["escalated"] is None
-              and now - em["created"] >= int(cfg["confirm_min"]) * 60):
-            held = int(home.emergency_held(now, dev["since"], cfg) // 60)
-            status = send_sms([c["phone"] for c in cfg["contacts"]],
-                           f"[MeshSense] {user['name']}님 방에서 {held}분째 움직임이 없고 "
-                           f"본인 확인이 없습니다. 연락해 주세요")
-            q("update alerts set escalated=?, status=? where id=?",
-              (now, f"{em['status']} / 지인 {status}", em["id"]))
+        conds = [("emergency", not gone and dev["state"] == "static"
+                  and home.emergency_held(now, dev["since"], cfg) >= minutes * 60,
+                  "escalate", f"{minutes}분째 움직임 없음")]
+        conds += [(r["id"], not gone and rule_due(dev, r, cfg, now), r["notify"], rule_text(r))
+                  for r in cfg["rules"] if r.get("on")]
+        contacts = [c["phone"] for c in cfg["contacts"]]
+        for key, due, notify, label in conds:
+            a = open_.pop(key, None)
+            if due and not a:
+                token = secrets.token_urlsafe(9) if notify == "escalate" else None
+                link = f"\n괜찮으면 눌러 주세요 {BASE}/c/{token}" if token else ""
+                raise_alert(dev, user, "emergency" if key == "emergency" else "rule", now,
+                            f"[MeshSense] {label} ({hm(now)}){link}",
+                            [user["phone"]] + (contacts if notify == "all" else []),
+                            label=label, rule=None if key == "emergency" else key, token=token)
+            elif a and not due:
+                q("update alerts set resolved=? where id=?", (now, a["id"]))
+            elif (a and a["token"] and a["confirmed"] is None and a["escalated"] is None
+                  and now - a["created"] >= int(cfg["confirm_min"]) * 60):
+                status = send_sms(contacts, f"[MeshSense] {user['name']}님 방: {label}. "
+                                            f"본인 확인이 없어요. 연락해 주세요")
+                q("update alerts set escalated=?, status=? where id=?",
+                  (now, f"{a['status']} / 지인 {status}", a["id"]))
+        for a in open_.values():                    # 지웠거나 끈 상황 — 열린 채 두지 않는다
+            if a["kind"] != "intrusion":
+                q("update alerts set resolved=? where id=?", (now, a["id"]))
 
 
 def ticker() -> None:
@@ -325,8 +383,8 @@ def page_home(user, now: float) -> str:
     t0 = day_range(datetime.fromtimestamp(now, home.TZ).strftime("%Y-%m-%d"))[0]
     urgent = ""
     if dev is not None:
-        em = q("select * from alerts where device_id=? and kind='emergency' and resolved is null "
-               "and confirmed is null", (dev["id"],), one=True)
+        em = q("select * from alerts where device_id=? and token is not null and resolved is null "
+               "and confirmed is null order by created desc limit 1", (dev["id"],), one=True)
         if em is not None:
             left = int(cfg["confirm_min"]) * 60 - (now - em["created"])
             n = len(cfg["contacts"])
@@ -334,7 +392,7 @@ def page_home(user, now: float) -> str:
                    f'<p>뒤 지인 {n}명에게 문자가 갑니다.</p>' if left > 0
                    else f'<p class="mt">지인 {n}명에게 문자를 보냈습니다.</p>')
             urgent = (f'<div class="card urgent"><h2>응급 확인을 기다리는 중</h2>'
-                      f'<p>{int(cfg["static_alert_min"])}분째 움직임이 없어 본인에게 문자를 보냈습니다.</p>{msg}'
+                      f'<p>{e(em["label"])} — 본인에게 문자를 보냈습니다.</p>{msg}'
                       f'<form method="post" action="/c/{e(em["token"])}"><button class="btn wide lg">괜찮아요</button></form></div>')
     if dev is None:
         hero = ('<div class="card hero" style="--c:var(--line)"><div class="lbl">지금 방은</div>'
@@ -376,7 +434,7 @@ def alerts_table(uid: int, t0: float, t1: float, limit: int, with_day: bool) -> 
         what = ("확인함" if a["confirmed"] else "지인에게 보냄" if a["escalated"]
                 else "복구됨" if a["kind"] == "offline" and a["resolved"] else "본인")
         fail = ' <span class="err">발송 실패</span>' if (a["status"] or "").startswith("error") else ""
-        out.append(f'<tr><td class="t">{when}</td><td>{KIND[a["kind"]]}{fail}</td>'
+        out.append(f'<tr><td class="t">{when}</td><td>{e(a["label"] or KIND[a["kind"]])}{fail}</td>'
                    f'<td class="muted r" title="{e(a["status"] or "")}">{what}</td></tr>')
     return f'<table class="mt">{"".join(out)}</table>'
 
@@ -405,7 +463,50 @@ def page_history(user, date: str, now: float) -> str:
     return page("기록", body, user, "history")
 
 
-def page_settings(user, flash: str) -> str:
+def rule_editor(r: dict, rid: str) -> str:
+    def sel(name, opts, cur):
+        return (f'<select name="{name}"' + (' onchange="this.form.classList.toggle(\'custom\',this.value===\'custom\')"'
+                                            if name == "when" else "") + ">"
+                + "".join(f'<option value="{k}"{" selected" if k == cur else ""}>{v}</option>' for k, v in opts.items())
+                + "</select>")
+    delete = ('<button class="btn ghost" formaction="/rules/del" formnovalidate>삭제</button>' if rid != "new" else "")
+    return f"""<form method="post" action="/rules/save" class="editor{' custom' if r['when'] == 'custom' else ''}">
+<input type="hidden" name="id" value="{e(rid)}"><div class="sentence">
+{sel("when", WHEN, r["when"])}<span class="tw"><input type="time" name="start" value="{e(r.get('start', '22:00'))}"> –
+<input type="time" name="end" value="{e(r.get('end', '06:00'))}"></span> 에
+{sel("state", {k: LABEL[k] for k in RULE_STATES}, r["state"])} 이
+<input type="number" name="minutes" min="0" max="1440" value="{int(r['minutes'])}" required> 분
+{sel("kind", RULE_KINDS, r["kind"])}</div>
+<p class="hint">0분 계속되면 = 나타나는 즉시</p>
+<label>알릴 사람</label>{sel("notify", NOTIFY, r["notify"])}
+<div class="edbar"><button class="btn primary">{'추가' if rid == 'new' else '저장'}</button>
+<a class="btn ghost" href="/settings#rules">취소</a>{delete}</div></form>"""
+
+
+def rules_card(c: dict, edit: str, preset: str) -> str:
+    rows = []
+    for r in c["rules"]:
+        if r["id"] == edit:
+            rows.append(rule_editor(r, r["id"]))
+            continue
+        rows.append(f'<div class="rule{"" if r["on"] else " off"}">'
+                    f'<form method="post" action="/rules/toggle"><input type="hidden" name="id" value="{e(r["id"])}">'
+                    f'<button class="toggle sm{" on" if r["on"] else ""}" aria-label="켜기/끄기"></button></form>'
+                    f'<div class="txt"><b>{e(rule_text(r))}</b><small>{NOTIFY[r["notify"]]}</small></div>'
+                    f'<a class="btn ghost" href="/settings?rule={e(r["id"])}#rules">수정</a></div>')
+    if edit == "new" or preset in PRESETS:
+        tail = rule_editor({**NEW_RULE, **(PRESETS[preset][1] if preset in PRESETS else {})}, "new")
+    elif len(c["rules"]) >= MAX_RULES:
+        tail = f'<p class="note">상황은 {MAX_RULES}개까지예요.</p>'
+    else:
+        chips = "".join(f'<a class="chip" href="/settings?preset={k}#rules">+ {t}</a>' for k, (t, _) in PRESETS.items())
+        tail = (f'<div class="chips"><span class="muted small">예시로 시작:</span>{chips}</div>'
+                '<a class="btn wide mt10" href="/settings?rule=new#rules">+ 상황 직접 만들기</a>')
+    return (f'<div class="card" id="rules"><h2>나만의 상황</h2><p class="sub">정해 둔 상황이 되면 알려요. '
+            f'조건이 처음 맞는 순간 한 번 보내요.</p>{"".join(rows)}{tail}</div>')
+
+
+def page_settings(user, flash: str, edit: str = "", preset: str = "") -> str:
     c = config(user)
     num = lambda k, unit: f'<div class="unit"><input name="{k}" type="number" min="1" value="{int(c[k])}" required><span>{unit}</span></div>'  # noqa: E731
     people = "".join(
@@ -426,11 +527,11 @@ def page_settings(user, flash: str) -> str:
 <label>지인에게 문자</label>{num('confirm_min', '분 안에 확인하지 않으면')}
 <label>내 번호</label><input name="phone" inputmode="tel" value="{e(user['phone'])}" required></div>
 <div class="savebar"><button class="btn primary">저장</button></div></form>
-<div class="card"><h2>지인</h2><p class="sub">문자 받는 데 동의한 분만 넣어 주세요. 최대 {MAX_CONTACTS}명.</p>
+<div class="stack">{rules_card(c, edit, preset)}<div class="card"><h2>지인</h2><p class="sub">문자 받는 데 동의한 분만 넣어 주세요. 최대 {MAX_CONTACTS}명.</p>
 {people or '<p class="muted small">아직 없어요.</p>'}
 <form method="post" action="/contacts/add"><div class="row mt16"><input name="name" placeholder="이름" required maxlength="20">
 <input name="phone" placeholder="010-0000-0000" inputmode="tel" required></div>
-<button class="btn wide mt10">+ 지인 추가</button></form></div></div>""")
+<button class="btn wide mt10">+ 지인 추가</button></form></div></div></div>""")
     return page("설정", body, user, "settings", flash=flash)
 
 
@@ -441,12 +542,12 @@ MAX_CONTACTS = 5
 def page_devices(user, now: float) -> str:
     code = q("select * from pair_codes where user_id=? and expires>? order by expires desc limit 1",
              (user["id"], now), one=True)
-    host = urlsplit(BASE).netloc or BASE
     if code:
         left = int(code["expires"] - now)
         new = (f'<div class="code">{code["code"]}</div><div class="muted small center">{left // 60}분 {left % 60}초 남음</div>'
-               f'<p class="strong mt16">집 컴퓨터 터미널에서</p>'
-               f'<pre>python3 -m realtime.home pair {e(host)} {code["code"]}</pre>')
+               '<p class="strong mt16">집 컴퓨터에서</p><ol class="steps">'
+               '<li><b>MeshSense 제어판</b>을 열고 <b>연동</b> 탭으로 가요</li>'
+               '<li>이 코드를 넣고 <b>연결</b>을 눌러요</li></ol>')
     else:
         new = '<form method="post" action="/devices/code"><button class="btn primary wide lg">연동 코드 발급</button></form>'
     devs = q("select * from devices where user_id=? order by created", (user["id"],))
@@ -480,7 +581,7 @@ def page_confirm(a, now: float, done: bool = False) -> str:
         tail = (f'<div class="count display">{int(left // 60)}:{int(left % 60):02d}</div>'
                 f'<p class="muted">안에 누르지 않으면 지인 {n}명에게 문자가 가요.</p>' if left > 0 and not a["escalated"]
                 else f'<p class="muted mt">지인 {n}명에게 이미 문자가 갔어요.</p>')
-        inner = (f'<h1 class="display">괜찮으세요?</h1><p class="muted">방에서 {int(cfg["static_alert_min"])}분째 움직임이 없어요.</p>'
+        inner = (f'<h1 class="display">괜찮으세요?</h1><p class="muted">{e(a["label"])}</p>'
                  f'{tail}<form method="post"><button class="btn primary wide xl">괜찮아요</button></form>'
                  f'<p class="note">링크를 여는 것만으로는 확인되지 않아요.</p>')
     return page("확인", f'<div class="confirm"><div class="brand center"><i></i>MeshSense</div>{inner}</div>',
@@ -649,7 +750,8 @@ def r_history(h):
 
 def r_settings(h):
     if (u := h.need_user()):
-        h.send(200, page_settings(u, "저장했어요" if h.qs.get("ok") else h.qs.get("e", "")))
+        h.send(200, page_settings(u, "저장했어요" if h.qs.get("ok") else h.qs.get("e", ""),
+                                  h.qs.get("rule", ""), h.qs.get("preset", "")))
 
 
 def r_settings_save(h):
@@ -696,6 +798,53 @@ def r_contact_del(h):
     h.redirect("/settings")
 
 
+def r_rule_save(h):
+    if not (u := h.need_user()):
+        return
+    f, cfg = h.form(), config(u)
+    bad = lambda m: h.redirect("/settings?e=" + quote(m) + "#rules")  # noqa: E731
+    if (f.get("when") not in WHEN or f.get("state") not in RULE_STATES or f.get("kind") not in RULE_KINDS
+            or f.get("notify") not in NOTIFY):
+        return bad("모르는 값이에요")
+    m = f.get("minutes", "")
+    if not m.isdigit() or int(m) > 1440:
+        return bad("분은 0~1440 사이로 적어 주세요")
+    r = {"on": True, "when": f["when"], "state": f["state"], "kind": f["kind"], "minutes": int(m),
+         "notify": f["notify"]}
+    if r["when"] == "custom":
+        if not (TIME_RE.fullmatch(f.get("start", "")) and TIME_RE.fullmatch(f.get("end", ""))) \
+                or f["start"] == f["end"]:
+            return bad("직접 지정한 시간을 확인해 주세요")
+        r.update(start=f["start"], end=f["end"])
+    old = next((x for x in cfg["rules"] if x["id"] == f.get("id")), None)
+    if old:
+        old.update(r, on=old["on"])
+    elif len(cfg["rules"]) >= MAX_RULES:
+        return bad(f"상황은 {MAX_RULES}개까지예요")
+    else:
+        cfg["rules"].append({"id": "r" + secrets.token_hex(4), **r})
+    save_config(u["id"], cfg)
+    h.redirect("/settings?ok=1#rules")
+
+
+def r_rule_toggle(h):
+    if (u := h.need_user()):
+        i, cfg = h.form().get("id"), config(u)
+        for r in cfg["rules"]:
+            if r["id"] == i:
+                r["on"] = not r["on"]
+        save_config(u["id"], cfg)
+        h.redirect("/settings#rules")
+
+
+def r_rule_del(h):
+    if (u := h.need_user()):
+        i, cfg = h.form().get("id"), config(u)
+        cfg["rules"] = [r for r in cfg["rules"] if r["id"] != i]
+        save_config(u["id"], cfg)
+        h.redirect("/settings#rules")
+
+
 def r_devices(h):
     if (u := h.need_user()):
         h.send(200, page_devices(u, time.time()))
@@ -723,12 +872,12 @@ def r_device_del(h):
 
 
 def r_confirm(h, token):
-    h.send(200, page_confirm(q("select * from alerts where token=? and kind='emergency'", (token,), one=True),
+    h.send(200, page_confirm(q("select * from alerts where token=?", (token,), one=True),
                              time.time()))
 
 
 def r_confirm_post(h, token):
-    a = q("select * from alerts where token=? and kind='emergency'", (token,), one=True)
+    a = q("select * from alerts where token=?", (token,), one=True)
     if a is not None and a["confirmed"] is None:
         q("update alerts set confirmed=? where id=?", (time.time(), a["id"]))
     if h.user():
@@ -805,7 +954,8 @@ ROUTES = [
     ("POST", r"/logout", r_logout), ("GET", r"/home", r_home), ("POST", r"/away", r_away),
     ("GET", r"/history", r_history), ("GET", r"/settings", r_settings),
     ("POST", r"/settings", r_settings_save), ("POST", r"/contacts/add", r_contact_add),
-    ("POST", r"/contacts/del", r_contact_del), ("GET", r"/devices", r_devices),
+    ("POST", r"/contacts/del", r_contact_del), ("POST", r"/rules/save", r_rule_save),
+    ("POST", r"/rules/toggle", r_rule_toggle), ("POST", r"/rules/del", r_rule_del), ("GET", r"/devices", r_devices),
     ("POST", r"/devices/code", r_code), ("POST", r"/devices/del", r_device_del),
     ("GET", r"/c/([\w-]+)", r_confirm), ("POST", r"/c/([\w-]+)", r_confirm_post),
     ("POST", r"/api/pair", r_api_pair), ("POST", r"/api/state", r_api_state),
@@ -855,8 +1005,8 @@ main{max-width:1200px;margin:0 auto;padding:32px 24px 48px}
 .pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px}
 .pagehead h1{font-size:32px;letter-spacing:-.03em} .pagehead p{margin:4px 0 0;color:var(--muted);font-size:14px}
 .pagehead form{margin:0}
-.grid{display:grid;grid-template-columns:5fr 7fr;gap:16px;align-items:start}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:16px;align-items:start}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
 .stack{display:grid;gap:16px;margin:0}
 .card{background:var(--canvas);border:1px solid var(--line);border-radius:12px;padding:24px;box-shadow:var(--sh)}
 .card h2{font-size:16px} .card .sub{color:var(--muted);font-size:14px;margin:4px 0 16px}
@@ -920,7 +1070,25 @@ input{width:100%;height:44px;padding:0 14px;font:inherit;color:var(--ink);backgr
 input:focus{outline:0;border-color:var(--ink)} input.date{width:auto}
 .unit{display:flex;align-items:center;gap:10px} .unit input{width:96px;flex:none;text-align:right}
 .unit span{color:var(--muted);font-size:14px}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+input[type=time]{min-width:0}
+select{height:44px;padding:0 12px;font:inherit;color:var(--ink);background:var(--canvas);border:1px solid var(--line);
+ border-radius:8px;max-width:100%}
+.rule{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line-soft)}
+.rule form{margin:0} .rule .txt{flex:1;line-height:1.35;min-width:0}
+.rule .txt b{color:var(--ink);font-weight:600;font-size:15px;display:block} .rule .txt small{color:var(--muted);font-size:13px}
+.rule.off .txt{opacity:.45}
+.toggle.sm{width:40px;height:24px} .toggle.sm::after{width:18px;height:18px} .toggle.sm.on::after{left:19px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;align-items:center}
+.chip{font-size:13px;font-weight:500;padding:6px 12px;border-radius:999px;border:1px dashed var(--line);
+ background:var(--canvas);color:var(--ink);text-decoration:none}
+.editor{background:var(--card);border-radius:12px;padding:16px;margin-top:12px}
+.editor .sentence{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:15px;color:var(--ink)}
+.editor .sentence input[type=number]{width:80px;text-align:right} .editor .sentence input[type=time]{width:auto}
+.editor .tw{display:none;align-items:center;gap:6px} .editor.custom .tw{display:inline-flex}
+.editor .hint{font-size:12px;color:var(--muted);margin:8px 0 0} .editor select[name=notify]{width:100%}
+.edbar{display:flex;gap:8px;margin-top:14px}
+.steps{margin:8px 0 0;padding-left:20px;font-size:14px} .steps li{margin:6px 0}
 .person{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line-soft)}
 .person div{flex:1;line-height:1.3} .person b{color:var(--ink);font-weight:600;font-size:15px}
 .person small{display:block;color:var(--muted);font-size:13px} .person form{margin:0}
@@ -943,7 +1111,7 @@ pre{background:var(--card);color:var(--ink);border-radius:8px;padding:12px 14px;
   .mtitle{display:flex;align-items:center;justify-content:space-between;padding:calc(12px + env(safe-area-inset-top)) 20px 4px}
   main{padding:8px 16px calc(96px + env(safe-area-inset-bottom))}
   .pagehead{margin:8px 0 16px} .pagehead h1{font-size:28px} .hide-small{display:none}
-  .grid,.grid2{grid-template-columns:1fr}
+  .grid,.grid2{grid-template-columns:minmax(0,1fr)}
   .card{padding:20px} .hero{padding:22px} .hero .st{font-size:52px}
   .facts{grid-template-columns:1fr 1fr} .facts .fact:last-child{grid-column:1/-1}
   .auth{grid-template-columns:1fr;padding:24px 0;gap:28px} .auth h1{font-size:36px} .auth .lead{font-size:16px}

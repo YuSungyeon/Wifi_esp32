@@ -39,7 +39,7 @@ import model_registry  # noqa: E402
 #: 담당자 배포본은 지워도 멈추지 않으므로 막지 않고 팝업이 경고만 한다.
 PROTECTED = model_registry.PINNED
 sys.path.insert(0, str(REPO_ROOT))
-from realtime import sms  # noqa: E402
+from realtime import home, sms  # noqa: E402
 from csi_session import (  # noqa: E402
     LIVE_LABEL, SESSION_LABELS, VERDICT, next_session_id, quality, read_manifest,
     set_session_note,
@@ -516,6 +516,13 @@ def timeline_spans(events: list, now: float, minutes: int = 60) -> list:
     return out
 
 
+def cloud_state() -> dict:
+    """연동 탭이 쓰는 것. **토큰과 서버 주소는 내보내지 않는다** (doc/control-panel.md §6b)."""
+    st = home.load()
+    return {"paired": bool(st.get("token")), "name": st.get("name", ""), "config": st.get("config") or {},
+            "paired_at": st.get("paired"), "default_name": "집 컴퓨터"}
+
+
 def sms_state() -> dict:
     """문자 알림 화면이 쓰는 것. **API 시크릿은 내보내지 않는다** — 화면에 되돌려 줄 이유가 없다.
 
@@ -779,6 +786,8 @@ img.wf{width:100%;border:1px solid var(--line);border-radius:10px;margin-top:.6r
 .steps i.done{color:var(--ok);border-color:var(--ok)}
 .steps i.now{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
 .setting{display:flex;align-items:baseline;gap:.5rem;margin:1.1rem 0 .2rem}
+input.code6{font:600 1.6rem ui-monospace,Menlo,monospace;letter-spacing:.3em;max-width:14rem}
+#cloud th{width:8rem}
 /* 문자 알림 — 규칙 한 줄이 한 문장으로 읽혀야 한다 */
 .sms .r{display:flex;align-items:center;gap:.45rem;padding:.42rem .6rem;border:1px solid var(--line);
  border-radius:8px;margin-top:.45rem;font-size:.9rem;flex-wrap:wrap}
@@ -855,6 +864,7 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
     <button data-t="sessions">세션</button>
     <button data-t="train">학습</button>
     <button data-t="realtime">실시간</button>
+    <button data-t="cloud">연동</button>
   </nav>
   <span id="jobbadge" class="hint" style="margin-left:auto"></span>
 </header>
@@ -863,6 +873,7 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
   <section id="sessions"></section>
   <section id="train"></section>
   <section id="realtime"></section>
+  <section id="cloud"></section>
   <div class="card" id="logcard" style="display:none">
     <div class="bar"><h2 id="logtitle" style="margin:0">작업 로그</h2>
       <button class="act danger" id="stopbtn" onclick="post('/api/stop')">중지</button></div>
@@ -1014,6 +1025,55 @@ function render() {
     document.getElementById('realtime').innerHTML =
       renderRealtimeStart(S) + renderRealtime(S.realtime) + renderSms(S.sms);
   }
+  const rt = S.realtime;
+  if (tab === 'cloud' && changed('cloud', [S.cloud, rt && rt.session, rt && rt.cloud, cloudErr, cloudBusy])) {
+    document.getElementById('cloud').innerHTML = renderCloud(S.cloud, rt);
+  }
+}
+// ── 연동 탭 (doc/control-panel.md §6b) — 서버 주소는 코드 상수라 보이지 않는다 ──
+let cloudErr = '', cloudBusy = false, cloudCode = '', cloudName = null;
+async function cloudPair(){
+  cloudBusy = true; cloudErr = ''; render();
+  const r = await fetch('/api/cloud', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({pair: {code: cloudCode, name: cloudName ?? S.cloud.default_name}})});
+  const j = await r.json();
+  cloudBusy = false; cloudErr = j.error || '';
+  if (!j.error) cloudCode = '';
+  await refresh();
+}
+function cloudUnpair(){
+  if (confirm('이 컴퓨터의 연동을 해제합니다.\n\n홈페이지 → 기기에서도 해제해야 완전히 끊깁니다.'))
+    post('/api/cloud', {unpair: true});
+}
+function renderCloud(c, rt){
+  if (!c) return '';
+  if (!c.paired) return `<div class="card"><h2>클라우드 연동 <span class="tag">연결 안 됨</span></h2>
+    <p class="sub">홈페이지에서 받은 코드로 이 컴퓨터를 계정에 연결합니다. 연결하면 방 상태가 홈페이지
+      기록에 남고, 긴급 알림을 홈페이지가 보냅니다.</p>
+    <label>연동 코드 <span class="hint">홈페이지 → 기기 → 연동 코드 발급 (10분 안에)</span></label>
+    <input class="code6" placeholder="000000" inputmode="numeric" maxlength="6" autocomplete="one-time-code"
+      value="${esc(cloudCode)}" oninput="cloudCode=this.value">
+    <label>이 기기 이름 <span class="hint">홈페이지 기기 목록에 보이는 이름</span></label>
+    <input maxlength="40" value="${esc(cloudName ?? c.default_name)}" oninput="cloudName=this.value">
+    <div class="setting"><button class="act primary" ${cloudBusy ? 'disabled' : ''} onclick="cloudPair()">
+      ${cloudBusy ? '연결 중…' : '연결'}</button></div>
+    ${cloudErr ? `<p class="note">연결하지 못했습니다 — <b>${esc(cloudErr)}</b></p>` : ''}</div>`;
+  const cf = c.config || {}, last = rt && rt.cloud;
+  const sent = last && last.at
+    ? `${ago(last.at, Date.now() / 1000)} · ${esc(RT_LABEL[last.state] || last.state)}
+       <span class="tag ${last.ok ? 'ok' : 'bad'}">${last.ok ? '성공' : esc(last.error)}</span>`
+    : (rt ? '곧 보냅니다' : '—');
+  const conf = cf.sleep_start ? `수면 ${esc(cf.sleep_start)}–${esc(cf.sleep_end)} · 조명 끄기 ${cf.sleep_off_min}분 ·
+    조명 켜기 ${cf.motion_wake_s}초 · 외출 모드 ${cf.away ? '켜짐' : '꺼짐'}` : '—';
+  return `<div class="card"><h2>클라우드 연동 <span class="tag ok">연결됨</span></h2>
+    <p class="sub">실시간 판단이 켜져 있는 동안 상태가 바뀔 때와 1분마다 홈페이지로 보냅니다.</p>
+    <table><tr><th>이 기기 이름</th><td>${esc(c.name)}</td></tr>
+      <tr><th>마지막 전송</th><td>${sent}</td></tr>
+      <tr><th>받은 설정</th><td>${conf}</td></tr></table>
+    <div class="setting"><span class="link" style="margin-left:auto" onclick="cloudUnpair()">연결 해제</span></div></div>
+    <div class="card"><h2>실시간 판단</h2><p class="sub">${rt
+      ? `켜져 있습니다 — 세션 ${esc(rt.session)}. 끄면 홈페이지에는 3분 뒤 "연결 끊김" 으로 보입니다.`
+      : '꺼져 있어 보내지 않습니다 — 홈페이지에는 3분 뒤 "연결 끊김" 으로 보입니다. 실시간 탭에서 켜세요.'}</p></div>`;
 }
 const RT_LABEL = {empty:'빈 방', static:'정지', motion:'움직임',
                   deciding:'판단 중', suspended:'판단 정지'};
@@ -1546,7 +1606,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 #: 돌아갈 버튼이 어디 있는지 알 수 없다. 그냥 끊긴 경우는 전처럼 지운다.
                 "realtime": view if (view := realtime_view())
                 and (RT_JOB.running or PAUSED_BY_OPERATOR[0] or view["stale_s"] < 5) else None,
-                "rt_job": RT_JOB.state(), "live_job": LIVE_JOB, "sms": sms_state(),
+                "rt_job": RT_JOB.state(), "live_job": LIVE_JOB, "sms": sms_state(), "cloud": cloud_state(),
                 "pause_note": pause_note(PAUSED_BY_OPERATOR[0]),
                 "job": JOB.state(),
             })
@@ -1727,6 +1787,15 @@ def dispatch(path: str, body: dict) -> dict:
                             "session": ""})
             return {"ok": ok} if ok else {"error": status.replace("error: ", "")}
         return {"ok": True}
+
+    if path == "/api/cloud":
+        #: 연동은 여기서, 전송은 판단 엔진이 한다 (집 상태 서비스 계획 §4.3)
+        if body.get("unpair"):
+            home.unpair()
+            return {"ok": True}
+        p = body.get("pair") or {}
+        err = home.pair(p.get("code", ""), p.get("name", ""))
+        return {"error": err} if err else {"ok": True}
 
     if path == "/api/idf":
         err = JOB.start("ESP-IDF 준비", [PY, str(SCRIPT_DIR / "idf_bootstrap.py"), "-y"])

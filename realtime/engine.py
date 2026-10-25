@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from model_train.robust.shared_temporal import amplitude_input  # noqa: E402
-from realtime import sms  # noqa: E402
+from realtime import home, sms  # noqa: E402
 from realtime.state import Event, Reading, StateMachine  # noqa: E402
 from realtime.stream import CsiStream  # noqa: E402
 
@@ -152,6 +152,7 @@ class Engine:
         # None 이면 1단계는 화면 표시 전용.
         self.stage1_gate = stage1_gate
         self._sms: sms.Watcher | None = None      # 실시간일 때만 생긴다 (_alert)
+        self._cloud: home.Sender | None = None    # 〃 — 집 상태 서비스 클라우드 전송
 
     def _alert(self) -> None:
         """문자 알림 — **실시간에서만** 부른다 (`doc/realtime-inference.md` §10).
@@ -162,6 +163,10 @@ class Engine:
         if self._sms is None:
             self._sms = sms.Watcher(session=self.dir.name)
         self._sms.check(self.sm.state)
+        if self._cloud is None:
+            self._cloud = home.Sender()
+        # ponytail: 조명(led)은 아직 판단하지 않는다 — 싱크보드 LED 작업(계획 1일 차) 때 채운다
+        self._cloud.offer(self.sm.state, time.time() - self.sm.held_s)
 
     # ── 판단 한 번 ──────────────────────────────────────────────────────────
     def _window_input(self, win) -> np.ndarray:
@@ -274,6 +279,7 @@ class Engine:
                 "n_rx": len(self._rx) if self._rx else len(self.stream.rx_alive()),
                 "hz": round(self._hz, 1),
                 "session": self.dir.name, "window_s": self.window / 100,
+                "cloud": self._cloud.last if self._cloud else None,
                 "model": self.model_name, "model_kind": self.kind,
                 "events": [{"t": round(e.t, 2), "from": e.frm, "to": e.to,
                             "confidence": round(e.confidence, 4)} for e in self.events[-30:]]}

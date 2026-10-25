@@ -10,16 +10,32 @@
 """
 from __future__ import annotations
 
+import json
+import os
+import re
+import threading
+import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo("Asia/Seoul")
+ROOT = Path(__file__).resolve().parents[1]
+
+#: 클라우드 주소 — 사용자가 고르는 값이 아니라 배포 때 한 번 정하는 값이라 화면에 없다(§4.3).
+#: `MESHSENSE_CLOUD` 는 로컬 시험용으로만 덮는다.
+CLOUD_URL = os.environ.get("MESHSENSE_CLOUD", "https://home.example.com")
+#: 연동 정보 `{url, token, name, config, paired}` — 토큰이 들어 있다(`.gitignore`).
+STORE = ROOT / "mac_collector" / "home_service.json"
+HEARTBEAT_S = 60
 
 #: 웹에서 편집하고 로컬로 내려가는 설정(§3.4). 계정마다 하나.
 DEFAULT: dict = {"sleep_start": "00:00", "sleep_end": "07:00",
                  "motion_wake_s": 5, "sleep_off_min": 10,
                  "static_alert_min": 60, "confirm_min": 5,
-                 "away": False, "contacts": []}
+                 "away": False, "contacts": [], "rules": []}
 
 
 def _minutes(hhmm: str) -> int:
@@ -27,13 +43,36 @@ def _minutes(hhmm: str) -> int:
     return int(h) * 60 + int(m)
 
 
-def in_sleep(now: float, cfg: dict) -> bool:
-    a, b = _minutes(cfg["sleep_start"]), _minutes(cfg["sleep_end"])
+def in_window(now: float, start: str, end: str) -> bool:
+    """`start` ≤ 지금 < `end` (자정 넘김 가능). 시작 = 끝이면 빈 창."""
+    a, b = _minutes(start), _minutes(end)
     t = datetime.fromtimestamp(now, TZ)
     cur = t.hour * 60 + t.minute
     if a == b:
         return False
     return a <= cur < b if a < b else (cur >= a or cur < b)
+
+
+def in_sleep(now: float, cfg: dict) -> bool:
+    return in_window(now, cfg["sleep_start"], cfg["sleep_end"])
+
+
+def window_start(now: float, when: str, cfg: dict, start: str = "", end: str = "") -> float | None:
+    """지금 들어 있는 시간대가 시작된 시각. 시간대 밖이면 None.
+
+    `when`: `always` · `awake`(수면 끝 → 수면 시작) · `sleep` · `custom`(`start`–`end`).
+    """
+    if when == "always":
+        return float("-inf")
+    if when == "custom":
+        a, b = start, end
+    elif cfg["sleep_start"] == cfg["sleep_end"]:          # 수면 시간이 없다 = 늘 깨어 있다
+        return float("-inf") if when == "awake" else None
+    elif when == "sleep":
+        a, b = cfg["sleep_start"], cfg["sleep_end"]
+    else:
+        a, b = cfg["sleep_end"], cfg["sleep_start"]
+    return last_boundary(now, a) if in_window(now, a, b) else None
 
 
 def last_boundary(now: float, hhmm: str) -> float:
@@ -48,8 +87,101 @@ def last_boundary(now: float, hhmm: str) -> float:
 
 def emergency_held(now: float, since: float, cfg: dict) -> float:
     """응급 판단에 쓰는 유지 시간(초). 수면 중이면 0 — 시계가 멈춰 있다."""
-    if cfg["sleep_start"] == cfg["sleep_end"]:
-        return now - since
-    if in_sleep(now, cfg):
-        return 0.0
-    return now - max(since, last_boundary(now, cfg["sleep_end"]))
+    ws = window_start(now, "awake", cfg)
+    return 0.0 if ws is None else now - max(since, ws)
+
+
+# ── 클라우드 연동 (§4.3) ───────────────────────────────────────────────────
+def load(path: Path | None = None) -> dict:
+    try:
+        d = json.loads(Path(path or STORE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def save(d: dict, path: Path | None = None) -> None:
+    p = Path(path or STORE)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    p.chmod(0o600)
+
+
+def _call(url: str, path: str, body: dict, token: str | None = None) -> tuple[int, dict]:
+    """(HTTP 상태, 응답). 서버에 닿지 않으면 상태 0."""
+    req = urllib.request.Request(url.rstrip("/") + path, json.dumps(body).encode(),
+                                 {"Content-Type": "application/json",
+                                  **({"Authorization": f"Bearer {token}"} if token else {})})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status, json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read() or b"{}")
+        except ValueError:
+            return e.code, {}
+    except (OSError, ValueError):
+        return 0, {"error": "서버에 닿지 않습니다"}
+
+
+def pair(code: str, name: str, path: Path | None = None) -> str | None:
+    """연동 코드로 이 컴퓨터를 계정에 붙인다. 실패하면 사유 문장, 성공하면 None."""
+    code, name = re.sub(r"\s", "", str(code)), (str(name).strip() or "집 기기")[:40]
+    if not re.fullmatch(r"\d{6}", code):
+        return "6자리 숫자를 넣어 주세요"
+    st, res = _call(CLOUD_URL, "/api/pair", {"code": code, "name": name})
+    if st != 200 or not res.get("token"):
+        return res.get("error") or f"연결하지 못했습니다 (HTTP {st})"
+    # 주소를 함께 적는다 — 나중에 CLOUD_URL 이 바뀌어도 토큰을 엉뚱한 서버로 보내지 않는다
+    save({"url": CLOUD_URL, "token": res["token"], "name": name, "config": res.get("config", {}),
+          "paired": time.time()}, path)
+    return None
+
+
+def unpair(path: Path | None = None) -> None:
+    Path(path or STORE).unlink(missing_ok=True)
+
+
+class Sender:
+    """판단 엔진 안에서 상태를 클라우드로 보낸다 — 바뀌면 바로, 아니면 60초마다.
+
+    HTTP 는 이 스레드가 맡는다. 엔진은 `offer()` 로 최신 상태만 놓고 간다(0.3초 판단을 막지 않는다).
+    보낼 때마다 연동 정보를 다시 읽는다 — 실행 중에 연결·해제해도 따라간다.
+    """
+
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path
+        self.last: dict = {}                 # 마지막 전송 결과 — 제어판 연동 탭이 보여 준다
+        self._want: dict | None = None
+        self._dirty = False
+        self._cv = threading.Condition()
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def offer(self, state: str, since: float, led: bool | None = None) -> None:
+        with self._cv:
+            if self._want is None or self._want["state"] != state:
+                self._dirty = True
+                self._cv.notify()
+            self._want = {"state": state, "since": round(since, 1), "led": led}
+
+    def _run(self) -> None:
+        while True:
+            with self._cv:
+                self._cv.wait_for(lambda: self._dirty, timeout=HEARTBEAT_S)
+                self._dirty = False
+                body = dict(self._want) if self._want else None
+            if body:
+                self.send(body)
+
+    def send(self, body: dict) -> None:
+        st = load(self.path)
+        if not st.get("token"):
+            self.last = {}
+            return
+        code, res = _call(st["url"], "/api/state", body, st["token"])
+        self.last = {"at": time.time(), "ok": code == 200, "state": body["state"],
+                     "error": None if code == 200 else
+                     ("홈페이지에서 해제된 기기입니다" if code == 401 else res.get("error") or f"HTTP {code}")}
+        if code == 200 and res.get("config") and res["config"] != st.get("config"):
+            st["config"] = res["config"]
+            save(st, self.path)

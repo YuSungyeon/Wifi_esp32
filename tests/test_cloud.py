@@ -168,5 +168,96 @@ class CloudFlow(unittest.TestCase):
         self.assertIsNotNone(S.q("select resolved from alerts where kind='offline'", one=True)["resolved"])
 
 
+    # ── 나만의 상황 (§3.5) ──────────────────────────────────────────────────
+    def add_rule(self, **kw):
+        form = {"id": "new", "when": "always", "state": "empty", "kind": "hold", "minutes": "30",
+                "notify": "me", "start": "22:00", "end": "06:00", **kw}
+        url, body = self.post("/rules/save", **form)
+        self.assertIn("저장했어요", body)
+        return S.config(S.q("select * from users limit 1", one=True))["rules"][-1]
+
+    def test_rule_text_reads_as_a_sentence(self):
+        r = {"when": "custom", "start": "07:00", "end": "10:00", "state": "motion", "kind": "absent", "minutes": 120}
+        self.assertEqual(S.rule_text(r), "07:00–10:00에 움직임이 2시간 없으면")
+        self.assertEqual(S.rule_text({"when": "always", "state": "motion", "kind": "hold", "minutes": 0}),
+                         "움직임이 나타나면")
+
+    def test_hold_rule_fires_once_and_rearms(self):
+        token = self.signup_and_pair()
+        r = self.add_rule(state="empty", kind="hold", minutes="30")
+        self.api("/api/state", {"state": "empty", "since": time.time() - 3600}, token)
+        S.tick(time.time())
+        S.tick(time.time())
+        self.assertEqual(len(self.sent), 1)
+        self.assertIn("빈 방이 30분 계속되면", self.sent[0][1])
+        self.api("/api/state", {"state": "motion", "since": time.time()}, token)
+        S.tick(time.time())                                  # 거짓 → 닫힘
+        self.api("/api/state", {"state": "empty", "since": time.time() - 3600}, token)
+        S.tick(time.time())
+        self.assertEqual(len(self.sent), 2)                  # 다시 무장했다
+        # 끄면 열린 건이 닫히고 더 보내지 않는다
+        self.post("/rules/toggle", id=r["id"])
+        S.tick(time.time())
+        self.assertIsNone(S.q("select * from alerts where rule=? and resolved is null", (r["id"],), one=True))
+
+    def test_custom_window_outside_is_false(self):
+        token = self.signup_and_pair()
+        h = datetime.now(home.TZ).hour
+        self.add_rule(when="custom", start=f"{(h + 2) % 24:02d}:00", end=f"{(h + 3) % 24:02d}:00", minutes="0")
+        self.api("/api/state", {"state": "empty", "since": time.time() - 3600}, token)
+        S.tick(time.time())
+        self.assertEqual(self.sent, [])
+
+    def test_absent_rule_escalates_to_contacts(self):
+        token = self.signup_and_pair()
+        self.awake_now()                                     # confirm_min = 1
+        self.post("/contacts/add", name="엄마", phone=MOM)
+        self.add_rule(state="motion", kind="absent", minutes="60", notify="escalate")
+        S.q("update devices set created=? ", (time.time() - 7200,))   # 연동 2시간 전, 움직임 본 적 없음
+        self.api("/api/state", {"state": "static", "since": time.time() - 10}, token)
+        S.tick(time.time())
+        self.assertEqual([n for n, _ in self.sent], [[ME]])
+        self.assertIn("/c/", self.sent[0][1])
+        self.assertIn("움직임이 1시간 없으면", self.get("/home"))     # 확인 대기 카드
+        S.tick(time.time() + 61)
+        self.assertEqual([n for n, _ in self.sent], [[ME], [MOM]])
+
+    def test_bad_rule_is_rejected(self):
+        self.signup_and_pair()
+        url, body = self.post("/rules/save", id="new", when="custom", start="10:00", end="10:00",
+                              state="empty", kind="hold", minutes="5", notify="me")
+        self.assertIn("직접 지정한 시간", body)
+        url, body = self.post("/rules/save", id="new", when="always", state="sleeping",
+                              kind="hold", minutes="5", notify="me")
+        self.assertIn("모르는 값", body)
+
+    # ── 집 쪽: 제어판 연동 + 엔진 전송 (§4.3) ─────────────────────────────
+    def test_local_pair_and_sender(self):
+        self.post("/signup", name="성연", email="me@example.com", pw="password1", phone=ME)
+        self.post("/devices/code")
+        code = re.search(r'class="code">(\d{6})<', self.get("/devices")).group(1)
+        store = Path(self.tmp.name) / "home_service.json"
+        old, home.CLOUD_URL = home.CLOUD_URL, self.url
+        try:
+            self.assertEqual(home.pair("12", "Mac", store), "6자리 숫자를 넣어 주세요")
+            self.assertIsNone(home.pair(code, "Mac", store))
+            self.assertIn("만료", home.pair(code, "Mac", store))          # 1회용
+        finally:
+            home.CLOUD_URL = old
+        saved = home.load(store)
+        self.assertEqual(saved["url"], self.url)                         # 주소를 함께 적는다
+        snd = home.Sender.__new__(home.Sender)                           # 스레드 없이 send 만
+        snd.path, snd.last = store, {}
+        snd.send({"state": "static", "since": time.time() - 60, "led": True})
+        self.assertTrue(snd.last["ok"])
+        self.assertIn("켜짐", self.get("/home"))
+        S.q("delete from devices")                                       # 홈페이지에서 해제
+        snd.send({"state": "static", "since": time.time() - 60, "led": True})
+        self.assertEqual(snd.last["error"], "홈페이지에서 해제된 기기입니다")
+        home.unpair(store)
+        snd.send({"state": "empty", "since": time.time(), "led": None})
+        self.assertEqual(snd.last, {})                                   # 연동 없으면 보내지 않는다
+
+
 if __name__ == "__main__":
     unittest.main()

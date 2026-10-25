@@ -82,6 +82,33 @@ LED 끄기 판단(수면 중)   : 유지 시간 = now − max(상태 시작, 가
 
 시연 때는 `static_alert_min=1`, `confirm_min=1` 로 줄인다.
 
+### 3.5 나만의 상황 (사용자 규칙, 2026-10-25 추가 · 시안 v3 통과)
+
+설정 화면에서 사용자가 직접 만드는 알림이다. 한 문장으로 읽힌다:
+
+```text
+[언제] 에 [상태] 이 [N]분 [계속되면 | 한 번도 없으면] → [알릴 사람]
+```
+
+| 칸 | 값 |
+|---|---|
+| `when` | `always`(항상) · `awake`(깨어 있는 시간) · `sleep`(수면 시간) · `custom`(`start`–`end` 직접, 자정 넘김 가능) |
+| `state` | `empty` · `static` · `motion` |
+| `kind` | `hold`(N분 내리 계속) · `absent`(N분 동안 한 번도 안 나옴) — `realtime/sms.py` 와 같은 어휘. "나타나면" 은 `hold` 0분 |
+| `minutes` | 0~1440 |
+| `notify` | `me`(나에게) · `escalate`(나에게, `confirm_min` 안에 확인 없으면 지인에게 — 긴급 알림과 같은 확인 링크) · `all`(나와 지인에게 바로) |
+
+- **시간대 밖에서는 조건이 거짓**이고, 시간대 안에서는 **시간대가 시작된 시각부터** 센다 —
+  응급 시계(§3.1)와 같은 규칙이다. `awake` 의 시작은 수면 끝, `sleep` 의 시작은 수면 시작.
+- `absent` 의 "마지막으로 본 시각" 은 그 상태가 **끝난** 시각(다음 이벤트의 `since`)이다.
+  한 번도 본 적 없으면 기기 연동 시각부터 센다. 지금 그 상태면 거짓.
+- 집 기기가 끊긴 동안은 모든 규칙이 거짓이다 — 끊김은 기본 알림이 맡는다(§3.3).
+- 올라가는 모서리에서 한 번, 거짓이 되면 닫고 다시 무장(§3.3 과 같다). 최대 10개.
+- 예시 버튼 셋: 밤에 집에 안 들어옴(`sleep` · `empty` · `hold` 30 · `me`), 낮에 너무 오래 비어 있음
+  (`awake` · `empty` · `hold` 240 · `me`), 아침까지 안 일어남(`custom` 07:00–10:00 · `motion` ·
+  `absent` 120 · `escalate`).
+- 문자: `[MeshSense] {문장} ({HH:MM})` (+ `escalate` 면 확인 링크).
+
 ## 4. 계약
 
 ### 4.1 Mac → 클라우드
@@ -114,9 +141,19 @@ Authorization: Bearer <device_token>
 ### 4.3 연동 (홈페이지 → 로컬)
 
 1. 웹 로그인 → `연동 코드 발급` → 6자리 코드, **10분 유효, 1회용**
-2. 로컬에서 `python3 -m realtime.home pair <도메인> <코드>`
+2. 집 컴퓨터의 **제어판 → `연동` 탭**에 코드와 기기 이름을 넣고 `연결` (2026-10-25 변경 —
+   터미널 명령은 안내하지 않는다)
 3. 서버가 코드를 소비하고 `device_token`(32바이트 랜덤) 을 돌려준다. 서버는 **SHA-256 해시만** 저장
-4. 로컬은 `mac_collector/home_service.json` (**`.gitignore`**) 에 `{url, token, config}` 저장
+4. 로컬은 `mac_collector/home_service.json` (**`.gitignore`**) 에 `{url, token, name, config}` 저장
+
+**서버 주소는 화면에 보이지 않는다.** 코드 상수 `realtime/home.py:CLOUD_URL` 에 둔다 —
+사용자가 고르는 값이 아니라 배포 때 한 번 정하는 값이다. 로컬 시험용으로만 환경 변수
+`MESHSENSE_CLOUD` 가 이 값을 덮는다.
+
+**전송은 판단 엔진이 한다**(`realtime.home.Sender`, 실시간일 때만, 재생은 과거라 보내지 않는다).
+엔진 안 스레드가 HTTP 를 맡아 0.3초 판단 간격을 막지 않는다. 마지막 전송 결과와 받은 설정은
+엔진 `view()["cloud"]` 로 나가 제어판 연동 탭이 보여 준다. 받은 설정이 바뀌면
+`home_service.json` 의 `config` 도 고친다(다음 실행의 첫 판단부터 쓰도록).
 
 ## 5. 클라우드 (`cloud/server.py` 한 파일)
 
@@ -162,8 +199,8 @@ SOLAPI 설정이 없으면 보내지 못하고 `error: API 키가 없습니다` 
 | `/` | 로그인(PC 는 왼쪽에 제목 + 상태 카드 모양, 오른쪽에 폼) · `/?signup=1` 가입(이름·이메일·비밀번호·전화) |
 | `/home` | (응급 대기 시) 반전 카드 + 남은 시간 + "괜찮아요" · 현재 상태(크게) · 조명/집 기기 마지막 신호/수면 여부 · 외출 모드 · 오늘 막대 · 최근 알림. 15초마다 새로 고침 |
 | `/history?date=` | 하루 막대 + 합계(방에 있음·빈 방·알림 수) · 상태 변화 표 · 이날 알림 |
-| `/settings` | 수면 시간(시작·끝·조명 끄기 X분·조명 켜기 N초) · 긴급 알림(확인 N분·지인 M분·내 번호) · 지인 추가/삭제 |
-| `/devices` | 연동 코드 발급(6자리·남은 시간·붙여 넣을 명령) · 연동된 기기 + 해제 |
+| `/settings` | 수면 시간(시작·끝·조명 끄기 X분·조명 켜기 N초) · 긴급 알림(확인 N분·지인 M분·내 번호) · **나만의 상황**(§3.5 — 목록·켜기/끄기·수정·삭제, 예시 버튼 셋, 문장형 편집기 + 문자 미리보기. `?rule=new`·`?rule=<id>`·`?preset=` 로 편집기를 연다) · 지인 추가/삭제 |
+| `/devices` | 연동 코드 발급(6자리·남은 시간·"제어판 → 연동 탭에 입력" 두 단계 안내) · 연동된 기기 + 해제 |
 | `/c/<token>` | 확인 페이지(로그인 없음) — **GET 은 버튼만 보여 주고, POST 로 확인한다** (문자 앱의 링크 미리보기가 GET 을 먼저 불러 자동 확인되는 것을 막는다) |
 | `POST /api/pair` | `{code, name}` → `{token}` (로컬 `pair` 명령이 부른다) |
 
@@ -177,7 +214,8 @@ SOLAPI 설정이 없으면 보내지 못하고 `error: API 키가 없습니다` 
 | `esp32s3_csi_sink/main/app_main.c` | USB 읽기 task → LED. `LED_GPIO` 상수 |
 | `esp32s3_csi_sink/main/idf_component.yml` | `espressif/led_strip` (내장 RGB 는 WS2812) |
 | `scripts/csi_serial_reader.py` | 1초마다 세션 폴더 `realtime_status.json` 의 `led` 를 읽어 1바이트 쓰기 |
-| `realtime/home.py` **(신규)** | 시간창 계산·`led()`·`alert_due()`·클라우드 전송 스레드·`pair` CLI |
+| `realtime/home.py` **(신규)** | 시간창 계산·`led()`·`CLOUD_URL`·`pair()`/`unpair()`·클라우드 전송 스레드 `Sender` |
+| `scripts/meshsense_gui.py` | 제어판 **연동 탭**(§4.3, `doc/control-panel.md` §6b) |
 | `realtime/engine.py` | `view()` 에 `led`, 실시간일 때만 전송 스레드 시작(재생은 과거라 보내지 않는다) |
 | `cloud/server.py` **(신규)** | 5장 전체 |
 | `tests/test_home.py` **(신규)** | 시간창(자정 넘김)·`led()` 표·응급 시계 멈춤·모서리 1회 |
@@ -204,8 +242,12 @@ SOLAPI 설정이 없으면 보내지 못하고 `error: API 키가 없습니다` 
   `tests/test_cloud.py` 6개 + `tests/test_home.py` 6개 통과. 시연 데이터를 넣어 PC(1280)·휴대폰(375)·
   밝은/어두운 화면에서 7개 화면을 확인했다. SOLAPI 키가 없는 환경이라 실제 발송은 확인하지 않았다
   (`alerts.status` 에 `error: API 키가 없습니다` 가 남는다).
-- [ ] `realtime/home.py`: `pair` CLI, 전송 스레드(상태 변경 즉시 + 60초) — 시간 규칙(`in_sleep`·
-  `last_boundary`·`emergency_held`)만 먼저 들어갔다
+- [x] `realtime/home.py`: `pair()`·`unpair()`·전송 스레드 `Sender`(상태 변경 즉시 + 60초) + 엔진 연결
+  — **2026-10-25**. 터미널 명령 대신 제어판 **연동 탭**에서 연결한다(§4.3). 제어판에서 로컬 서버로
+  잘못된 코드(사유 표시) → 맞는 코드(연결됨, 서버 기기 목록에 추가) → 해제까지 화면으로 확인했다.
+  제어판 `/api/state` 응답에 토큰·서버 주소가 없음을 확인했다. **보드가 없어 엔진 안 전송은 실제로
+  돌려 보지 못했다** — `Sender.send()` 는 실제 서버 대상 테스트, `offer()` 는 변경 시에만 보내는지 테스트.
+- [x] 나만의 상황(§3.5) — 같은 날 추가. 예시 버튼으로 편집기 열기 → 저장을 화면으로 확인(PC·휴대폰).
 - [ ] 로컬에서 서버를 띄워 연동 → 기록 화면에 전환이 쌓이는지 확인
 - **완료 기준**: 웹에서 수면 시간을 바꾸면 60초 안에 로컬 LED 판단이 따라간다.
 

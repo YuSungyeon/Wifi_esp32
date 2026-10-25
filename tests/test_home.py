@@ -3,6 +3,7 @@
 설계 정본 `doc/plans/2026-10-23-home-service.md` §3.1.
 """
 import sys
+import unittest.mock
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -52,6 +53,20 @@ class EmergencyClock(unittest.TestCase):
     def test_awake_static_counts_from_its_own_start(self):
         c = cfg("00:00", "07:00")
         self.assertEqual(home.emergency_held(at(15), at(14), c), 3600)
+
+
+class SenderTest(unittest.TestCase):
+    """판단마다(0.3초) offer 해도 상태가 바뀔 때만 바로 보낸다. 나머지는 60초 생존 신호가 맡는다."""
+
+    def test_sends_on_change_only(self):
+        import time
+        sent = []
+        with unittest.mock.patch.object(home.Sender, "send", lambda self, body: sent.append(body["state"])):
+            snd = home.Sender()
+            for state in ("static", "static", "static", "motion", "motion"):
+                snd.offer(state, 0.0)
+                time.sleep(0.05)
+        self.assertEqual(sent, ["static", "motion"])
 
 
 if __name__ == "__main__":
