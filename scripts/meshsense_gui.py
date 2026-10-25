@@ -38,6 +38,8 @@ import model_registry  # noqa: E402
 #: 조용히 느려진다(1단계 게이트 — 멈추지 않아 더 찾기 어렵다). 2026-10-20 실측으로 확인했다.
 #: 담당자 배포본은 지워도 멈추지 않으므로 막지 않고 팝업이 경고만 한다.
 PROTECTED = model_registry.PINNED
+sys.path.insert(0, str(REPO_ROOT))
+from realtime import sms  # noqa: E402
 from csi_session import (  # noqa: E402
     LIVE_LABEL, SESSION_LABELS, VERDICT, next_session_id, quality, read_manifest,
     set_session_note,
@@ -514,6 +516,22 @@ def timeline_spans(events: list, now: float, minutes: int = 60) -> list:
     return out
 
 
+def sms_state() -> dict:
+    """문자 알림 화면이 쓰는 것. **API 시크릿은 내보내지 않는다** — 화면에 되돌려 줄 이유가 없다.
+
+    조건을 재는 것은 판단 엔진이다(`doc/realtime-inference.md` §10.1). 여기서는 설정을
+    고치고 기록을 보여 줄 뿐이다.
+    """
+    cfg = sms.load()
+    return {"enabled": bool(cfg["enabled"]), "dry_run": bool(cfg["dry_run"]),
+            "daily_cap": int(cfg["daily_cap"]), "rules": cfg["rules"],
+            "to": list(cfg["to"]), "from": cfg["from"], "has_key": bool(cfg["api_key"]),
+            "why": sms.ready(cfg), "sent_today": sms.sent_today(),
+            "log": sms.log_rows(limit=8),
+            "texts": {r.get("id", ""): sms.rule_text(r) for r in cfg["rules"]},
+            "labels": sms.LABEL, "states": list(sms.STATES)}
+
+
 def realtime_models() -> list:
     """실시간에 쓸 수 있는 체크포인트 (엔진과 같은 목록을 쓴다)."""
     sys.path.insert(0, str(REPO_ROOT))
@@ -761,6 +779,15 @@ img.wf{width:100%;border:1px solid var(--line);border-radius:10px;margin-top:.6r
 .steps i.done{color:var(--ok);border-color:var(--ok)}
 .steps i.now{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
 .setting{display:flex;align-items:baseline;gap:.5rem;margin:1.1rem 0 .2rem}
+/* 문자 알림 — 규칙 한 줄이 한 문장으로 읽혀야 한다 */
+.sms .r{display:flex;align-items:center;gap:.45rem;padding:.42rem .6rem;border:1px solid var(--line);
+ border-radius:8px;margin-top:.45rem;font-size:.9rem;flex-wrap:wrap}
+.sms .r.off{opacity:.5} .sms .r .sp{margin-left:auto;display:flex;gap:.7rem;align-items:center}
+.sms input,.sms select{width:auto;display:inline-block;padding:.28rem .45rem;font-size:.88rem}
+.sms input[type=checkbox]{width:auto;accent-color:var(--accent)}
+.sms .num{width:4.6rem} .sms .wide{width:13rem}
+.sms .lg{font-size:.82rem;color:var(--muted);display:flex;gap:.7rem;padding:.22rem .6rem;align-items:center}
+.sms .lg .sp{margin-left:auto}
 .link{color:var(--accent);font-size:.8rem;text-decoration:underline;cursor:pointer}
 button.act.go{display:block;width:100%;margin:.9rem 0 .2rem;padding:.75rem;font-size:1rem}
 .fold{border-top:1px solid var(--line);margin-top:1.1rem;padding-top:.75rem;cursor:pointer;
@@ -983,9 +1010,9 @@ function render() {
   if (tab === 'train' && changed('train', [S.training, busy, trainPick.size, trainEval, trainPreset, trainName, trainNote, trainOpen, modelEdit])) {
     document.getElementById('train').innerHTML = renderTrain(S.training, busy);
   }
-  if (tab === 'realtime' && changed('realtime', [S.realtime, S.rt_models, S.rt_job, S.job.running, S.job.name, rtModel])) {
+  if (tab === 'realtime' && changed('realtime', [S.realtime, S.rt_models, S.rt_job, S.job.running, S.job.name, rtModel, S.sms, smsEdit, smsOpen])) {
     document.getElementById('realtime').innerHTML =
-      renderRealtimeStart(S) + renderRealtime(S.realtime);
+      renderRealtimeStart(S) + renderRealtime(S.realtime) + renderSms(S.sms);
   }
 }
 const RT_LABEL = {empty:'빈 방', static:'정지', motion:'움직임',
@@ -1095,6 +1122,107 @@ function renderRealtime(r){
           <span class="link" onclick="post('/api/mark')">전환 표시</span>
           <span class="hint">${r.last_mark_s != null ? esc(held(r.t - r.last_mark_s)) + ' 전' : '아직 없음'}</span>
           <span class="link" onclick="post('/api/rt/pause')">판단 정지</span></span></div>
+    </div>`;
+}
+//: 문자 알림 — 조건을 재는 것은 판단 엔진이다. 여기는 설정과 기록만 본다 (§10.1).
+let smsEdit = null, smsOpen = false;          // 편집 중인 규칙 id ('new' 면 새 규칙) · 발신 설정 펼침
+const SMS_KIND = {hold: '이어지면', absent: '없으면'};
+const SMS_STATUS = {sent: '성공', dry: '모의', capped: '상한'};
+function when(wall){ return new Date(wall * 1000).toLocaleString('ko-KR',
+  {month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'}); }
+function smsDraw(){ delete sig.realtime; render(); }
+function smsPost(b){ smsEdit = null; smsOpen = false; post('/api/sms', b); }
+function smsToggle(i){ const r = S.sms.rules[i]; smsPost({rule: {...r, on: !r.on}}); }
+function smsDelete(i){
+  const r = S.sms.rules[i];
+  if (confirm(`"${S.sms.texts[r.id]}" 규칙을 지웁니다.\n\n`
+    + (r.state === 'suspended'
+       ? '이 규칙이 없으면 RX 가 끊겨도 아무 문자도 오지 않습니다 — 조용한 것이 정상으로 보입니다.'
+       : '이 조건으로는 더 이상 문자가 오지 않습니다.')))
+    smsPost({delete: r.id});
+}
+function smsSaveRule(id){
+  const g = x => document.getElementById('sr' + x);
+  smsPost({rule: {id: id === 'new' ? '' : id, on: true, state: g('st').value,
+                  kind: g('kd').value, minutes: +g('mn').value, repeat_min: +g('rp').value}});
+}
+function smsSaveConf(test){
+  const v = x => document.getElementById('sc' + x).value.trim();
+  const set = {to: v('to').split(','), from: v('from'), daily_cap: +v('cap')};
+  if (v('key')) set.api_key = v('key');
+  if (v('sec')) set.api_secret = v('sec');
+  smsPost(test ? {set: set, test: true} : {set: set});
+}
+function smsRuleRow(m, r, i){
+  if (smsEdit === r.id) return smsEditor(r);
+  return `<div class="r ${r.on ? '' : 'off'}">
+    <input type="checkbox" ${r.on ? 'checked' : ''} onchange="smsToggle(${i})">
+    <b>${esc(m.texts[r.id] || '')}</b>
+    ${r.repeat_min ? `<span class="hint">${r.repeat_min}분마다 다시</span>` : ''}
+    <span class="sp"><span class="link" onclick="smsEdit='${esc(r.id)}';smsDraw()">수정</span>
+      <span class="link" onclick="smsDelete(${i})">삭제</span></span></div>`;
+}
+function smsEditor(r){
+  const opt = (v, cur, lab) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(lab)}</option>`;
+  return `<div class="r">
+    <select id="srst">${S.sms.states.map(x => opt(x, r.state, S.sms.labels[x])).join('')}</select>
+    이 <input class="num" id="srmn" type="number" min="0" value="${r.minutes}"> 분
+    <select id="srkd">${Object.keys(SMS_KIND).map(k => opt(k, r.kind, SMS_KIND[k])).join('')}</select>
+    <span class="hint">계속 맞으면</span>
+    <select id="srrp">${[0, 30, 60, 180].map(x =>
+      opt(x, r.repeat_min, x ? x + '분마다 다시' : '한 번만')).join('')}</select>
+    <span class="sp"><button class="act primary" onclick="smsSaveRule('${esc(r.id)}')">저장</button>
+      <span class="link" onclick="smsEdit=null;smsDraw()">취소</span></span></div>`;
+}
+function renderSms(m){
+  if (!m) return '';
+  if (!m.enabled) return `<div class="card sms"><h2>문자 알림 <span class="tag">꺼짐</span></h2>
+    <p class="sub">상태가 조건에 맞으면 정해 둔 번호로 문자를 보냅니다.
+      판단 엔진이 재므로 이 창을 닫아도 갑니다.</p>
+    <button class="act" onclick="smsPost({enable: true})">설정하기</button></div>`;
+  const rules = (m.rules || []).map((r, i) => smsRuleRow(m, r, i)).join('');
+  const blind = !(m.rules || []).some(r => r.state === 'suspended' && r.on);
+  return `<div class="card sms">
+    <h2>문자 알림 <span class="tag ok">켜짐</span>
+      <span class="hint" style="float:right">오늘 ${m.sent_today}통 / 상한 ${m.daily_cap}통</span></h2>
+    <p class="sub">조건이 거짓→참이 될 때 한 번 보냅니다. 참인 동안은 조용합니다.</p>
+    ${m.why ? `<p class="note"><b>지금은 보낼 수 없습니다</b> — ${esc(m.why)}</p>` : ''}
+    ${m.dry_run ? `<p class="note">보내지 않고 기록만 하는 중입니다.</p>` : ''}
+    ${blind ? `<p class="note"><b>끊김 규칙이 없습니다</b> — RX 가 죽어도 아무 문자가 오지 않고,
+      조용한 것이 정상으로 보입니다.</p>` : ''}
+    ${rules || '<p class="sub">규칙이 없습니다. 아래에서 추가하세요.</p>'}
+    ${smsEdit === 'new' ? smsEditor({id: 'new', state: 'motion', kind: 'absent',
+                                     minutes: 30, repeat_min: 0}) : ''}
+    <div class="setting">
+      <button class="act" onclick="smsEdit='new';smsDraw()">규칙 추가</button>
+      <span class="link" onclick="smsOpen=!smsOpen;smsDraw()">발신 설정</span>
+      <span class="hint">${esc((m.to || []).join(', ') || '받는 번호 없음')}</span>
+      <span class="hint sp" style="margin-left:auto">
+        <label style="display:inline;font-weight:400">
+          <input type="checkbox" ${m.dry_run ? 'checked' : ''}
+            onchange="smsPost({set:{dry_run:this.checked}})"> 보내지 않고 기록만</label>
+        <span class="link" onclick="smsPost({set:{enabled:false}})">알림 끄기</span></span></div>
+    ${smsOpen ? `<div class="r" style="flex-direction:column;align-items:stretch;gap:.6rem">
+      <div><label>받는 번호 <span class="hint">쉼표로 여러 개</span></label>
+        <input class="wide" id="scto" value="${esc((m.to || []).join(', '))}" placeholder="01012345678"></div>
+      <div><label>발신 번호 <span class="hint">SOLAPI 에 등록된 번호만 됩니다</span></label>
+        <input class="wide" id="scfrom" value="${esc(m.from || '')}" placeholder="025551234"></div>
+      <div><label>API 키 <span class="hint">${m.has_key ? '저장되어 있습니다 — 바꿀 때만 적으세요'
+                                                        : '아직 없습니다'}</span></label>
+        <input class="wide" id="sckey" value="" placeholder="API Key">
+        <input class="wide" id="scsec" type="password" value="" placeholder="API Secret"></div>
+      <div><label>하루 상한 <span class="hint">넘으면 발송을 멈춥니다</span></label>
+        <input class="num" id="sccap" type="number" min="1" value="${m.daily_cap}"></div>
+      <div class="setting" style="margin:0">
+        <button class="act primary" onclick="smsSaveConf(false)">저장</button>
+        <button class="act" onclick="smsSaveConf(true)">저장하고 시험 발송</button>
+        <span class="link" onclick="smsOpen=false;smsDraw()">닫기</span></div></div>` : ''}
+    ${(m.log || []).length ? `<p class="sub" style="margin:.9rem 0 .2rem">보낸 기록</p>
+      ${m.log.map(l => `<div class="lg"><span>${esc(when(l.wall))}</span>
+        <span class="tag ${l.ok ? 'ok' : 'warn'}">${esc(SMS_STATUS[l.status] || '실패')}</span>
+        <span>${esc(l.rule)}</span>
+        <span class="sp">${esc(l.ok ? (l.to || []).join(', ') : (l.status || '').replace('error: ', ''))}</span>
+        </div>`).join('')}` : ''}
     </div>`;
 }
 //: 학습 탭이 고른 것 — 서버가 아니라 화면이 들고 있다. 새로고침하면 지워진다.
@@ -1418,7 +1546,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 #: 돌아갈 버튼이 어디 있는지 알 수 없다. 그냥 끊긴 경우는 전처럼 지운다.
                 "realtime": view if (view := realtime_view())
                 and (RT_JOB.running or PAUSED_BY_OPERATOR[0] or view["stale_s"] < 5) else None,
-                "rt_job": RT_JOB.state(), "live_job": LIVE_JOB,
+                "rt_job": RT_JOB.state(), "live_job": LIVE_JOB, "sms": sms_state(),
                 "pause_note": pause_note(PAUSED_BY_OPERATOR[0]),
                 "job": JOB.state(),
             })
@@ -1556,6 +1684,49 @@ def dispatch(path: str, body: dict) -> dict:
             gone.append(q.name)
         model_registry.forget(rel)
         return {"ok": True, "deleted": gone}
+
+    if path == "/api/sms":
+        #: 설정 한 군데(`mac_collector/solapi.json`, `.gitignore`)를 고친다.
+        #: 조건은 여기서 재지 않는다 — 제어판을 닫아도 알림은 가야 한다 (§10.1).
+        cfg = sms.load()
+        if "set" in body:
+            for k, v in body["set"].items():
+                if k == "rules" or k not in sms.DEFAULT:
+                    return {"error": f"모르는 설정입니다: {k}"}   # 규칙은 `rule`/`delete` 로만
+                if k == "daily_cap":
+                    v = max(1, int(v))
+                if k == "to":
+                    v = [sms.digits(x) for x in v if sms.digits(x)]
+                elif k == "from":
+                    v = sms.digits(v)        # SOLAPI 는 하이픈을 받지 않는다
+                cfg[k] = v
+        if "rule" in body:
+            r = body["rule"]
+            if r.get("kind") not in sms.KINDS or r.get("state") not in sms.STATES:
+                return {"error": "모르는 규칙입니다"}
+            r = {"id": str(r.get("id") or f"r{int(time.time())}"), "on": bool(r.get("on", True)),
+                 "kind": r["kind"], "state": r["state"],
+                 "minutes": max(0, int(r.get("minutes", 0))),
+                 "repeat_min": max(0, int(r.get("repeat_min", 0)))}
+            cfg["rules"] = [x for x in cfg["rules"] if x.get("id") != r["id"]] + [r]
+        if "delete" in body:
+            cfg["rules"] = [x for x in cfg["rules"] if x.get("id") != str(body["delete"])]
+        if body.get("enable"):
+            #: 끊김 규칙 없이 켜면 보드가 죽은 날 화면이 조용하고, 조용한 것이 정상으로
+            #: 보인다 (§10.3). 지울 수는 있다.
+            if not any(x.get("state") == sms.SUSPENDED for x in cfg["rules"]):
+                cfg["rules"] = [dict(sms.WATCHDOG)] + cfg["rules"]
+            cfg["enabled"] = True
+        sms.save(cfg)
+        if body.get("test"):
+            ok, status = sms.send(cfg, f"[MeshSense] 시험 발송\n"
+                                       f"{time.strftime('%m/%d %H:%M')}")
+            sms.append_log({"wall": round(time.time(), 2), "rule": "시험 발송",
+                            "text": "시험 발송", "to": list(cfg["to"]), "ok": ok,
+                            "status": status if status.startswith("error") else "sent",
+                            "session": ""})
+            return {"ok": ok} if ok else {"error": status.replace("error: ", "")}
+        return {"ok": True}
 
     if path == "/api/idf":
         err = JOB.start("ESP-IDF 준비", [PY, str(SCRIPT_DIR / "idf_bootstrap.py"), "-y"])

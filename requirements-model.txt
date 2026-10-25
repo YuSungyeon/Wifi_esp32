@@ -2,3 +2,6 @@
 numpy
 torch
 matplotlib
+
+# 문자 알림 (제어판 실시간 탭 · realtime/sms.py). 없으면 규칙은 돌고 기록만 남는다
+solapi

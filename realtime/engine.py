@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from model_train.robust.shared_temporal import amplitude_input  # noqa: E402
+from realtime import sms  # noqa: E402
 from realtime.state import Event, Reading, StateMachine  # noqa: E402
 from realtime.stream import CsiStream  # noqa: E402
 
@@ -150,6 +151,17 @@ class Engine:
         # (기준, 연속 횟수) — 1단계가 이만큼 연속으로 움직임을 보면 상태 모델보다 먼저 motion 후보를 낸다.
         # None 이면 1단계는 화면 표시 전용.
         self.stage1_gate = stage1_gate
+        self._sms: sms.Watcher | None = None      # 실시간일 때만 생긴다 (_alert)
+
+    def _alert(self) -> None:
+        """문자 알림 — **실시간에서만** 부른다 (`doc/realtime-inference.md` §10).
+
+        재생은 지난 상태를 다시 흘리는 것이라, 여기서 조건이 맞아도 그건 과거다.
+        `step(now=...)` 가 주어졌으면 재생이므로 호출부가 걸러 준다.
+        """
+        if self._sms is None:
+            self._sms = sms.Watcher(session=self.dir.name)
+        self._sms.check(self.sm.state)
 
     # ── 판단 한 번 ──────────────────────────────────────────────────────────
     def _window_input(self, win) -> np.ndarray:
@@ -212,6 +224,8 @@ class Engine:
                 reading = Reading(t=t, probs=(0.0, 0.0, 0.0), n_rx=len(alive))
             else:
                 self.sm._t = t
+                if now is None:
+                    self._alert()
                 write_status(self.dir / STATUS_NAME, self.view())
                 return None
         else:
@@ -227,6 +241,8 @@ class Engine:
                 fp.write(json.dumps({"t": round(ev.t, 2), "from": ev.frm, "to": ev.to,
                                      "confidence": round(ev.confidence, 4),
                                      "wall": time.time()}, ensure_ascii=False) + "\n")
+        if now is None:
+            self._alert()
         write_status(self.dir / STATUS_NAME, self.view())
         return ev
 
