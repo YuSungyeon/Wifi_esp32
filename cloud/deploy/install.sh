@@ -20,7 +20,6 @@ if [ ! -f /etc/meshsense/cloud.env ]; then
   cp "$APP/cloud/deploy/cloud.env.example" /etc/meshsense/cloud.env
   sed -i "s/^MESHSENSE_SECRET=$/MESHSENSE_SECRET=$(openssl rand -hex 32)/" /etc/meshsense/cloud.env
   chmod 600 /etc/meshsense/cloud.env
-  echo ">> /etc/meshsense/cloud.env 에 SOLAPI 값 셋을 채운 뒤: sudo systemctl restart meshsense-cloud"
 fi
 
 cp "$APP/cloud/deploy/meshsense-cloud.service" /etc/systemd/system/

@@ -71,6 +71,12 @@ LED 끄기 판단(수면 중)   : 유지 시간 = now − max(상태 시작, 가
 한 조건은 **올라가는 모서리에서 한 번**만 보낸다(`realtime/sms.py` 와 같은 원칙). 조건이
 거짓이 되면 다시 무장한다.
 
+**하루 상한 40건 — 서비스 전체** (2026-10-27). 받는 번호 하나가 1건이다(지인 3명에게 한 번 = 3건,
+SOLAPI 요금 단위와 같다). 날짜는 `Asia/Seoul`. 넘으면 보내지 않고 `alerts.status` 에
+`error: 하루 상한(40건)…` 을 남긴다. 계정별이 아니라 **전체**인 이유: 가입이 열려 있어 계정을 여럿
+만들면 계정별 상한은 뚫린다. 시연 집 하나는 하루 수 건이면 충분하다. 세는 곳은 DB `sms_daily` 표 —
+재시작해도 이어진다.
+
 ### 3.4 설정 기본값 (웹에서 편집, 응답으로 로컬에 내려감)
 
 ```json
@@ -178,8 +184,9 @@ Authorization: Bearer <device_token>
 - 표준 라이브러리 `http.server`(제어판과 같은 방식) + `sqlite3`. 앞단은 **Caddy**(도메인만
   적으면 HTTPS 인증서 자동). systemd 로 상시 실행.
 - 문자 발송은 `cloud/server.py:send_sms()` 한 함수다(SOLAPI). **키와 발신 번호는 환경 변수**
-  `SOLAPI_API_KEY`·`SOLAPI_API_SECRET`·`SOLAPI_FROM` — EC2 의 systemd `EnvironmentFile` 에 둔다
-  (2026-10-27). 셋 중 하나라도 없으면 보내지 않고 `error: …` 를 남긴다. 의존성은
+  `SOLAPI_API_KEY`·`SOLAPI_API_SECRET`·`SOLAPI_FROM` — **GitHub Repository secret 에 같은 이름**으로 두면
+  배포가 `/etc/meshsense/solapi.env`(600)로 써서 systemd 가 읽는다. 배포할 때마다 덮어쓰므로 키를 바꾸면
+  다시 배포한다 (2026-10-27). 셋 중 하나라도 없으면 보내지 않고 `error: …` 를 남긴다. 의존성은
   `cloud/requirements.txt`(`solapi` 하나). **PLANNED: 카카오톡 알림으로 바꾼다** — 시연 전까지는 문자,
   바꿀 때는 이 함수 하나만 갈아 끼운다.
 - 로컬 문자 알림(`realtime/sms.py`, 제어판 실시간 탭 카드)은 **2026-10-27 제거**했다 — 같은 상황에
@@ -240,7 +247,8 @@ SOLAPI 설정이 없으면 보내지 못하고 `error: API 키가 없습니다` 
 |---|---|
 | `Caddyfile` | `/etc/caddy/Caddyfile` — 두 이름 모두 HTTPS 자동 |
 | `meshsense-cloud.service` | `/etc/systemd/system/` — `127.0.0.1:8000`, DB `/var/lib/meshsense/home.db`, `--base https://meshsense.cloud` |
-| `cloud.env.example` | `/etc/meshsense/cloud.env`(600) — SOLAPI 셋 + `MESHSENSE_SECRET` |
+| `cloud.env.example` | `/etc/meshsense/cloud.env`(600) — `MESHSENSE_SECRET`(설치 때 자동 생성, 서버에만 있다) |
+| (배포가 씀) | `/etc/meshsense/solapi.env`(600) — GitHub secret 의 SOLAPI 셋. 이 파일이 나중에 읽혀 `cloud.env` 의 같은 이름을 덮는다 |
 | `install.sh` | 위를 다 깐다. 다시 돌려도 된다(비밀 값 파일은 처음 한 번만 만들고 세션 키는 자동 생성) |
 | `.github/workflows/deploy-cloud.yml` | `deploy` 브랜치 push → 테스트 → rsync → `install.sh` → 응답 확인 |
 
@@ -255,13 +263,16 @@ push 하면** ① 클라우드 테스트(`test_cloud` + `test_home` 의 시간·
 |---|---|
 | `EC2_HOST` | `api.meshsense.cloud` — IP 가 바뀌어도 DNS 만 고치면 된다 |
 | `EC2_USER` | (선택) 없으면 `ubuntu`. Debian 이미지면 `admin` |
+| `SOLAPI_API_KEY` | SOLAPI API 키 |
+| `SOLAPI_API_SECRET` | SOLAPI API 시크릿 |
+| `SOLAPI_FROM` | SOLAPI 에 등록·인증한 발신 번호 (하이픈 있어도 된다) |
 | `EC2_SSH_KEY` | EC2 키 페어의 개인 키(`.pem`) 내용 전체 |
 | `EC2_HOST_KEY` | `api.meshsense.cloud,43.200.22.0 ssh-ed25519 …` 한 줄 — `ssh-keyscan -t ed25519 43.200.22.0` 의 키 앞에 **접속에 쓰는 이름**을 붙인다(SSH 는 그 이름으로 지문을 찾는다). 서버 지문을 고정해 DNS 가 엉뚱한 곳을 가리켜도 접속하지 않는다. 인스턴스를 새로 만들면 바꾼다. 비밀은 아니다 |
 
 - **보안 그룹의 22번을 GitHub runner 가 들어올 수 있게 열어야 한다.** runner IP 는 매번 달라 "내 IP만" 으로는
   배포가 막힌다. 시연까지는 22 를 전체로 열되 **키 인증만**(EC2 Ubuntu 기본: 비밀번호 로그인 꺼짐) —
   `# ponytail:` 더 조이려면 job 안에서 runner IP 를 보안 그룹에 넣었다 빼거나(AWS 자격 증명 필요) SSM 으로 바꾼다.
-- 아래 손 배포는 Actions 가 안 될 때의 비상 경로로 남긴다. `cloud.env`(SOLAPI 셋)는 어느 쪽이든 처음 한 번 손으로 채운다.
+- 아래 손 배포는 Actions 가 안 될 때의 비상 경로로 남긴다. 손 배포 때는 `solapi.env` 를 직접 쓴다.
 
 ```text
 맥:  rsync -avR -e "ssh -i <키.pem>" cloud/server.py cloud/requirements.txt cloud/deploy \

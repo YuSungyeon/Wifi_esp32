@@ -43,6 +43,7 @@ OFFLINE_S = 180               # 마지막 수신 후 이만큼 지나면 끊김
 CODE_TTL_S = 600              # 연동 코드 10분
 SESSION_S = 30 * 86400
 TICK_S = 30                   # 알림 검사 주기
+DAILY_CAP = 40                # 하루 문자 상한 — 서비스 전체, 받는 번호 하나가 1건 (계획 §3.3)
 
 LABEL = {"empty": "빈 방", "static": "정지", "motion": "움직임", "deciding": "판단 중",
          "suspended": "판단 정지", "offline": "끊김"}
@@ -94,6 +95,7 @@ create table if not exists pair_codes(code text primary key, user_id integer not
 create table if not exists events(id integer primary key, device_id integer not null, state text not null,
   since real not null, received real not null);
 create index if not exists events_since on events(device_id, since);
+create table if not exists sms_daily(day text primary key, n integer not null);
 create table if not exists alerts(id integer primary key, device_id integer not null, kind text not null,
   rule text, label text, token text unique, created real not null, confirmed real, escalated real, resolved real, status text);
 """
@@ -190,13 +192,28 @@ def send_sms(numbers: list[str], text: str) -> str:
         return f"error: {e}"
 
 
+def notify(numbers: list[str], text: str, now: float | None = None) -> str:
+    """상한을 세고 보낸다. 모든 발송은 여기를 지난다 — 가입이 열려 있어 계정별 상한은 뚫린다."""
+    to = [n for n in numbers if digits(n)]
+    day = datetime.fromtimestamp(time.time() if now is None else now, home.TZ).strftime("%Y-%m-%d")
+    row = q("select n from sms_daily where day=?", (day,), one=True)
+    used = row["n"] if row else 0
+    if to and used + len(to) > DAILY_CAP:
+        return f"error: 하루 상한({DAILY_CAP}건)에 걸려 보내지 않았습니다 — 오늘 {used}건"
+    status = send_sms(numbers, text)
+    if status.startswith("sent"):
+        q("insert into sms_daily(day,n) values(?,?) on conflict(day) do update set n=n+?",
+          (day, len(to), len(to)))
+    return status
+
+
 def hm(ts: float) -> str:
     return datetime.fromtimestamp(ts, home.TZ).strftime("%H:%M")
 
 
 def raise_alert(dev, user, kind: str, now: float, text: str, numbers: list[str], label: str = "",
                 rule: str | None = None, token: str | None = None, resolved: bool = False) -> None:
-    status = send_sms(numbers, text)
+    status = notify(numbers, text, now)
     q("insert into alerts(device_id,kind,rule,label,token,created,resolved,status) values(?,?,?,?,?,?,?,?)",
       (dev["id"], kind, rule, label or KIND[kind], token, now, now if resolved else None, status))
 
@@ -249,21 +266,21 @@ def tick(now: float) -> None:
         conds += [(r["id"], not gone and rule_due(dev, r, cfg, now), r["notify"], rule_text(r))
                   for r in cfg["rules"] if r.get("on")]
         contacts = [c["phone"] for c in cfg["contacts"]]
-        for key, due, notify, label in conds:
+        for key, due, who, label in conds:
             a = open_.pop(key, None)
             if due and not a:
-                token = secrets.token_urlsafe(9) if notify == "escalate" else None
+                token = secrets.token_urlsafe(9) if who == "escalate" else None
                 link = f"\n괜찮으면 눌러 주세요 {BASE}/c/{token}" if token else ""
                 raise_alert(dev, user, "emergency" if key == "emergency" else "rule", now,
                             f"[MeshSense] {label} ({hm(now)}){link}",
-                            [user["phone"]] + (contacts if notify == "all" else []),
+                            [user["phone"]] + (contacts if who == "all" else []),
                             label=label, rule=None if key == "emergency" else key, token=token)
             elif a and not due:
                 q("update alerts set resolved=? where id=?", (now, a["id"]))
             elif (a and a["token"] and a["confirmed"] is None and a["escalated"] is None
                   and now - a["created"] >= int(cfg["confirm_min"]) * 60):
-                status = send_sms(contacts, f"[MeshSense] {user['name']}님 방: {label}. "
-                                            f"본인 확인이 없어요. 연락해 주세요")
+                status = notify(contacts, f"[MeshSense] {user['name']}님 방: {label}. "
+                                            f"본인 확인이 없어요. 연락해 주세요", now)
                 q("update alerts set escalated=?, status=? where id=?",
                   (now, f"{a['status']} / 지인 {status}", a["id"]))
         for a in open_.values():                    # 지웠거나 끈 상황 — 열린 채 두지 않는다

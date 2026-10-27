@@ -175,6 +175,17 @@ class CloudFlow(unittest.TestCase):
         self.assertEqual(self._real_send(["없음"], "x"), "error: 받는 번호가 없습니다")
         self.assertEqual(S.digits("010-1234-5678"), "01012345678")
 
+    def test_daily_cap_counts_recipients_service_wide(self):
+        # 받는 번호 하나가 1건. 상한을 넘기는 발송은 통째로 막고 이유를 남긴다 (§3.3)
+        now = time.time()
+        for _ in range(13):
+            self.assertTrue(S.notify([ME, MOM, ME], "x", now).startswith("sent"))   # 39건
+        self.assertIn("하루 상한(40건)", S.notify([ME, MOM], "x", now))              # 41건째 → 막힘
+        self.assertTrue(S.notify([ME], "x", now).startswith("sent"))                  # 40건째는 간다
+        self.assertIn("하루 상한", S.notify([ME], "x", now))
+        self.assertEqual(len(self.sent), 14)
+        self.assertTrue(S.notify([ME], "x", now + 86400).startswith("sent"))          # 다음 날 다시
+
     # ── 나만의 상황 (§3.5) ──────────────────────────────────────────────────
     def add_rule(self, **kw):
         form = {"id": "new", "when": "always", "state": "empty", "kind": "hold", "minutes": "30",

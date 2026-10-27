@@ -40,6 +40,18 @@ jobs:
           rsync -avR -e "ssh -i ~/.ssh/deploy.pem" cloud/server.py cloud/requirements.txt cloud/deploy \
             realtime/__init__.py realtime/home.py "$HOST":/tmp/meshsense/
 
+      # SOLAPI 셋은 GitHub secret 에서 — 명령줄이 아니라 표준 입력으로 넘겨 서버 프로세스 목록에 안 남긴다
+      - name: SOLAPI 값 쓰기
+        env:
+          SOLAPI_API_KEY: ${{ secrets.SOLAPI_API_KEY }}
+          SOLAPI_API_SECRET: ${{ secrets.SOLAPI_API_SECRET }}
+          SOLAPI_FROM: ${{ secrets.SOLAPI_FROM }}
+        run: |
+          printf 'SOLAPI_API_KEY=%s\nSOLAPI_API_SECRET=%s\nSOLAPI_FROM=%s\n' \
+            "$SOLAPI_API_KEY" "$SOLAPI_API_SECRET" "$SOLAPI_FROM" |
+          ssh -i ~/.ssh/deploy.pem "$HOST" \
+            'sudo install -d -m 700 /etc/meshsense && sudo tee /etc/meshsense/solapi.env >/dev/null && sudo chmod 600 /etc/meshsense/solapi.env'
+
       - name: 설치·재시작
         run: ssh -i ~/.ssh/deploy.pem "$HOST" 'sudo bash /tmp/meshsense/cloud/deploy/install.sh'
 
