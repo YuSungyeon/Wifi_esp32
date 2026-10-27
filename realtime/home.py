@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 #: 클라우드 주소 — 사용자가 고르는 값이 아니라 배포 때 한 번 정하는 값이라 화면에 없다(§4.3).
 #: `MESHSENSE_CLOUD` 는 로컬 시험용으로만 덮는다.
-CLOUD_URL = os.environ.get("MESHSENSE_CLOUD", "https://home.example.com")
+CLOUD_URL = os.environ.get("MESHSENSE_CLOUD", "https://api.meshsense.cloud")   # 계획 §4.4
 #: 연동 정보 `{url, token, name, config, paired}` — 토큰이 들어 있다(`.gitignore`).
 STORE = ROOT / "mac_collector" / "home_service.json"
 HEARTBEAT_S = 60

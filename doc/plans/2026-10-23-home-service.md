@@ -150,6 +150,20 @@ Authorization: Bearer <device_token>
 3. 서버가 코드를 소비하고 `device_token`(32바이트 랜덤) 을 돌려준다. 서버는 **SHA-256 해시만** 저장
 4. 로컬은 `mac_collector/home_service.json` (**`.gitignore`**) 에 `{url, token, name, config}` 저장
 
+### 4.4 주소 (2026-10-27 결정)
+
+| 주소 | 무엇 | 지금 (시연까지) | 나중 (§8b 분리 후) |
+|---|---|---|---|
+| `https://api.meshsense.cloud` | **백엔드** — `/api/pair`·`/api/state`, 알림 검사, DB | EC2 | EC2 (그대로) |
+| `https://meshsense.cloud` | **프론트** — 웹 화면, 문자의 확인 링크(`/c/<토큰>`) | EC2 (같은 서버가 화면도 낸다) | Vercel |
+
+- 집 기기는 **처음부터 `api.meshsense.cloud`** 로 연결한다(`CLOUD_URL`). 연결할 때 주소를 토큰과 함께
+  저장하므로, 화면만 Vercel 로 옮겨도 집 기기는 다시 연결하지 않는다.
+- 지금은 Caddy 가 두 이름을 같은 서버로 넘긴다. 서버는 `--base https://meshsense.cloud` 로 띄워
+  문자 링크가 프론트 주소를 가리키게 한다.
+- 나눈 뒤에도 둘은 같은 사이트(`meshsense.cloud`)라 로그인 쿠키(`SameSite=Lax`)가 그대로 간다 —
+  API 는 `https://meshsense.cloud` 만 CORS 로 허용하고(`Allow-Credentials`), 프론트는 `credentials: "include"`.
+
 **서버 주소는 화면에 보이지 않는다.** 코드 상수 `realtime/home.py:CLOUD_URL` 에 둔다 —
 사용자가 고르는 값이 아니라 배포 때 한 번 정하는 값이다. 로컬 시험용으로만 환경 변수
 `MESHSENSE_CLOUD` 가 이 값을 덮는다.
@@ -299,7 +313,8 @@ SOLAPI 설정이 없으면 보내지 못하고 `error: API 키가 없습니다` 
 ## 8b. 시간이 남으면 (PLANNED, 2026-10-27 결정)
 
 시연은 지금 구성(Python 표준 라이브러리 서버 + 서버 렌더링 HTML)으로 한다. 시간이 남으면
-**Java(Spring Boot) 백엔드 + React 화면** 전환을 검토한다. 그때도 `/api/pair`·`/api/state` 계약(§4)과
+**Java(Spring Boot) 백엔드 + React 화면** 전환을 검토한다. 그때 화면은 Vercel(`meshsense.cloud`),
+백엔드는 EC2(`api.meshsense.cloud`)로 나눈다(§4.4) — 서버의 폼 처리를 JSON API 로 바꾸는 일이 함께 온다. 그때도 `/api/pair`·`/api/state` 계약(§4)과
 시안 v2 화면(§5.1)은 그대로 가져가므로 집 쪽 코드는 바뀌지 않는다. 시간 규칙(§3.1·§3.5)을 Java 로
 옮길 때는 같은 입력·기대값 표를 두 언어의 테스트가 함께 쓴다 — 규칙이 두 벌로 어긋나지 않게.
 

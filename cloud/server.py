@@ -9,7 +9,7 @@
 * 표준 라이브러리만 쓴다(`http.server` + `sqlite3`). HTTPS 는 앞단 Caddy 가 맡고 이 서버는
   127.0.0.1 에만 붙는다.
 
-    python3 cloud/server.py --base https://home.example.com
+    python3 cloud/server.py --base https://meshsense.cloud     # 문자 링크는 프론트 주소 (계획 §4.4)
 """
 from __future__ import annotations
 
@@ -1151,7 +1151,7 @@ def main() -> int:
     ap.add_argument("--host", default="127.0.0.1", help="앞단 Caddy 가 붙는 주소 (기본 127.0.0.1)")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--db", type=Path, default=HERE / "home.db")
-    ap.add_argument("--base", default=None, help="문자 링크에 쓰는 공개 주소 (예: https://home.example.com)")
+    ap.add_argument("--base", default=None, help="문자 링크에 쓰는 공개 주소 (예: https://meshsense.cloud)")
     a = ap.parse_args()
     init(a.db, a.base or f"http://{a.host}:{a.port}")
     threading.Thread(target=ticker, daemon=True).start()
