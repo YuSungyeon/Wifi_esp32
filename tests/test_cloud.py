@@ -263,6 +263,26 @@ class CloudFlow(unittest.TestCase):
         self.assertIn("더 보낼 수 없어요", body)
         self.assertEqual(self.mails, [])
 
+    def test_real_mail_sender_names_bad_login(self):
+        # Gmail 은 PLAIN 535 뒤 LOGIN 재시도에서 말없이 끊는다 — 진짜 이유(535)가 보여야 한다
+        import smtplib
+        from unittest import mock
+
+        class FakeSMTP:
+            def __init__(self, *a, **k): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def ehlo(self): pass
+            def auth_plain(self): return ""
+            def auth(self, mech, obj):
+                assert mech == "PLAIN"
+                raise smtplib.SMTPAuthenticationError(535, b"BadCredentials")
+        with mock.patch.dict("os.environ", {"SMTP_USER": "a@gmail.com", "SMTP_PASSWORD": "x"}), \
+                mock.patch.object(smtplib, "SMTP_SSL", FakeSMTP):
+            self.assertIn("로그인 거절(535)", self._real_mail("b@example.com", "s", "t"))
+        with mock.patch.dict("os.environ", {}, clear=True):
+            self.assertIn("SMTP 환경 변수", self._real_mail("b@example.com", "s", "t"))
+
     def test_existing_accounts_count_as_verified_after_upgrade(self):
         import sqlite3
         db = Path(self.tmp.name) / "old.db"

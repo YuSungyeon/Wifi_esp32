@@ -219,11 +219,17 @@ def send_mail(to: str, subject: str, text: str) -> str:
     msg.set_content(text)
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as smtp:
-            smtp.login(user, password.replace(" ", ""))   # 앱 비밀번호는 띄어 써서 보여 준다
+            smtp.ehlo()
+            # login() 은 PLAIN 이 535 로 거절되면 LOGIN 으로 다시 시도하는데, Gmail 은 그때 말없이 끊는다 —
+            # 진짜 이유(535)가 "Connection unexpectedly closed" 에 가려진다. PLAIN 하나로 고정한다.
+            smtp.user, smtp.password = user, password.replace(" ", "")   # 앱 비밀번호는 띄어 써서 보여 준다
+            smtp.auth("PLAIN", smtp.auth_plain)
             smtp.send_message(msg)
         return "sent"
-    except Exception as e:                       # 인증 실패·네트워크·수신 거부가 전부 여기로 온다
-        return f"error: {e}"
+    except smtplib.SMTPAuthenticationError as e:
+        return f"error: Gmail 로그인 거절({e.smtp_code}) — SMTP_USER 나 앱 비밀번호가 맞지 않습니다"
+    except Exception as e:                       # 네트워크·수신 거부가 여기로 온다
+        return f"error: {type(e).__name__}: {e}"
 
 
 def counted(key: str, n: int, cap: int) -> int | None:
