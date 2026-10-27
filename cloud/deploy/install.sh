@@ -22,6 +22,7 @@ if [ ! -f /etc/meshsense/cloud.env ]; then
   chmod 600 /etc/meshsense/cloud.env
 fi
 
+rm -f /etc/meshsense/solapi.env               # 2026-10-27 secrets.env 로 이름을 바꿨다
 cp "$APP/cloud/deploy/meshsense-cloud.service" /etc/systemd/system/
 cp "$APP/cloud/deploy/Caddyfile" /etc/caddy/Caddyfile
 systemctl daemon-reload

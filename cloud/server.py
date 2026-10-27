@@ -21,12 +21,14 @@ import json
 import os
 import re
 import secrets
+import smtplib
 import sqlite3
 import sys
 import threading
 import time
 import traceback
 from collections import deque
+from email.message import EmailMessage
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -44,6 +46,11 @@ CODE_TTL_S = 600              # 연동 코드 10분
 SESSION_S = 30 * 86400
 TICK_S = 30                   # 알림 검사 주기
 DAILY_CAP = 40                # 하루 문자 상한 — 서비스 전체, 받는 번호 하나가 1건 (계획 §3.3)
+MAIL_DAILY_CAP = 100          # 하루 인증 메일 상한 — 서비스 전체 (계획 §3.6)
+VERIFY_TTL_S = 600            # 인증 코드 10분
+VERIFY_TRIES = 5              # 이만큼 틀리면 코드 무효
+VERIFY_RESEND_S = 60          # 다시 보내기 간격
+UNVERIFIED_TTL_S = 86400      # 인증하지 않은 계정은 하루 뒤 지운다
 
 LABEL = {"empty": "빈 방", "static": "정지", "motion": "움직임", "deciding": "판단 중",
          "suspended": "판단 정지", "offline": "끊김"}
@@ -96,6 +103,8 @@ create table if not exists events(id integer primary key, device_id integer not 
   since real not null, received real not null);
 create index if not exists events_since on events(device_id, since);
 create table if not exists sms_daily(day text primary key, n integer not null);
+create table if not exists email_codes(user_id integer primary key, code_hash text not null, expires real not null,
+  tries integer not null, sent real not null);
 create table if not exists alerts(id integer primary key, device_id integer not null, kind text not null,
   rule text, label text, token text unique, created real not null, confirmed real, escalated real, resolved real, status text);
 """
@@ -107,6 +116,11 @@ def init(db: Path, base: str, secret: bytes | None = None) -> None:
     CONN = sqlite3.connect(db, check_same_thread=False)
     CONN.row_factory = sqlite3.Row
     CONN.executescript(SCHEMA)
+    if "verified" not in [r["name"] for r in CONN.execute("pragma table_info(users)")]:
+        # 메일 인증(§3.6) 이전에 가입한 계정은 인증된 것으로 친다
+        CONN.execute("alter table users add column verified real")
+        CONN.execute("update users set verified=created")
+        CONN.commit()
     BASE = base.rstrip("/")
     SECRET = secret or _secret()
 
@@ -192,18 +206,72 @@ def send_sms(numbers: list[str], text: str) -> str:
         return f"error: {e}"
 
 
+def send_mail(to: str, subject: str, text: str) -> str:
+    """보낸 결과 문장. 테스트가 이 함수를 바꿔 끼운다 — 실제 주소로 나가면 안 된다.
+
+    Gmail(`smtp.gmail.com:465`) + 앱 비밀번호. 계정과 비밀번호는 환경 변수 `SMTP_USER`·`SMTP_PASSWORD`.
+    """
+    user, password = os.environ.get("SMTP_USER", ""), os.environ.get("SMTP_PASSWORD", "")
+    if not (user and password):
+        return "error: SMTP 환경 변수(SMTP_USER·SMTP_PASSWORD)가 없습니다"
+    msg = EmailMessage()
+    msg["From"], msg["To"], msg["Subject"] = f"MeshSense <{user}>", to, subject
+    msg.set_content(text)
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as smtp:
+            smtp.login(user, password.replace(" ", ""))   # 앱 비밀번호는 띄어 써서 보여 준다
+            smtp.send_message(msg)
+        return "sent"
+    except Exception as e:                       # 인증 실패·네트워크·수신 거부가 전부 여기로 온다
+        return f"error: {e}"
+
+
+def counted(key: str, n: int, cap: int) -> int | None:
+    """오늘 `key` 로 이미 센 수. `n` 을 더하면 `cap` 을 넘으면 None."""
+    row = q("select n from sms_daily where day=?", (key,), one=True)
+    used = row["n"] if row else 0
+    return None if used + n > cap else used
+
+
+def count(key: str, n: int) -> None:
+    q("insert into sms_daily(day,n) values(?,?) on conflict(day) do update set n=n+?", (key, n, n))
+
+
+def today(now: float | None = None) -> str:
+    return datetime.fromtimestamp(time.time() if now is None else now, home.TZ).strftime("%Y-%m-%d")
+
+
+def mail_code(user, now: float) -> str:
+    """새 인증 코드를 만들어 보낸다(이전 코드는 무효). 돌려주는 값은 화면에 띄울 문장, 잘 갔으면 빈 문장."""
+    key = "mail:" + today(now)
+    if counted(key, 1, MAIL_DAILY_CAP) is None:
+        return "오늘은 인증 메일을 더 보낼 수 없어요. 내일 다시 시도해 주세요"
+    code = f"{secrets.randbelow(10 ** 6):06d}"
+    q("insert or replace into email_codes(user_id,code_hash,expires,tries,sent) values(?,?,?,0,?)",
+      (user["id"], sha(code), now + VERIFY_TTL_S, now))
+    status = send_mail(user["email"], f"[MeshSense] 인증 코드 {code}",
+                       f"가입을 마치려면 아래 코드를 화면에 넣어 주세요.\n\n    {code}\n\n"
+                       f"10분 동안만 쓸 수 있어요. 직접 가입하지 않았다면 이 메일은 무시하세요 — "
+                       f"인증하지 않은 계정은 24시간 뒤 지워져요.\n\nMeshSense · {BASE}")
+    if not status.startswith("sent"):
+        sys.stderr.write(f"인증 메일 실패: {status}\n")
+        q("update email_codes set sent=0 where user_id=?", (user["id"],))   # 못 보냈으면 바로 다시 보낼 수 있게
+        return "메일을 보내지 못했어요. 잠시 뒤 다시 보내기를 눌러 주세요"
+    count(key, 1)
+    return ""
+
+
 def notify(numbers: list[str], text: str, now: float | None = None) -> str:
     """상한을 세고 보낸다. 모든 발송은 여기를 지난다 — 가입이 열려 있어 계정별 상한은 뚫린다."""
     to = [n for n in numbers if digits(n)]
-    day = datetime.fromtimestamp(time.time() if now is None else now, home.TZ).strftime("%Y-%m-%d")
-    row = q("select n from sms_daily where day=?", (day,), one=True)
-    used = row["n"] if row else 0
-    if to and used + len(to) > DAILY_CAP:
+    day = today(now)
+    used = counted(day, len(to), DAILY_CAP)
+    if to and used is None:
+        used = counted(day, 0, DAILY_CAP)
         return f"error: 하루 상한({DAILY_CAP}건)에 걸려 보내지 않았습니다 — 오늘 {used}건"
     status = send_sms(numbers, text)
     if status.startswith("sent"):
-        q("insert into sms_daily(day,n) values(?,?) on conflict(day) do update set n=n+?",
-          (day, len(to), len(to)))
+        count(day, len(to))
     return status
 
 
@@ -241,6 +309,8 @@ def rule_due(dev, r: dict, cfg: dict, now: float) -> bool:
 
 def tick(now: float) -> None:
     """알림 검사 한 번(§3.3·§3.5). 조건이 참이 되는 순간 한 번, 거짓이 되면 닫고 다시 무장한다."""
+    for u in q("select id from users where verified is null and created < ?", (now - UNVERIFIED_TTL_S,)):
+        drop_user(uid=u["id"])                  # 인증하지 않은 계정은 하루 뒤 지운다 (§3.6)
     for dev in q("select d.* from devices d"):
         user = q("select * from users where id=?", (dev["user_id"],), one=True)
         if user is None or dev["last_seen"] is None:
@@ -606,6 +676,30 @@ def page_devices(user, now: float) -> str:
     return page("기기", body, user, "devices", refresh=30 if code else None)
 
 
+def page_verify(user, now: float, msg: str = "", err: str = "") -> str:
+    """메일 인증(§3.6, 시안 v4). 링크가 아니라 코드 — 메일 보안 검사기가 링크를 미리 연다."""
+    c = q("select * from email_codes where user_id=?", (user["id"],), one=True)
+    wait = int(VERIFY_RESEND_S - (now - c["sent"])) if c else 0
+    resend = (f'<span class="muted">코드 다시 보내기 ({wait}초 뒤 가능)</span>' if wait > 0 else
+              '<button class="linkbtn" form="resend">코드 다시 보내기</button>')
+    fl = f'<div class="flash">{e(msg)}</div>' if msg else ""
+    er = f'<p class="err mt">{e(err)}</p>' if err else ""
+    return page("메일 인증", f"""<div class="confirm" style="max-width:440px">{fl}
+<div class="brand center"><i></i>MeshSense</div>
+<h1 class="display" style="font-size:32px">메일을 확인해 주세요</h1>
+<p class="muted"><b style="color:var(--ink)">{e(user["email"])}</b> 으로 6자리 코드를 보냈어요.<br>10분 안에 넣어 주세요.</p>
+<form method="post" action="/verify" class="card" style="margin-top:24px;text-align:left">
+<label class="mt0">인증 코드</label>
+<input class="code-in" name="code" placeholder="000000" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required autofocus>
+{er}<button class="btn primary wide lg mt16">인증하기</button></form>
+<form id="resend" method="post" action="/verify/resend"></form>
+<form id="restart" method="post" action="/verify/restart"></form>
+<p class="note" style="text-align:center">메일이 안 왔나요? 스팸함도 봐 주세요.<br>{resend} ·
+<button class="linkbtn" form="restart">다른 이메일로 가입</button></p>
+<p class="note" style="text-align:center">인증 전에는 기기 연결과 알림 설정을 할 수 없어요.</p></div>""",
+                refresh=wait + 1 if wait > 0 else None)
+
+
 def page_confirm(a, now: float, done: bool = False) -> str:
     if a is None:
         inner = '<h1 class="display">링크가 없어요</h1><p class="muted">만료되었거나 잘못된 링크예요.</p>'
@@ -716,10 +810,15 @@ class H(BaseHTTPRequestHandler):
                     return q("select * from users where id=?", (int(uid),), one=True)
         return None
 
-    def need_user(self):
+    def need_user(self, verified: bool = True):
+        """로그인한 사용자. 없으면 로그인으로, 미인증이면 메일 인증(§3.6)으로 보내고 None."""
         u = self.user()
         if u is None:
             self.redirect("/")
+            return None
+        if verified and u["verified"] is None:
+            self.redirect("/verify")
+            return None
         return u
 
 
@@ -754,13 +853,71 @@ def r_signup(h):
            "이메일 형식이 아니에요" if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email) else
            "비밀번호는 8자 이상이에요" if len(pw) < 8 else
            "휴대폰 번호 형식이 아니에요" if not phone_ok(phone) else
-           "이미 가입된 이메일이에요" if q("select 1 from users where email=?", (email,), one=True) else "")
+           "이미 가입된 이메일이에요" if q("select 1 from users where email=? and verified is not null",
+                                           (email,), one=True) else "")
     if err:
         return h.redirect("/?signup=1&e=" + quote(err))
+    drop_user(email=email)                      # 그 주소로 남아 있던 미인증 계정 — 선점을 막는다
     salt = secrets.token_hex(16)
+    now = time.time()
     uid = q("insert into users(email,name,phone,pw_hash,salt,config,created) values(?,?,?,?,?,?,?)",
-            (email, name, phone, hash_pw(pw, salt), salt, json.dumps(home.DEFAULT), time.time()))
-    h.redirect("/home", cookie_for(uid))
+            (email, name, phone, hash_pw(pw, salt), salt, json.dumps(home.DEFAULT), now))
+    msg = mail_code(q("select * from users where id=?", (uid,), one=True), now)
+    h.redirect("/verify" + ("?e=" + quote(msg) if msg else ""), cookie_for(uid))
+
+
+def drop_user(uid: int | None = None, email: str | None = None) -> None:
+    """미인증 계정을 지운다 — 인증된 계정은 건드리지 않는다."""
+    for u in q("select id from users where verified is null and (id=? or email=?)", (uid, email)):
+        q("delete from email_codes where user_id=?", (u["id"],))
+        q("delete from users where id=?", (u["id"],))
+
+
+def r_verify(h):
+    u = h.need_user(verified=False)
+    if u is None:
+        return
+    if u["verified"] is not None:
+        return h.redirect("/home")
+    h.send(200, page_verify(u, time.time(), msg="새 코드를 보냈어요. 이전 코드는 이제 쓸 수 없어요"
+                            if h.qs.get("sent") else "", err=h.qs.get("e", "")))
+
+
+def r_verify_post(h):
+    u = h.need_user(verified=False)
+    if u is None:
+        return
+    now, code = time.time(), re.sub(r"\s", "", h.form().get("code", ""))
+    c = q("select * from email_codes where user_id=?", (u["id"],), one=True)
+    if c is None or c["expires"] < now or c["tries"] >= VERIFY_TRIES:
+        return h.redirect("/verify?e=" + quote("코드가 만료됐어요. 다시 보내기를 눌러 주세요"))
+    if not hmac.compare_digest(sha(code), c["code_hash"]):
+        q("update email_codes set tries=tries+1 where user_id=?", (u["id"],))
+        left = VERIFY_TRIES - c["tries"] - 1
+        return h.redirect("/verify?e=" + quote(f"코드가 맞지 않아요 — {left}번 더 시도할 수 있어요" if left
+                                               else "5번 틀려 코드가 무효가 됐어요. 다시 보내기를 눌러 주세요"))
+    q("update users set verified=? where id=?", (now, u["id"]))
+    q("delete from email_codes where user_id=?", (u["id"],))
+    h.redirect("/home")
+
+
+def r_verify_resend(h):
+    u = h.need_user(verified=False)
+    if u is None:
+        return
+    now = time.time()
+    c = q("select sent from email_codes where user_id=?", (u["id"],), one=True)
+    if c and now - c["sent"] < VERIFY_RESEND_S:
+        return h.redirect("/verify")
+    msg = mail_code(u, now)
+    h.redirect("/verify?" + ("e=" + quote(msg) if msg else "sent=1"))
+
+
+def r_verify_restart(h):
+    u = h.need_user(verified=False)
+    if u is not None:
+        drop_user(uid=u["id"])
+    h.redirect("/?signup=1", cookie_for(None))
 
 
 def r_logout(h):
@@ -992,7 +1149,8 @@ ICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width
 
 ROUTES = [
     ("GET", r"/", r_index), ("POST", r"/login", r_login), ("POST", r"/signup", r_signup),
-    ("POST", r"/logout", r_logout), ("GET", r"/home", r_home), ("POST", r"/away", r_away),
+    ("POST", r"/logout", r_logout), ("GET", r"/verify", r_verify), ("POST", r"/verify", r_verify_post),
+    ("POST", r"/verify/resend", r_verify_resend), ("POST", r"/verify/restart", r_verify_restart), ("GET", r"/home", r_home), ("POST", r"/away", r_away),
     ("GET", r"/history", r_history), ("GET", r"/settings", r_settings),
     ("POST", r"/settings", r_settings_save), ("POST", r"/contacts/add", r_contact_add),
     ("POST", r"/contacts/del", r_contact_del), ("POST", r"/rules/save", r_rule_save),
@@ -1146,6 +1304,8 @@ pre{background:var(--card);color:var(--ink);border-radius:8px;padding:12px 14px;
 .preview{max-width:360px} .preview .hero{padding:20px} .preview .st{font-size:40px}
 .confirm{max-width:420px;margin:0 auto;padding:40px 0;text-align:center}
 .confirm h1{font-size:36px;margin:24px 0 8px} .confirm p{margin:0}
+.code-in{font:600 32px/1 ui-monospace,Menlo,monospace;letter-spacing:.4em;text-align:center;height:64px}
+.linkbtn{font:inherit;font-size:13px;color:var(--ink);background:none;border:0;padding:0;text-decoration:underline;cursor:pointer}
 .confirm .count{font-size:64px;color:var(--ink);font-variant-numeric:tabular-nums;margin:24px 0 4px}
 @media (max-width:767px){
   .top{display:none} .tabs{display:flex}

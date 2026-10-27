@@ -115,6 +115,24 @@ SOLAPI 요금 단위와 같다). 날짜는 `Asia/Seoul`. 넘으면 보내지 않
   `absent` 120 · `escalate`).
 - 문자: `[MeshSense] {문장} ({HH:MM})` (+ `escalate` 면 확인 링크).
 
+### 3.6 가입 이메일 인증 (2026-10-27 추가 · 시안 v4 통과)
+
+**6자리 코드**를 메일로 보내고 화면에 넣게 한다. 링크가 아닌 이유: 메일 보안 검사기가 메일 속 링크를
+미리 열어 사용자가 누르지 않아도 인증될 수 있다(확인 링크를 POST 로 만든 것과 같은 이유). 연동 코드와도
+모양이 같아 익숙하다.
+
+- 가입하면 계정은 **미인증**(`users.verified` 비어 있음)으로 만들어지고 `/verify` 로 간다. 미인증 계정은
+  로그인해도 어느 화면이든 `/verify` 로 돌려보낸다 — **기기 연결·설정·알림이 막힌다.** 아무 주소로 가입해
+  남의 번호로 문자를 보내게 하는 길이 그만큼 좁아진다.
+- 코드: 10분 유효, **5번 틀리면 무효**, 저장은 SHA-256 해시. 다시 보내기는 **60초 간격**, 새 코드를 보내면
+  이전 코드는 무효. "다른 이메일로 가입" 은 미인증 계정을 지우고 가입 화면으로.
+- **인증하지 않은 계정은 24시간 뒤 지운다**(알림 검사 루프가 함께 정리). 메일에도 그렇게 적는다.
+- 발송: 표준 라이브러리 `smtplib` → Gmail(`smtp.gmail.com:465`, SSL). 보내는 주소 `meshsense.auth@gmail.com`,
+  **앱 비밀번호**(2단계 인증을 켜야 생긴다). 제목에 코드를 넣는다 — 휴대폰 알림만 보고 넣을 수 있게.
+- **하루 메일 상한 100통 — 서비스 전체.** 가입은 아무 주소에나 메일을 보내게 하므로, 열어 두면 남의 메일함에
+  스팸을 쏘는 데 쓰일 수 있다. 문자 상한과 같은 표(`sms_daily`, 열쇠 `mail:날짜`)로 센다.
+- 이 기능 전에 가입한 계정은 인증된 것으로 친다(열을 더할 때 `verified = created`).
+
 ## 4. 계약
 
 ### 4.1 Mac → 클라우드
@@ -185,7 +203,7 @@ Authorization: Bearer <device_token>
   적으면 HTTPS 인증서 자동). systemd 로 상시 실행.
 - 문자 발송은 `cloud/server.py:send_sms()` 한 함수다(SOLAPI). **키와 발신 번호는 환경 변수**
   `SOLAPI_API_KEY`·`SOLAPI_API_SECRET`·`SOLAPI_FROM` — **GitHub Repository secret 에 같은 이름**으로 두면
-  배포가 `/etc/meshsense/solapi.env`(600)로 써서 systemd 가 읽는다. 배포할 때마다 덮어쓰므로 키를 바꾸면
+  배포가 `/etc/meshsense/secrets.env`(600)로 써서 systemd 가 읽는다. 배포할 때마다 덮어쓰므로 키를 바꾸면
   다시 배포한다 (2026-10-27). 셋 중 하나라도 없으면 보내지 않고 `error: …` 를 남긴다. 의존성은
   `cloud/requirements.txt`(`solapi` 하나). **PLANNED: 카카오톡 알림으로 바꾼다** — 시연 전까지는 문자,
   바꿀 때는 이 함수 하나만 갈아 끼운다.
@@ -227,6 +245,7 @@ SOLAPI 설정이 없으면 보내지 못하고 `error: API 키가 없습니다` 
 | 주소 | 내용 |
 |---|---|
 | `/` | 로그인(PC 는 왼쪽에 제목 + 상태 카드 모양, 오른쪽에 폼) · `/?signup=1` 가입(이름·이메일·비밀번호·전화) |
+| `/verify` | 메일 인증(§3.6) — 보낸 주소, 6자리 입력, 틀린 횟수, 다시 보내기(60초), 다른 이메일로 가입 |
 | `/home` | (응급 대기 시) 반전 카드 + 남은 시간 + "괜찮아요" · 현재 상태(크게) · 조명/집 기기 마지막 신호/수면 여부 · 외출 모드 · 오늘 막대 · 최근 알림. 15초마다 새로 고침 |
 | `/history?date=` | 하루 막대 + 합계(방에 있음·빈 방·알림 수) · 상태 변화 표 · 이날 알림 |
 | `/settings` | 수면 시간(시작·끝·조명 끄기 X분·조명 켜기 N초) · 긴급 알림(확인 N분·지인 M분·내 번호) · **나만의 상황**(§3.5 — 목록·켜기/끄기·수정·삭제, 예시 버튼 셋, 문장형 편집기 + 문자 미리보기. `?rule=new`·`?rule=<id>`·`?preset=` 로 편집기를 연다) · 지인 추가/삭제 |
@@ -248,7 +267,7 @@ SOLAPI 설정이 없으면 보내지 못하고 `error: API 키가 없습니다` 
 | `Caddyfile` | `/etc/caddy/Caddyfile` — 두 이름 모두 HTTPS 자동 |
 | `meshsense-cloud.service` | `/etc/systemd/system/` — `127.0.0.1:8000`, DB `/var/lib/meshsense/home.db`, `--base https://meshsense.cloud` |
 | `cloud.env.example` | `/etc/meshsense/cloud.env`(600) — `MESHSENSE_SECRET`(설치 때 자동 생성, 서버에만 있다) |
-| (배포가 씀) | `/etc/meshsense/solapi.env`(600) — GitHub secret 의 SOLAPI 셋. 이 파일이 나중에 읽혀 `cloud.env` 의 같은 이름을 덮는다 |
+| (배포가 씀) | `/etc/meshsense/secrets.env`(600) — GitHub secret 의 SOLAPI 셋 + SMTP 둘. 이 파일이 나중에 읽혀 `cloud.env` 의 같은 이름을 덮는다 (2026-10-27 `solapi.env` 에서 이름을 바꿨다 — 메일도 들어간다) |
 | `install.sh` | 위를 다 깐다. 다시 돌려도 된다(비밀 값 파일은 처음 한 번만 만들고 세션 키는 자동 생성) |
 | `.github/workflows/deploy-cloud.yml` | `deploy` 브랜치 push → 테스트 → rsync → `install.sh` → 응답 확인 |
 
@@ -266,13 +285,15 @@ push 하면** ① 클라우드 테스트(`test_cloud` + `test_home` 의 시간·
 | `SOLAPI_API_KEY` | SOLAPI API 키 |
 | `SOLAPI_API_SECRET` | SOLAPI API 시크릿 |
 | `SOLAPI_FROM` | SOLAPI 에 등록·인증한 발신 번호 (하이픈 있어도 된다) |
+| `SMTP_USER` | `meshsense.auth@gmail.com` (§3.6) |
+| `SMTP_PASSWORD` | 그 계정의 앱 비밀번호 16자리 |
 | `EC2_SSH_KEY` | EC2 키 페어의 개인 키(`.pem`) 내용 전체 |
 | `EC2_HOST_KEY` | `api.meshsense.cloud,43.200.22.0 ssh-ed25519 …` 한 줄 — `ssh-keyscan -t ed25519 43.200.22.0` 의 키 앞에 **접속에 쓰는 이름**을 붙인다(SSH 는 그 이름으로 지문을 찾는다). 서버 지문을 고정해 DNS 가 엉뚱한 곳을 가리켜도 접속하지 않는다. 인스턴스를 새로 만들면 바꾼다. 비밀은 아니다 |
 
 - **보안 그룹의 22번을 GitHub runner 가 들어올 수 있게 열어야 한다.** runner IP 는 매번 달라 "내 IP만" 으로는
   배포가 막힌다. 시연까지는 22 를 전체로 열되 **키 인증만**(EC2 Ubuntu 기본: 비밀번호 로그인 꺼짐) —
   `# ponytail:` 더 조이려면 job 안에서 runner IP 를 보안 그룹에 넣었다 빼거나(AWS 자격 증명 필요) SSM 으로 바꾼다.
-- 아래 손 배포는 Actions 가 안 될 때의 비상 경로로 남긴다. 손 배포 때는 `solapi.env` 를 직접 쓴다.
+- 아래 손 배포는 Actions 가 안 될 때의 비상 경로로 남긴다. 손 배포 때는 `secrets.env` 를 직접 쓴다.
 
 ```text
 맥:  rsync -avR -e "ssh -i <키.pem>" cloud/server.py cloud/requirements.txt cloud/deploy \

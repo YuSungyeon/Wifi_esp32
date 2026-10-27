@@ -1,8 +1,8 @@
 """집 상태 서비스 클라우드 — 실제 서버를 띄워 HTTP 로 한 바퀴 돈다.
 
-가입 → 연동 코드 → 기기 연동 → 상태 전송 → 응급(본인 확인 → 미확인 시 지인) → 침입 → 끊김.
+가입 → 메일 인증 → 연동 코드 → 기기 연동 → 상태 전송 → 응급(본인 확인 → 미확인 시 지인) → 침입 → 끊김.
 설계 정본 `doc/plans/2026-10-23-home-service.md` §3.3·§4·§5.
-문자는 `server.send_sms` 를 바꿔 끼워 **실제로 나가지 않는다.**
+문자·메일은 `server.send_sms`·`server.send_mail` 을 바꿔 끼워 **실제로 나가지 않는다.**
 """
 import http.cookiejar
 import json
@@ -37,11 +37,13 @@ class CloudFlow(unittest.TestCase):
         S.PAIR_FAILS.clear()
         self.sent = []
         self._real_send, S.send_sms = S.send_sms, lambda nums, text: self.sent.append((nums, text)) or "sent 1/1"
+        self.mails = []
+        self._real_mail, S.send_mail = S.send_mail, lambda to, subj, text: self.mails.append((to, subj, text)) or "sent"
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
         self.web = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
     def tearDown(self):
-        S.send_sms = self._real_send
+        S.send_sms, S.send_mail = self._real_send, self._real_mail
         self.httpd.shutdown()
         self.httpd.server_close()
         S.CONN.close()
@@ -65,10 +67,20 @@ class CloudFlow(unittest.TestCase):
         except urllib.error.HTTPError as e:
             return e.code, json.loads(e.read())
 
-    def signup_and_pair(self):
-        url, body = self.post("/signup", name="성연", email="me@example.com", pw="password1", phone=ME)
+    def last_code(self):
+        return re.search(r"인증 코드 (\d{6})", self.mails[-1][1]).group(1)
+
+    def signup(self, email="me@example.com"):
+        """가입 → 메일로 온 코드로 인증까지."""
+        url, body = self.post("/signup", name="성연", email=email, pw="password1", phone=ME)
+        self.assertTrue(url.endswith("/verify"))
+        self.assertIn("메일을 확인해 주세요", body)
+        url, body = self.post("/verify", code=self.last_code())
         self.assertTrue(url.endswith("/home"))
-        self.assertIn("아직 연결된 집 기기가 없어요", body)
+        return body
+
+    def signup_and_pair(self):
+        self.assertIn("아직 연결된 집 기기가 없어요", self.signup())
         self.post("/devices/code")
         code = re.search(r'class="code">(\d{6})<', self.get("/devices")).group(1)
         st, res = self.api("/api/pair", {"code": code, "name": "MacBook"})
@@ -186,6 +198,84 @@ class CloudFlow(unittest.TestCase):
         self.assertEqual(len(self.sent), 14)
         self.assertTrue(S.notify([ME], "x", now + 86400).startswith("sent"))          # 다음 날 다시
 
+    # ── 메일 인증 (§3.6) ────────────────────────────────────────────────────
+    def test_unverified_is_held_at_verify(self):
+        url, _ = self.post("/signup", name="성연", email="me@example.com", pw="password1", phone=ME)
+        self.assertEqual(self.mails[0][0], "me@example.com")
+        for path in ("/home", "/devices", "/settings"):
+            self.assertTrue(self.web.open(self.url + path).geturl().endswith("/verify"), path)
+        url, _ = self.post("/devices/code")                                  # 연동 코드도 못 만든다
+        self.assertTrue(url.endswith("/verify"))
+        self.assertIsNone(S.q("select * from pair_codes", one=True))
+
+    def test_wrong_code_counts_down_then_dies(self):
+        self.post("/signup", name="성연", email="me@example.com", pw="password1", phone=ME)
+        good = self.last_code()
+        bad = "000000" if good != "000000" else "111111"
+        url, body = self.post("/verify", code=bad)
+        self.assertIn("4번 더", body)
+        for _ in range(4):
+            url, body = self.post("/verify", code=bad)
+        self.assertIn("무효", body)
+        url, body = self.post("/verify", code=good)                          # 맞는 코드도 이제 안 된다
+        self.assertIn("/verify", url)
+        self.assertIn("만료", body)
+
+    def test_resend_waits_and_replaces_the_code(self):
+        self.post("/signup", name="성연", email="me@example.com", pw="password1", phone=ME)
+        old = self.last_code()
+        self.post("/verify/resend")
+        self.assertEqual(len(self.mails), 1)                                 # 60초 안에는 안 보낸다
+        S.q("update email_codes set sent=sent-61")
+        url, body = self.post("/verify/resend")
+        self.assertEqual(len(self.mails), 2)
+        self.assertIn("새 코드를 보냈어요", body)
+        if self.last_code() != old:
+            url, _ = self.post("/verify", code=old)                          # 이전 코드는 무효
+            self.assertIn("/verify", url)
+        url, _ = self.post("/verify", code=self.last_code())
+        self.assertTrue(url.endswith("/home"))
+
+    def test_unverified_signup_can_be_taken_over_and_expires(self):
+        # 남의 주소로 가입해 두고 인증 안 해도 그 주소를 막지 못한다
+        self.post("/signup", name="남", email="me@example.com", pw="password1", phone=MOM)
+        self.web = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        self.signup()
+        self.assertEqual(S.q("select count(*) n from users", one=True)["n"], 1)
+        # 인증한 계정 주소로는 다시 가입할 수 없다
+        self.post("/logout")
+        url, body = self.post("/signup", name="또", email="me@example.com", pw="password1", phone=ME)
+        self.assertIn("이미 가입된", body)
+        # 인증하지 않은 계정은 하루 뒤 지워진다
+        self.post("/signup", name="새", email="new@example.com", pw="password1", phone=ME)
+        S.tick(time.time() + 86401)
+        self.assertIsNone(S.q("select * from users where email='new@example.com'", one=True))
+        self.assertIsNotNone(S.q("select * from users where email='me@example.com'", one=True))
+
+    def test_mail_failure_and_daily_cap_say_so(self):
+        S.send_mail = lambda to, subj, text: "error: 인증 실패"
+        url, body = self.post("/signup", name="성연", email="me@example.com", pw="password1", phone=ME)
+        self.assertIn("메일을 보내지 못했어요", body)
+        self.assertNotIn("초 뒤 가능", body)                                   # 못 보냈으면 바로 다시 보낼 수 있다
+        S.send_mail = lambda to, subj, text: self.mails.append((to, subj, text)) or "sent"
+        S.count("mail:" + S.today(), S.MAIL_DAILY_CAP)
+        url, body = self.post("/verify/resend")
+        self.assertIn("더 보낼 수 없어요", body)
+        self.assertEqual(self.mails, [])
+
+    def test_existing_accounts_count_as_verified_after_upgrade(self):
+        import sqlite3
+        db = Path(self.tmp.name) / "old.db"
+        c = sqlite3.connect(db)
+        c.execute("create table users(id integer primary key, email text unique not null, name text not null, "
+                  "phone text not null, pw_hash text not null, salt text not null, config text not null, "
+                  "created real not null)")
+        c.execute("insert into users values(1,'old@example.com','옛',?,'h','s','{}',123.0)", (ME,))
+        c.commit(); c.close()
+        S.CONN.close()
+        S.init(db, self.url, secret=b"test")
+        self.assertEqual(S.q("select verified from users", one=True)["verified"], 123.0)
+
     # ── 나만의 상황 (§3.5) ──────────────────────────────────────────────────
     def add_rule(self, **kw):
         form = {"id": "new", "when": "always", "state": "empty", "kind": "hold", "minutes": "30",
@@ -251,7 +341,7 @@ class CloudFlow(unittest.TestCase):
 
     # ── 집 쪽: 제어판 연동 + 엔진 전송 (§4.3) ─────────────────────────────
     def test_local_pair_and_sender(self):
-        self.post("/signup", name="성연", email="me@example.com", pw="password1", phone=ME)
+        self.signup()
         self.post("/devices/code")
         code = re.search(r'class="code">(\d{6})<', self.get("/devices")).group(1)
         store = Path(self.tmp.name) / "home_service.json"

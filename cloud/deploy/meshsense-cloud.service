@@ -7,9 +7,9 @@ Wants=network-online.target
 [Service]
 User=meshsense
 WorkingDirectory=/opt/meshsense
-# 세션 서명 키(서버에서 만든다) → SOLAPI 셋(배포가 GitHub secret 으로 쓴다). 뒤 파일이 앞을 덮는다
+# 세션 서명 키(서버에서 만든다) → SOLAPI·SMTP(배포가 GitHub secret 으로 쓴다). 뒤 파일이 앞을 덮는다
 EnvironmentFile=/etc/meshsense/cloud.env
-EnvironmentFile=-/etc/meshsense/solapi.env
+EnvironmentFile=-/etc/meshsense/secrets.env
 ExecStart=/opt/meshsense/.venv/bin/python cloud/server.py --host 127.0.0.1 --port 8000 \
     --db /var/lib/meshsense/home.db --base https://meshsense.cloud
 Restart=always
