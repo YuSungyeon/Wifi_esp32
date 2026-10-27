@@ -86,6 +86,9 @@ idf.py -DCSI_UPLINK_ENABLED=0 -p <포트> flash
 | 언제만 쓰나 | 그 포트에서 `SINK_STATUS` 를 본 뒤에만 — RX 보드는 USB 를 읽지 않아 쓰면 host 버퍼만 찬다. 쓰기는 non-blocking(`write_timeout=0`) |
 
 - 1초 재전송이라 싱크가 리셋돼도 1초 안에 원래 불로 돌아온다. 변경 추적이 필요 없다.
+- **유효한 명령이 10초 끊기면 싱크가 스스로 끈다** (2026-10-27). 실시간 측정 종료·맥 꺼짐·USB 분리·
+  reader 비정상 종료를 한 곳에서 처리한다 — 감지가 멈추면 불도 꺼진다. 판단을 못 하는 동안
+  (`deciding`·`suspended`)은 엔진이 마지막 값을 계속 보내므로 이 규칙에 걸리지 않는다.
 - 싱크가 명령을 받았는지는 `SINK_STATUS` 의 `usb_rx`·`led_cmds` 로 host 에서 본다
   ([data-schema.md](data-schema.md)) — 불이 안 켜질 때 "안 받았나 / 받았는데 못 켰나" 를 가른다.
 - 부팅 직후에는 끈다.

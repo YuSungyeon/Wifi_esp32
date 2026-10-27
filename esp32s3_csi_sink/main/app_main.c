@@ -42,6 +42,7 @@
 #define LED_R                   60
 #define LED_G                   40
 #define LED_B                   12
+#define LED_TIMEOUT_MS          10000   /* 명령이 이만큼 끊기면 끈다 — host 는 1초마다 보낸다 */
 
 /* 역할별 MAC — esp32s3_csi_recv_poc/main/app_main.c 와 짝이다.
  * RX 가 unicast 로 이 MAC 에 보내므로 여기서도 같은 값을 써야 한다. */
@@ -166,27 +167,37 @@ static void status_task(void *arg)
 static led_strip_handle_t g_led;
 
 /* host 가 보내는 조명 명령을 읽는다. 별도 task 라 ESP-NOW 콜백·USB writer 를 막지 않는다.
- * host 는 1초마다 같은 값을 다시 보내므로(리셋 복구용) 바뀔 때만 다시 그린다. */
+ * host 는 1초마다 같은 값을 다시 보내므로(리셋 복구용) 바뀔 때만 다시 그린다.
+ * 유효한 명령이 LED_TIMEOUT_MS 동안 없으면 끈다 — 측정 종료·맥 꺼짐·USB 분리 (doc/realtime-uplink.md). */
+static void led_draw(int on)
+{
+    if (on) {
+        led_strip_set_pixel(g_led, 0, LED_R, LED_G, LED_B);
+        led_strip_refresh(g_led);
+    } else {
+        led_strip_clear(g_led);
+    }
+    ESP_LOGI(TAG, "led %s", on ? "on" : "off");
+}
+
 static void led_cmd_task(void *arg)
 {
     (void)arg;
     int cur = 0;                                   /* 부팅 때 껐다 */
+    TickType_t last_cmd = xTaskGetTickCount();
     while (1) {
         uint8_t b;
-        if (usb_serial_jtag_read_bytes(&b, 1, portMAX_DELAY) != 1) continue;
-        g_usb_rx++;
-        if (b != '0' && b != '1') continue;        /* 다른 바이트는 무시 — 계약 */
-        g_led_cmds++;
-        int on = (b == '1');
-        if (on == cur) continue;
-        if (on) {
-            led_strip_set_pixel(g_led, 0, LED_R, LED_G, LED_B);
-            led_strip_refresh(g_led);
-        } else {
-            led_strip_clear(g_led);
+        int n = usb_serial_jtag_read_bytes(&b, 1, pdMS_TO_TICKS(1000));
+        if (n == 1) g_usb_rx++;
+        if (n == 1 && (b == '0' || b == '1')) {    /* 다른 바이트는 무시 — 계약 */
+            g_led_cmds++;
+            last_cmd = xTaskGetTickCount();
+            int on = (b == '1');
+            if (on != cur) { led_draw(on); cur = on; }
+        } else if (cur && xTaskGetTickCount() - last_cmd >= pdMS_TO_TICKS(LED_TIMEOUT_MS)) {
+            led_draw(0);
+            cur = 0;
         }
-        cur = on;
-        ESP_LOGI(TAG, "led %s", on ? "on" : "off");
     }
 }
 
