@@ -1,0 +1,52 @@
+# 집 상태 서비스 클라우드 배포 — deploy 브랜치에 push 하면 EC2 에 올린다 (계획 §5.2)
+name: deploy-cloud
+
+on:
+  push:
+    branches: [deploy]
+  workflow_dispatch:
+
+concurrency: deploy-cloud          # 두 배포가 겹치면 install.sh 가 서로를 밟는다
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    env:
+      # 로그인 사용자는 이미지마다 다르다 — Ubuntu 는 ubuntu, Debian 은 admin (EC2_USER 로 덮는다)
+      HOST: ${{ secrets.EC2_USER || 'ubuntu' }}@${{ secrets.EC2_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 서버가 쓰는 코드만 본다 — 집 쪽(엔진·reader)은 numpy/torch 가 필요해 여기서 돌리지 않는다
+      - name: 테스트 (클라우드 · 시간 규칙 · 조명 · 전송)
+        run: >
+          python -m unittest tests.test_cloud tests.test_home.SleepWindow
+          tests.test_home.EmergencyClock tests.test_home.LedTable tests.test_home.SenderTest
+
+      - name: SSH 준비 (서버 지문 고정)
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy.pem
+          chmod 600 ~/.ssh/deploy.pem
+          printf '%s\n' "${{ secrets.EC2_HOST_KEY }}" > ~/.ssh/known_hosts
+
+      - name: 올리기
+        run: |
+          ssh -i ~/.ssh/deploy.pem "$HOST" 'rm -rf /tmp/meshsense'
+          rsync -avR -e "ssh -i ~/.ssh/deploy.pem" cloud/server.py cloud/requirements.txt cloud/deploy \
+            realtime/__init__.py realtime/home.py "$HOST":/tmp/meshsense/
+
+      - name: 설치·재시작
+        run: ssh -i ~/.ssh/deploy.pem "$HOST" 'sudo bash /tmp/meshsense/cloud/deploy/install.sh'
+
+      - name: 응답 확인
+        run: |
+          for i in 1 2 3 4 5 6; do
+            curl -fsS https://api.meshsense.cloud/manifest.json && exit 0
+            sleep 5
+          done
+          exit 1

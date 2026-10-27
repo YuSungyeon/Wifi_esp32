@@ -230,6 +230,47 @@ SOLAPI 설정이 없으면 보내지 못하고 `error: API 키가 없습니다` 
 보안: 비밀번호 `hashlib.scrypt`, 세션 쿠키 `HttpOnly; Secure; SameSite=Lax` + HMAC 서명,
 기기·확인 토큰은 `secrets.token_urlsafe`. 문자 본문은 단문 90바이트 안에 들어가게 짧게 쓴다.
 
+### 5.2 배포 (EC2 · Ubuntu 24.04, 2026-10-27)
+
+탄력적 IP **`43.200.22.0`** (처음 DNS 에 넣었던 `43.201.10.10` 은 잘못 넣은 남의 주소였다 — 그 주소의 SSH
+지문은 쓰지 않는다). 로그인 사용자 `ubuntu`. `install.sh` 는 Debian 12(사용자 `admin`)에서도 같다. DNS(Cafe24)에서 `meshsense.cloud`·`api.meshsense.cloud` A 레코드를 이 IP 로.
+보안 그룹: 22(내 IP만)·80·443. 8000 은 열지 않는다 — Caddy 만 안쪽에서 넘긴다.
+
+| 파일 (`cloud/deploy/`) | 가는 곳 |
+|---|---|
+| `Caddyfile` | `/etc/caddy/Caddyfile` — 두 이름 모두 HTTPS 자동 |
+| `meshsense-cloud.service` | `/etc/systemd/system/` — `127.0.0.1:8000`, DB `/var/lib/meshsense/home.db`, `--base https://meshsense.cloud` |
+| `cloud.env.example` | `/etc/meshsense/cloud.env`(600) — SOLAPI 셋 + `MESHSENSE_SECRET` |
+| `install.sh` | 위를 다 깐다. 다시 돌려도 된다(비밀 값 파일은 처음 한 번만 만들고 세션 키는 자동 생성) |
+| `.github/workflows/deploy-cloud.yml` | `deploy` 브랜치 push → 테스트 → rsync → `install.sh` → 응답 확인 |
+
+서버에 필요한 코드는 `cloud/` 와 `realtime/home.py`(+ `__init__.py`) 뿐이다 — 저장소 clone 없이 rsync 로 올린다.
+
+**배포는 GitHub Actions 가 한다** (`.github/workflows/deploy-cloud.yml`, 2026-10-27): **`deploy` 브랜치에
+push 하면** ① 클라우드 테스트(`test_cloud` + `test_home` 의 시간·조명·전송 규칙 — numpy/torch 없이 돈다)가
+통과해야 ② rsync → `install.sh` → ③ `https://api.meshsense.cloud/manifest.json` 이 응답하는지 본다.
+테스트가 깨지면 서버에 손대지 않는다.
+
+| GitHub **Repository** secret (workflow 에 `environment:` 가 없어 Environment secret 은 읽지 못한다) | 값 |
+|---|---|
+| `EC2_HOST` | `api.meshsense.cloud` — IP 가 바뀌어도 DNS 만 고치면 된다 |
+| `EC2_USER` | (선택) 없으면 `ubuntu`. Debian 이미지면 `admin` |
+| `EC2_SSH_KEY` | EC2 키 페어의 개인 키(`.pem`) 내용 전체 |
+| `EC2_HOST_KEY` | `api.meshsense.cloud,43.200.22.0 ssh-ed25519 …` 한 줄 — `ssh-keyscan -t ed25519 43.200.22.0` 의 키 앞에 **접속에 쓰는 이름**을 붙인다(SSH 는 그 이름으로 지문을 찾는다). 서버 지문을 고정해 DNS 가 엉뚱한 곳을 가리켜도 접속하지 않는다. 인스턴스를 새로 만들면 바꾼다. 비밀은 아니다 |
+
+- **보안 그룹의 22번을 GitHub runner 가 들어올 수 있게 열어야 한다.** runner IP 는 매번 달라 "내 IP만" 으로는
+  배포가 막힌다. 시연까지는 22 를 전체로 열되 **키 인증만**(EC2 Ubuntu 기본: 비밀번호 로그인 꺼짐) —
+  `# ponytail:` 더 조이려면 job 안에서 runner IP 를 보안 그룹에 넣었다 빼거나(AWS 자격 증명 필요) SSM 으로 바꾼다.
+- 아래 손 배포는 Actions 가 안 될 때의 비상 경로로 남긴다. `cloud.env`(SOLAPI 셋)는 어느 쪽이든 처음 한 번 손으로 채운다.
+
+```text
+맥:  rsync -avR -e "ssh -i <키.pem>" cloud/server.py cloud/requirements.txt cloud/deploy \
+         realtime/__init__.py realtime/home.py ubuntu@43.200.22.0:/tmp/meshsense/
+맥:  ssh -i <키.pem> ubuntu@43.200.22.0 'sudo bash /tmp/meshsense/cloud/deploy/install.sh'
+EC2: sudo nano /etc/meshsense/cloud.env   → SOLAPI 셋 채우고 sudo systemctl restart meshsense-cloud
+확인: curl -s https://api.meshsense.cloud/manifest.json
+```
+
 ## 6. 파일
 
 | 파일 | 변경 |
