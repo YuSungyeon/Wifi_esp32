@@ -654,7 +654,8 @@ body{margin:0;padding:0 0 3rem;background:var(--bg);color:var(--fg);
  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",sans-serif}
 header{background:var(--card);border-bottom:1px solid var(--line);padding:.9rem 1.2rem;
  position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
-header h1{font-size:1.05rem;margin:0}
+header h1{font-size:1.05rem;margin:0;display:flex;align-items:center;gap:.5rem}
+header h1 .logo{width:20px;height:21px;flex:none}
 nav{display:flex;gap:.3rem;flex-wrap:wrap}
 nav button{font:inherit;font-size:.9rem;padding:.35rem .8rem;border-radius:8px;cursor:pointer;
  border:1px solid transparent;background:transparent;color:var(--muted)}
@@ -833,7 +834,7 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MeshSense 제어판</title><style>__CSS__</style></head><body>
 <header>
-  <h1>MeshSense 제어판</h1>
+  <h1><svg class="logo" viewBox="-12 -12 502 523" fill="none" stroke-width="32" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round" stroke="currentColor" aria-hidden="true"><path d="M373.886 321.902H436.266L467.457 415.473L415.473 488.25H82.7772L10 394.679L82.7772 280.315H165.951L217.935 217.935H321.902L373.886 321.902ZM373.886 321.902H301.109M113.967 93.1739L197.141 10H342.696L425.87 93.1739"/><path d="M150.356 129.562L207.538 72.3804H332.299L389.481 129.562M191.943 171.149L228.331 134.761H311.505L347.894 171.149"/></svg>MeshSense 제어판</h1>
   <nav id="nav">
     <button data-t="collect" class="on">수집</button>
     <button data-t="sessions">세션</button>

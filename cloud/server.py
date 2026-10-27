@@ -432,6 +432,9 @@ ICONS = {
                 'M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
     "devices": '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
 }
+#: 프로젝트 로고 (원본 design/meshsense_logo.svg, 선 20 → 작은 크기에서 또렷하게 32). 선 색은 글자색을 따른다 — 어두운 화면·관리자 띠에서도 보인다
+LOGO = ('<svg class="logo" viewBox="-12 -12 502 523" fill="none" stroke-width="32" stroke-miterlimit="10" stroke-linecap="round" stro'
+        'ke-linejoin="round" stroke="currentColor" aria-hidden="true"><path d="M373.886 321.902H436.266L467.457 415.473L415.473 488.25H82.7772L10 394.679L82.7772 280.315H165.951L217.935 217.935H321.902L373.886 321.902ZM373.886 321.902H301.109M113.967 93.1739L197.141 10H342.696L425.87 93.1739"/><path d="M150.356 129.562L207.538 72.3804H332.299L389.481 129.562M191.943 171.149L228.331 134.761H311.505L347.894 171.149"/></svg>')
 NAV = (("home", "홈"), ("history", "기록"), ("settings", "설정"), ("devices", "기기"))
 
 
@@ -441,10 +444,10 @@ def page(title: str, body: str, user=None, active: str = "", refresh: int | None
     if user is not None:
         av = f'<div class="avatar" title="{e(user["name"])}">{e(user["name"][:1])}</div>'
         links = "".join(f'<a href="/{k}"{" class=on" if k == active else ""}>{t}</a>' for k, t in NAV)
-        nav = (f'<header class="top"><a class="brand" href="/home"><i></i>MeshSense</a>'
+        nav = (f'<header class="top"><a class="brand" href="/home">{LOGO}MeshSense</a>'
                f'<nav class="pills">{links}</nav>'
                f'<form method="post" action="/logout" class="who">{av}<button class="btn ghost sm">로그아웃</button></form></header>'
-               f'<div class="mtitle"><a class="brand" href="/home"><i></i>MeshSense</a>{av}</div>')
+               f'<div class="mtitle"><a class="brand" href="/home">{LOGO}MeshSense</a>{av}</div>')
         tabs = '<nav class="tabs">' + "".join(
             f'<a href="/{k}"{" class=on" if k == active else ""}><svg viewBox="0 0 24 24" fill="none" '
             f'stroke="currentColor" stroke-width="1.8">{ICONS[k]}</svg>{t}</a>' for k, t in NAV) + "</nav>"
@@ -691,7 +694,7 @@ def page_verify(user, now: float, msg: str = "", err: str = "") -> str:
     fl = f'<div class="flash">{e(msg)}</div>' if msg else ""
     er = f'<p class="err mt">{e(err)}</p>' if err else ""
     return page("메일 인증", f"""<div class="confirm" style="max-width:440px">{fl}
-<div class="brand center"><i></i>MeshSense</div>
+<div class="brand center">{LOGO}MeshSense</div>
 <h1 class="display" style="font-size:32px">메일을 확인해 주세요</h1>
 <p class="muted"><b style="color:var(--ink)">{e(user["email"])}</b> 으로 6자리 코드를 보냈어요.<br>10분 안에 넣어 주세요.</p>
 <form method="post" action="/verify" class="card" style="margin-top:24px;text-align:left">
@@ -725,7 +728,7 @@ def page_confirm(a, now: float, done: bool = False) -> str:
         inner = (f'<h1 class="display">괜찮으세요?</h1><p class="muted">{e(a["label"])}</p>'
                  f'{tail}<form method="post"><button class="btn primary wide xl">괜찮아요</button></form>'
                  f'<p class="note">링크를 여는 것만으로는 확인되지 않아요.</p>')
-    return page("확인", f'<div class="confirm"><div class="brand center"><i></i>MeshSense</div>{inner}</div>',
+    return page("확인", f'<div class="confirm"><div class="brand center">{LOGO}MeshSense</div>{inner}</div>',
                 refresh=15 if a is not None and not a["confirmed"] and not done else None)
 
 
@@ -1150,8 +1153,10 @@ MANIFEST = json.dumps({"name": "MeshSense Home", "short_name": "MeshSense", "sta
                        "display": "standalone", "background_color": "#ffffff", "theme_color": "#111111",
                        "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml"}]})
 # ponytail: SVG 아이콘 하나. iOS 홈 화면 아이콘은 PNG(apple-touch-icon)만 받는다 — 필요하면 180px PNG 추가.
-ICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" '
-        'fill="#111"/><circle cx="32" cy="32" r="16" fill="#fff"/><circle cx="32" cy="32" r="6" fill="#111"/></svg>')
+ICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="-40 -40 558 579">'
+        '<rect x="-40" y="-40" width="558" height="579" rx="117" fill="#fff"/>'
+        '<g fill="none" stroke-width="32" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round" stroke="#111"><path d="M373.886 321.902H436.266L467.457 415.473L415.473 488.25H82.7772L10 394.679L82.7772 280.315H165.951L21'
+        '7.935 217.935H321.902L373.886 321.902ZM373.886 321.902H301.109M113.967 93.1739L197.141 10H342.696L425.87 93.1739"/><path d="M150.356 129.562L207.538 72.3804H332.299L389.481 129.562M191.943 171.149L228.331 134.761H311.505L347.894 171.149"/></g></svg>')
 
 # ── 관리자 (계획 §5.1b) ─────────────────────────────────────────────────────
 ADMIN_FAILS: deque = deque()
@@ -1200,7 +1205,7 @@ def admin_gate(h) -> bool:
     return True
 
 
-ADMIN_TOP = ('<header class="adm-top"><a class="brand" href="/admin" style="color:inherit"><i></i>MeshSense</a>'
+ADMIN_TOP = ('<header class="adm-top"><a class="brand" href="/admin" style="color:inherit">' + LOGO + 'MeshSense</a>'
              '<span class="adm-tag">관리자</span><form method="post" action="/admin/logout">'
              '<button class="btn ghost sm">로그아웃</button></form></header>')
 
@@ -1212,7 +1217,7 @@ def mask_phone(p: str) -> str:
 
 def page_admin_login(err: str = "") -> str:
     er = f'<p class="err mt">{e(err)}</p>' if err else ""
-    return page("관리자", f"""<div class="confirm" style="max-width:380px"><div class="brand center"><i></i>MeshSense</div>
+    return page("관리자", f"""<div class="confirm" style="max-width:380px"><div class="brand center">{LOGO}MeshSense</div>
 <h1 class="display" style="font-size:28px">관리자 로그인</h1><p class="muted">일반 사용자 로그인과 따로예요.</p>
 <form method="post" action="/admin/login" class="card" style="text-align:left;margin-top:24px">
 <label class="mt0">아이디</label><input name="id" required autocomplete="username">
@@ -1402,8 +1407,7 @@ a{color:var(--ink)} h1,h2{color:var(--ink);margin:0;font-weight:600}
  gap:16px;padding:0 24px;position:sticky;top:0;z-index:10}
 .brand{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--ink);letter-spacing:-.02em;
  font-size:17px;text-decoration:none}
-.brand i{width:22px;height:22px;border-radius:50%;background:var(--ink);display:grid;place-items:center}
-.brand i::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--canvas)}
+.brand .logo{width:22px;height:23px;flex:none}
 .pills{display:flex;gap:2px;background:var(--card);border-radius:999px;padding:5px;margin:0 auto}
 .pills a{padding:7px 16px;border-radius:999px;font-size:14px;font-weight:500;color:var(--muted);text-decoration:none}
 .pills a.on{background:var(--canvas);color:var(--ink);box-shadow:var(--sh2)}
@@ -1524,7 +1528,6 @@ pre{background:var(--card);color:var(--ink);border-radius:8px;padding:12px 14px;
 .code-in{font:600 32px/1 ui-monospace,Menlo,monospace;letter-spacing:.4em;text-align:center;height:64px}
 .linkbtn{font:inherit;font-size:13px;color:var(--ink);background:none;border:0;padding:0;text-decoration:underline;cursor:pointer}
 .adm-top{height:56px;background:var(--inv);color:var(--on-inv);display:flex;align-items:center;gap:12px;padding:0 24px}
-.adm-top .brand i{background:var(--on-inv)} .adm-top .brand i::after{background:var(--inv)}
 .adm-tag{font-size:11px;padding:2px 8px;border-radius:999px;background:#ef4444;color:#fff;font-weight:700}
 .adm-top form{margin:0 0 0 auto} .adm-top .btn{color:var(--on-inv-soft)}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
