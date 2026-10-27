@@ -347,8 +347,14 @@ EC2: sudo nano /etc/meshsense/cloud.env   → SOLAPI 셋 채우고 sudo systemct
 
 ### 3일 차 (10/25) — 알림·배포·리허설
 
-- [ ] 알림 검사 루프(30초) + `sms.send` + 확인 페이지 + 지인 확대 발송
-- [ ] EC2 배포: 보안 그룹 80/443, 도메인 A 레코드 → Elastic IP, Caddy, systemd
+- [x] 알림 검사 루프(30초) + 발송 + 확인 페이지 + 지인 확대 발송 — 2일 차에 함께 했다(2026-10-25).
+  하루 상한 40건(2026-10-27).
+- [x] EC2 배포 — **2026-10-27**. Ubuntu 24.04, 탄력적 IP `43.200.22.0`, 두 도메인 A 레코드, 보안 그룹
+  22·80·443. GitHub Actions(`deploy` 브랜치)로 배포 2회 모두 성공. `https://meshsense.cloud`·
+  `https://api.meshsense.cloud` 200, Let's Encrypt 인증서(2027-01-25 까지, Caddy 자동 갱신), HTTP → HTTPS 308.
+- [x] **실제 문자 발송** — 2026-10-27. 서버에서 배포된 `send_sms()` 로 운영자 번호에 한 통 → `sent 1/1`,
+  수신 확인. GitHub secret 셋(`***` 로 가려져 값이 있음을 확인) → `solapi.env` → systemd 경로가 맞다.
+- [ ] 집 컴퓨터를 실제 서버(`api.meshsense.cloud`)에 연동
 - [ ] 시연 리허설 (8장)
 - **완료 기준**: 8장 시나리오가 끝까지 한 번에 돈다.
 
