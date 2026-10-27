@@ -259,6 +259,19 @@ SOLAPI 설정이 없으면 보내지 못하고 `error: API 키가 없습니다` 
 보안: 비밀번호 `hashlib.scrypt`, 세션 쿠키 `HttpOnly; Secure; SameSite=Lax` + HMAC 서명,
 기기·확인 토큰은 `secrets.token_urlsafe`. 문자 본문은 단문 90바이트 안에 들어가게 짧게 쓴다.
 
+### 5.1b 관리자 페이지 (2026-10-27 · 시안 v5 통과)
+
+`/admin` — 가입한 계정을 본다. 일반 로그인과 **완전히 따로**다(별도 화면·별도 쿠키 `a`, 12시간).
+
+- 아이디 `admin`, 비밀번호는 환경 변수 **`ADMIN_PASSWORD`**(GitHub secret → `secrets.env`). 코드·저장소에 쓰지
+  않는다 — 저장소는 GitHub 에 있다. **값이 없으면 `/admin` 은 404** — 빈 비밀번호로 열리는 일이 없게.
+- 로그인 실패 **10분에 5번이면 잠근다**(서비스 전체). 사용자 쿠키로는 관리자 화면을 못 연다.
+- 목록: 가입 수(인증 대기)·연결된 기기(지금 신호)·**오늘 문자 N/40**·**오늘 인증 메일 N/100** + 사용자 표
+  (이름·이메일 찾기, 전화 가운데 가림, 인증 여부, 가입일, 집 기기·마지막 신호, 오늘 알림 수).
+- 상세: 집 기기(해제), 최근 알림 — **종류와 발송 결과만**(알림 문장은 나만의 상황·응급 기준이 드러나 설정과 같다), **계정 삭제**(계정·기기·기록·알림 전부, 되돌릴 수 없음 — 확인 창).
+- **보지 않는 것: 사용자 설정**(수면 시간·지인·나만의 상황·외출 모드). 사용자의 생활 패턴이라 관리자는 보지 않는다
+  (2026-10-27 결정).
+
 ### 5.2 배포 (EC2 · Ubuntu 24.04, 2026-10-27)
 
 탄력적 IP **`43.200.22.0`** (처음 DNS 에 넣었던 `43.201.10.10` 은 잘못 넣은 남의 주소였다 — 그 주소의 SSH
@@ -270,7 +283,7 @@ SOLAPI 설정이 없으면 보내지 못하고 `error: API 키가 없습니다` 
 | `Caddyfile` | `/etc/caddy/Caddyfile` — 두 이름 모두 HTTPS 자동 |
 | `meshsense-cloud.service` | `/etc/systemd/system/` — `127.0.0.1:8000`, DB `/var/lib/meshsense/home.db`, `--base https://meshsense.cloud` |
 | `cloud.env.example` | `/etc/meshsense/cloud.env`(600) — `MESHSENSE_SECRET`(설치 때 자동 생성, 서버에만 있다) |
-| (배포가 씀) | `/etc/meshsense/secrets.env`(600) — GitHub secret 의 SOLAPI 셋 + SMTP 둘. 이 파일이 나중에 읽혀 `cloud.env` 의 같은 이름을 덮는다 (2026-10-27 `solapi.env` 에서 이름을 바꿨다 — 메일도 들어간다) |
+| (배포가 씀) | `/etc/meshsense/secrets.env`(600) — GitHub secret 의 SOLAPI 셋 + SMTP 둘 + `ADMIN_PASSWORD`. 이 파일이 나중에 읽혀 `cloud.env` 의 같은 이름을 덮는다 (2026-10-27 `solapi.env` 에서 이름을 바꿨다 — 메일도 들어간다) |
 | `install.sh` | 위를 다 깐다. 다시 돌려도 된다(비밀 값 파일은 처음 한 번만 만들고 세션 키는 자동 생성) |
 | `.github/workflows/deploy-cloud.yml` | `deploy` 브랜치 push → 테스트 → rsync → `install.sh` → 응답 확인 |
 
@@ -290,6 +303,7 @@ push 하면** ① 클라우드 테스트(`test_cloud` + `test_home` 의 시간·
 | `SOLAPI_FROM` | SOLAPI 에 등록·인증한 발신 번호 (하이픈 있어도 된다) |
 | `SMTP_USER` | `meshsense.auth@gmail.com` (§3.6) |
 | `SMTP_PASSWORD` | 그 계정의 앱 비밀번호 16자리 |
+| `ADMIN_PASSWORD` | 관리자(`admin`) 비밀번호 (§5.1b). 없으면 관리자 페이지가 닫힌다 |
 | `EC2_SSH_KEY` | EC2 키 페어의 개인 키(`.pem`) 내용 전체 |
 | `EC2_HOST_KEY` | `api.meshsense.cloud,43.200.22.0 ssh-ed25519 …` 한 줄 — `ssh-keyscan -t ed25519 43.200.22.0` 의 키 앞에 **접속에 쓰는 이름**을 붙인다(SSH 는 그 이름으로 지문을 찾는다). 서버 지문을 고정해 DNS 가 엉뚱한 곳을 가리켜도 접속하지 않는다. 인스턴스를 새로 만들면 바꾼다. 비밀은 아니다 |
 

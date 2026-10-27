@@ -296,6 +296,56 @@ class CloudFlow(unittest.TestCase):
         S.init(db, self.url, secret=b"test")
         self.assertEqual(S.q("select verified from users", one=True)["verified"], 123.0)
 
+    # ── 관리자 (§5.1b) ──────────────────────────────────────────────────────
+    def admin_env(self, pw="1234"):
+        from unittest import mock
+        S.ADMIN_FAILS.clear()
+        return mock.patch.dict("os.environ", {"ADMIN_PASSWORD": pw})
+
+    def test_admin_closed_without_password(self):
+        from unittest import mock
+        with mock.patch.dict("os.environ", {}, clear=True):
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                self.get("/admin")
+            self.assertEqual(cm.exception.code, 404)
+
+    def test_admin_login_lockout_and_separation(self):
+        token = self.signup_and_pair()                                       # 사용자로 로그인한 상태
+        with self.admin_env():
+            self.assertIn("관리자 로그인", self.get("/admin"))                 # 사용자 쿠키로는 못 들어간다
+            for _ in range(5):
+                url, body = self.post("/admin/login", id="admin", pw="wrong")
+            url, body = self.post("/admin/login", id="admin", pw="1234")     # 잠긴 동안은 맞아도 안 된다
+            self.assertIn("너무 많이 틀렸어요", body)
+            S.ADMIN_FAILS.clear()
+            url, body = self.post("/admin/login", id="admin", pw="1234")
+            self.assertIn("오늘 문자", body)
+            self.assertIn("me@example.com", body)
+            self.assertIn("010-****-2222", body)                             # 전화는 가운데를 가린다
+            self.assertNotIn(ME, body)
+        with self.admin_env("changed"):                                      # 비밀번호를 바꾸면 세션이 끊긴다
+            self.assertIn("관리자 로그인", self.get("/admin"))
+
+    def test_admin_detail_hides_settings_and_deletes_everything(self):
+        token = self.signup_and_pair()
+        self.post("/contacts/add", name="엄마", phone=MOM)
+        self.add_rule(state="empty", kind="hold", minutes="30")
+        self.api("/api/state", {"state": "empty", "since": time.time() - 3600}, token)
+        S.tick(time.time())                                                  # 나만의 상황 알림이 실제로 생긴다
+        self.assertIsNotNone(S.q("select * from alerts where kind='rule'", one=True))
+        uid = S.q("select id from users", one=True)["id"]
+        with self.admin_env():
+            self.post("/admin/login", id="admin", pw="1234")
+            body = self.get(f"/admin/u/{uid}")
+            self.assertIn("MacBook", body)
+            self.assertIn("나만의 상황", body)                                # 알림이 있었다는 것과 종류만
+            for private in ("엄마", MOM, "수면", "빈 방이 30분"):
+                self.assertNotIn(private, body)                              # 생활 패턴은 관리자도 안 본다
+            self.post(f"/admin/u/{uid}/delete")
+        for t in ("users", "devices", "events", "alerts"):
+            self.assertEqual(S.q(f"select count(*) n from {t}", one=True)["n"], 0, t)
+        self.assertEqual(self.api("/api/state", {"state": "empty", "since": time.time()}, token)[0], 401)
+
     # ── 나만의 상황 (§3.5) ──────────────────────────────────────────────────
     def add_rule(self, **kw):
         form = {"id": "new", "when": "always", "state": "empty", "kind": "hold", "minutes": "30",

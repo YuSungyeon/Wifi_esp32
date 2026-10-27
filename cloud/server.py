@@ -436,8 +436,8 @@ NAV = (("home", "홈"), ("history", "기록"), ("settings", "설정"), ("devices
 
 
 def page(title: str, body: str, user=None, active: str = "", refresh: int | None = None,
-         flash: str = "") -> str:
-    nav = tabs = top = ""
+         flash: str = "", header: str = "") -> str:
+    nav, tabs = header, ""
     if user is not None:
         av = f'<div class="avatar" title="{e(user["name"])}">{e(user["name"][:1])}</div>'
         links = "".join(f'<a href="/{k}"{" class=on" if k == active else ""}>{t}</a>' for k, t in NAV)
@@ -1153,6 +1153,214 @@ MANIFEST = json.dumps({"name": "MeshSense Home", "short_name": "MeshSense", "sta
 ICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" '
         'fill="#111"/><circle cx="32" cy="32" r="16" fill="#fff"/><circle cx="32" cy="32" r="6" fill="#111"/></svg>')
 
+# ── 관리자 (계획 §5.1b) ─────────────────────────────────────────────────────
+ADMIN_FAILS: deque = deque()
+ADMIN_SESSION_S = 12 * 3600
+
+
+def admin_password() -> str:
+    """비어 있으면 관리자 페이지가 닫힌다 — 빈 비밀번호로 열리는 일이 없게."""
+    return os.environ.get("ADMIN_PASSWORD", "")
+
+
+def admin_mac(exp: int) -> str:
+    # 비밀번호 해시를 서명에 넣는다 — ADMIN_PASSWORD 를 바꾸면 열려 있던 관리자 세션이 모두 끊긴다.
+    # "admin:" 로 시작해 사용자 쿠키("<uid>.<exp>")의 서명과 겹치지 않는다.
+    return hmac.new(SECRET, f"admin:{exp}:{sha(admin_password())}".encode(), "sha256").hexdigest()
+
+
+def admin_cookie(on: bool) -> str:
+    secure = "; Secure" if BASE.startswith("https") else ""
+    if not on:
+        return f"a=; Path=/admin; Max-Age=0; HttpOnly; SameSite=Strict{secure}"
+    exp = int(time.time()) + ADMIN_SESSION_S
+    return f"a={exp}.{admin_mac(exp)}; Path=/admin; Max-Age={ADMIN_SESSION_S}; HttpOnly; SameSite=Strict{secure}"
+
+
+def is_admin(h) -> bool:
+    if not admin_password():
+        return False
+    for part in (h.headers.get("Cookie") or "").split(";"):
+        k, _, v = part.strip().partition("=")
+        if k == "a":
+            exp, _, sig = v.partition(".")
+            if exp.isdigit() and int(exp) > time.time() and hmac.compare_digest(sig, admin_mac(int(exp))):
+                return True
+    return False
+
+
+def admin_gate(h) -> bool:
+    """관리자면 True. 닫혀 있으면 404, 로그인 전이면 로그인 화면으로."""
+    if not admin_password():
+        h.send(404, page("없음", '<div class="confirm"><h1 class="display">없는 페이지예요</h1></div>'))
+        return False
+    if not is_admin(h):
+        h.redirect("/admin")
+        return False
+    return True
+
+
+ADMIN_TOP = ('<header class="adm-top"><a class="brand" href="/admin" style="color:inherit"><i></i>MeshSense</a>'
+             '<span class="adm-tag">관리자</span><form method="post" action="/admin/logout">'
+             '<button class="btn ghost sm">로그아웃</button></form></header>')
+
+
+def mask_phone(p: str) -> str:
+    d = digits(p)
+    return f"{d[:3]}-****-{d[-4:]}" if len(d) >= 10 else "—"
+
+
+def page_admin_login(err: str = "") -> str:
+    er = f'<p class="err mt">{e(err)}</p>' if err else ""
+    return page("관리자", f"""<div class="confirm" style="max-width:380px"><div class="brand center"><i></i>MeshSense</div>
+<h1 class="display" style="font-size:28px">관리자 로그인</h1><p class="muted">일반 사용자 로그인과 따로예요.</p>
+<form method="post" action="/admin/login" class="card" style="text-align:left;margin-top:24px">
+<label class="mt0">아이디</label><input name="id" required autocomplete="username">
+<label>비밀번호</label><input name="pw" type="password" required autocomplete="current-password">
+{er}<button class="btn primary wide lg mt16">로그인</button></form>
+<p class="note">10분에 5번 틀리면 잠시 막혀요.</p></div>""")
+
+
+def page_admin_users(find: str, now: float) -> str:
+    t0 = day_range(today(now))[0]
+    users = q("select * from users order by created desc")
+    if find:
+        users = [u for u in users if find.lower() in (u["name"] + " " + u["email"]).lower()]
+    devs = q("select * from devices")
+    n_wait = q("select count(*) n from users where verified is null", one=True)["n"]
+    live = sum(1 for d in devs if d["last_seen"] and not stale(d, now))
+    sms_n = (q("select n from sms_daily where day=?", (today(now),), one=True) or {"n": 0})["n"]
+    mail_n = (q("select n from sms_daily where day=?", ("mail:" + today(now),), one=True) or {"n": 0})["n"]
+
+    def stat(label, big, sub="", frac=None):
+        bar = f'<div class="sbar"><i style="width:{min(100, frac * 100):.0f}%"></i></div>' if frac is not None else ""
+        return f'<div class="stat"><small>{label}</small><b>{big}</b> <small>{sub}</small>{bar}</div>'
+
+    rows = []
+    for u in users:
+        mine = [d for d in devs if d["user_id"] == u["id"]]
+        d = max(mine, key=lambda x: x["last_seen"] or 0) if mine else None
+        dev = (f'{e(d["name"])}<br><small class="muted">{ago(now - d["last_seen"]) if d["last_seen"] else "신호 없음"}'
+               f'{" (끊김)" if stale(d, now) else ""}</small>' if d else '—')
+        n_alert = q("select count(*) n from alerts a join devices d on d.id=a.device_id where d.user_id=? "
+                    "and a.created>=?", (u["id"], t0), one=True)["n"]
+        ok = u["verified"] is not None
+        rows.append(f'<tr><td class="uname"><b>{e(u["name"])}</b><small>{e(u["email"])}</small></td>'
+                    f'<td class="hide-m">{mask_phone(u["phone"])}</td>'
+                    f'<td><span class="pill {"ok" if ok else "wait"}">{"인증" if ok else "인증 대기"}</span></td>'
+                    f'<td class="hide-m t">{datetime.fromtimestamp(u["created"], home.TZ).strftime("%m/%d")}</td>'
+                    f'<td class="hide-m">{dev}</td><td class="hide-m">{n_alert}건</td>'
+                    f'<td class="r"><a class="btn sm" href="/admin/u/{u["id"]}">보기</a></td></tr>')
+    table = ('<table class="ut"><tr><th>사용자</th><th class="hide-m">전화</th><th>상태</th><th class="hide-m">가입</th>'
+             '<th class="hide-m">집 기기</th><th class="hide-m">오늘 알림</th><th></th></tr>' + "".join(rows) + "</table>"
+             if rows else '<p class="muted small">사용자가 없어요.</p>')
+    body = (head("사용자", "가입한 계정과 연결된 집 기기")
+            + '<div class="stats">'
+            + stat("가입", q("select count(*) n from users", one=True)["n"], f"인증 대기 {n_wait}")
+            + stat("연결된 기기", len(devs), f"지금 신호 {live}")
+            + stat("오늘 문자", f"{sms_n} / {DAILY_CAP}", frac=sms_n / DAILY_CAP)
+            + stat("오늘 인증 메일", f"{mail_n} / {MAIL_DAILY_CAP}", frac=mail_n / MAIL_DAILY_CAP) + "</div>"
+            + f'<div class="card"><form class="search"><input name="q" value="{e(find)}" placeholder="이름·이메일로 찾기"></form>'
+            + table + "</div>")
+    return page("관리자", body, header=ADMIN_TOP)
+
+
+def page_admin_user(u, now: float) -> str:
+    """상세. **사용자 설정은 보여 주지 않는다** — 수면 시간·지인·나만의 상황은 생활 패턴이다(§5.1b)."""
+    ok = u["verified"] is not None
+    devs = q("select * from devices where user_id=? order by created", (u["id"],))
+    drows = "".join(
+        f'<div class="person"><span class="av" style="background:var(--card)">💻</span><div><b>{e(d["name"])}</b>'
+        f'<small>{"<i class=baddot></i>끊김 · " if stale(d, now) else "<i class=okdot></i>" if d["last_seen"] else ""}'
+        f'{ago(now - d["last_seen"]) + " 신호" if d["last_seen"] else "아직 신호 없음"}</small></div>'
+        f'<form method="post" action="/admin/d/{d["id"]}/delete"><button class="btn">해제</button></form></div>'
+        for d in devs)
+    body = (f'<div class="pagehead"><div><h1>{e(u["name"])}</h1><p>{e(u["email"])} · {mask_phone(u["phone"])} · '
+            f'{datetime.fromtimestamp(u["created"], home.TZ).strftime("%m/%d")} 가입 · '
+            f'<span class="pill {"ok" if ok else "wait"}">{"인증" if ok else "인증 대기"}</span></p></div>'
+            f'<a class="btn" href="/admin">← 목록</a></div>'
+            f'<div class="grid2"><div class="card"><h2>집 기기</h2>{drows or EMPTY_P.format("없어요.")}</div>'
+            f'<div class="stack"><div class="card"><h2>최근 알림</h2>{admin_alerts(u["id"])}</div>'
+            f'<form method="post" action="/admin/u/{u["id"]}/delete" class="card danger-card" '
+            f'onsubmit="return confirm(\'{e(u["email"])} 계정을 지웁니다. 되돌릴 수 없어요.\')">'
+            f'<h2>계정 삭제</h2><p class="muted small">계정·집 기기·기록·알림이 모두 지워지고 되돌릴 수 없어요.</p>'
+            f'<button class="btn danger-btn mt">이 계정 삭제</button></form></div></div>')
+    return page("관리자", body, header=ADMIN_TOP)
+
+
+def admin_alerts(uid: int) -> str:
+    """종류와 발송 결과만. 알림 문장(나만의 상황·응급 기준 분)은 사용자 설정이라 보여 주지 않는다."""
+    rows = q("select a.* from alerts a join devices d on d.id=a.device_id where d.user_id=? "
+             "order by a.created desc limit 10", (uid,))
+    if not rows:
+        return '<p class="muted small mt">알림이 없어요.</p>'
+    return '<table class="mt">' + "".join(
+        f'<tr><td class="t">{datetime.fromtimestamp(a["created"], home.TZ).strftime("%m/%d %H:%M")}</td>'
+        f'<td>{KIND[a["kind"]]}</td><td class="muted r">{e((a["status"] or "")[:40])}</td></tr>'
+        for a in rows) + "</table>"
+
+
+def delete_user(uid: int) -> None:
+    """계정과 그 계정의 모든 것 — 되돌릴 수 없다."""
+    for d in q("select id from devices where user_id=?", (uid,)):
+        q("delete from alerts where device_id=?", (d["id"],))
+        q("delete from events where device_id=?", (d["id"],))
+    for t in ("devices", "pair_codes", "email_codes"):
+        q(f"delete from {t} where user_id=?", (uid,))
+    q("delete from users where id=?", (uid,))
+
+
+def r_admin(h):
+    if not admin_password():
+        return admin_gate(h)
+    if not is_admin(h):
+        return h.send(200, page_admin_login(h.qs.get("e", "")))
+    h.send(200, page_admin_users(h.qs.get("q", "").strip()[:50], time.time()))
+
+
+def r_admin_login(h):
+    if not admin_password():
+        return admin_gate(h)
+    now = time.time()
+    while ADMIN_FAILS and now - ADMIN_FAILS[0] > 600:
+        ADMIN_FAILS.popleft()
+    if len(ADMIN_FAILS) >= 5:
+        return h.redirect("/admin?e=" + quote("너무 많이 틀렸어요. 10분 뒤에 다시 시도해 주세요"))
+    f = h.form()
+    if f.get("id") == "admin" and hmac.compare_digest(f.get("pw", "").encode(), admin_password().encode()):
+        ADMIN_FAILS.clear()
+        return h.redirect("/admin", admin_cookie(True))
+    ADMIN_FAILS.append(now)
+    h.redirect("/admin?e=" + quote("아이디나 비밀번호가 맞지 않아요"))
+
+
+def r_admin_logout(h):
+    h.redirect("/admin", admin_cookie(False))
+
+
+def r_admin_user(h, uid):
+    if admin_gate(h):
+        u = q("select * from users where id=?", (int(uid),), one=True)
+        if u is None:
+            return h.redirect("/admin")
+        h.send(200, page_admin_user(u, time.time()))
+
+
+def r_admin_user_delete(h, uid):
+    if admin_gate(h):
+        delete_user(int(uid))
+        h.redirect("/admin")
+
+
+def r_admin_device_delete(h, did):
+    if admin_gate(h):
+        d = q("select * from devices where id=?", (int(did),), one=True)
+        if d is not None:
+            q("delete from devices where id=?", (d["id"],))     # 토큰도 함께 사라진다
+            return h.redirect(f"/admin/u/{d['user_id']}")
+        h.redirect("/admin")
+
+
 ROUTES = [
     ("GET", r"/", r_index), ("POST", r"/login", r_login), ("POST", r"/signup", r_signup),
     ("POST", r"/logout", r_logout), ("GET", r"/verify", r_verify), ("POST", r"/verify", r_verify_post),
@@ -1164,6 +1372,9 @@ ROUTES = [
     ("POST", r"/devices/code", r_code), ("POST", r"/devices/del", r_device_del),
     ("GET", r"/c/([\w-]+)", r_confirm), ("POST", r"/c/([\w-]+)", r_confirm_post),
     ("POST", r"/api/pair", r_api_pair), ("POST", r"/api/state", r_api_state),
+    ("GET", r"/admin", r_admin), ("POST", r"/admin/login", r_admin_login),
+    ("POST", r"/admin/logout", r_admin_logout), ("GET", r"/admin/u/(\d+)", r_admin_user),
+    ("POST", r"/admin/u/(\d+)/delete", r_admin_user_delete), ("POST", r"/admin/d/(\d+)/delete", r_admin_device_delete),
     ("GET", r"/manifest.json", lambda h: h.send(200, MANIFEST, "application/manifest+json")),
     ("GET", r"/icon.svg", lambda h: h.send(200, ICON, "image/svg+xml")),
 ]
@@ -1312,6 +1523,24 @@ pre{background:var(--card);color:var(--ink);border-radius:8px;padding:12px 14px;
 .confirm h1{font-size:36px;margin:24px 0 8px} .confirm p{margin:0}
 .code-in{font:600 32px/1 ui-monospace,Menlo,monospace;letter-spacing:.4em;text-align:center;height:64px}
 .linkbtn{font:inherit;font-size:13px;color:var(--ink);background:none;border:0;padding:0;text-decoration:underline;cursor:pointer}
+.adm-top{height:56px;background:var(--inv);color:var(--on-inv);display:flex;align-items:center;gap:12px;padding:0 24px}
+.adm-top .brand i{background:var(--on-inv)} .adm-top .brand i::after{background:var(--inv)}
+.adm-tag{font-size:11px;padding:2px 8px;border-radius:999px;background:#ef4444;color:#fff;font-weight:700}
+.adm-top form{margin:0 0 0 auto} .adm-top .btn{color:var(--on-inv-soft)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.stat{background:var(--canvas);border:1px solid var(--line);border-radius:12px;padding:16px}
+.stat small{font-size:12px;color:var(--muted)} .stat>small:first-child{display:block}
+.stat b{font-size:24px;color:var(--ink);letter-spacing:-.02em}
+.sbar{height:6px;border-radius:3px;background:var(--card);margin-top:8px;overflow:hidden} .sbar i{display:block;height:100%;background:var(--ink)}
+.ut td{padding:12px 8px;vertical-align:middle;border-bottom:1px solid var(--line-soft)}
+.ut th{text-align:left;font-size:12px;color:var(--muted);font-weight:500;padding:8px;border-bottom:1px solid var(--line)}
+.ut td.uname{line-height:1.35} .ut .uname b{display:block;color:var(--ink);white-space:nowrap}
+.ut .uname small{display:block;color:var(--muted);font-size:12px;word-break:break-all}
+.ut .btn.sm,.pill{white-space:nowrap}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px}
+.pill.ok{background:#d1fae5;color:#065f46} .pill.wait{background:#fef3c7;color:#92400e}
+.search{margin:0 0 12px} .search input{max-width:320px}
+.danger-card{border-color:#fecaca} .danger-card h2{color:#ef4444} .danger-btn{color:#ef4444}
 .confirm .count{font-size:64px;color:var(--ink);font-variant-numeric:tabular-nums;margin:24px 0 4px}
 @media (max-width:767px){
   .top{display:none} .tabs{display:flex}
@@ -1324,7 +1553,7 @@ pre{background:var(--card);color:var(--ink);border-radius:8px;padding:12px 14px;
   .auth{grid-template-columns:1fr;padding:24px 0;gap:28px} .auth h1{font-size:36px} .auth .lead{font-size:16px}
   .savebar{display:flex;position:sticky;bottom:calc(76px + env(safe-area-inset-bottom));background:var(--soft);padding:12px 0}
   .savebar .btn{flex:1;height:48px}
-  .kpi b{font-size:17px} .hide-m{display:none}
+  .kpi b{font-size:17px} .hide-m{display:none} .stats{grid-template-columns:1fr 1fr}
 }
 """
 
