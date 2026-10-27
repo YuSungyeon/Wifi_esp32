@@ -35,7 +35,7 @@ from urllib.parse import parse_qs, quote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from realtime import home, sms  # noqa: E402
+from realtime import home  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 STATES = ("empty", "static", "motion", "deciding", "suspended")
@@ -158,13 +158,36 @@ def stale(dev, now: float) -> bool:
 
 
 # ── 문자 ────────────────────────────────────────────────────────────────────
+def digits(number: str) -> str:
+    """`010-1234-5678` → `01012345678`. SOLAPI 는 하이픈을 받지 않는다."""
+    return re.sub(r"\D", "", str(number))
+
+
 def send_sms(numbers: list[str], text: str) -> str:
-    """보낸 결과 문장. 테스트가 이 함수를 바꿔 끼운다 — 실제 번호로 나가면 안 된다."""
-    numbers = [n for n in numbers if sms.digits(n)]
-    if not numbers:
+    """보낸 결과 문장(`alerts.status` 에 남는다). 테스트가 이 함수를 바꿔 끼운다 — 실제 번호로 나가면 안 된다.
+
+    SOLAPI 키와 발신 번호는 환경 변수다(EC2 systemd `EnvironmentFile`). PLANNED: 카카오톡 알림으로
+    바꿀 때 이 함수만 갈아 끼운다.
+    """
+    to = [digits(n) for n in numbers if digits(n)]
+    if not to:
         return "error: 받는 번호가 없습니다"
-    _, status = sms.send({**sms.load(), "to": numbers}, text)
-    return status
+    key, secret, sender = (os.environ.get(k, "") for k in ("SOLAPI_API_KEY", "SOLAPI_API_SECRET", "SOLAPI_FROM"))
+    if not (key and secret and digits(sender)):
+        return "error: SOLAPI 환경 변수(SOLAPI_API_KEY·SOLAPI_API_SECRET·SOLAPI_FROM)가 없습니다"
+    try:
+        from solapi import SolapiMessageService
+        from solapi.model import RequestMessage
+    except ImportError:
+        return "error: solapi 가 설치되지 않았습니다 — pip install -r cloud/requirements.txt"
+    try:
+        res = SolapiMessageService(api_key=key, api_secret=secret).send(
+            RequestMessage(from_=digits(sender), to=to, text=text))
+        c = res.group_info.count
+        return f"sent {c.registered_success}/{c.total}" if c.registered_failed == 0 \
+            else f"error: 일부 실패 {c.registered_success}/{c.total}"
+    except Exception as e:                       # 네트워크·인증·발신번호 미등록이 전부 여기로 온다
+        return f"error: {e}"
 
 
 def hm(ts: float) -> str:
@@ -458,7 +481,7 @@ def page_history(user, date: str, now: float) -> str:
             f'<div class="kpi"><small>빈 방</small><b>{dur(tot.get("empty", 0))}</b></div>'
             f'<div class="kpi"><small>알림</small><b>{n_alert}건</b></div></div></div>'
             f'<div class="grid2 mt16"><div class="card"><h2>상태 변화</h2>'
-            f'{f"<table class=mt>{rows}</table>" if rows else "<p class=\"muted small mt\">기록이 없어요.</p>"}</div>'
+            f'{f"<table class=mt>{rows}</table>" if rows else EMPTY_P.format("기록이 없어요.")}</div>'
             f'<div class="card"><h2>이날 알림</h2>{alerts_table(user["id"], t0, t1, 50, False)}</div></div>')
     return page("기록", body, user, "history")
 
@@ -535,6 +558,7 @@ def page_settings(user, flash: str, edit: str = "", preset: str = "") -> str:
     return page("설정", body, user, "settings", flash=flash)
 
 
+EMPTY_P = '<p class="muted small mt">{}</p>'   # f-string 안에 역슬래시를 못 쓰는 Python 3.9(Amazon Linux) 대비
 AVC = ("#fbcfe8", "#a7f3d0", "#fde68a", "#c7d2fe", "#fed7aa")
 MAX_CONTACTS = 5
 
@@ -560,7 +584,7 @@ def page_devices(user, now: float) -> str:
         f'<button class="btn">해제</button></form></div>' for d in devs)
     body = (head("기기", "집에서 판단을 돌리는 컴퓨터를 이 계정에 연결합니다")
             + f'<div class="grid2"><div class="card"><h2>새 기기 연결</h2><p class="sub">코드는 10분 동안 한 번만 쓸 수 있어요.</p>{new}</div>'
-            f'<div class="card"><h2>연결된 기기</h2>{rows or "<p class=\"muted small\">아직 없어요.</p>"}'
+            f'<div class="card"><h2>연결된 기기</h2>{rows or EMPTY_P.format("아직 없어요.")}'
             f'<p class="note">해제하면 그 기기는 더 이상 기록을 보내지 못해요. 집 조명은 계속 동작합니다.</p></div></div>')
     return page("기기", body, user, "devices", refresh=30 if code else None)
 
@@ -596,7 +620,7 @@ PAIR_FAILS: deque = deque()
 
 
 def phone_ok(p: str) -> bool:
-    return re.fullmatch(r"01\d{8,9}", sms.digits(p)) is not None
+    return re.fullmatch(r"01\d{8,9}", digits(p)) is not None
 
 
 class H(BaseHTTPRequestHandler):

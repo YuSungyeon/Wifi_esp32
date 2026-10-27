@@ -168,6 +168,13 @@ class CloudFlow(unittest.TestCase):
         self.assertIsNotNone(S.q("select resolved from alerts where kind='offline'", one=True)["resolved"])
 
 
+    def test_real_sender_needs_env_and_says_so(self):
+        from unittest import mock
+        with mock.patch.dict("os.environ", {}, clear=True):
+            self.assertIn("SOLAPI 환경 변수", self._real_send([ME], "x"))
+        self.assertEqual(self._real_send(["없음"], "x"), "error: 받는 번호가 없습니다")
+        self.assertEqual(S.digits("010-1234-5678"), "01012345678")
+
     # ── 나만의 상황 (§3.5) ──────────────────────────────────────────────────
     def add_rule(self, **kw):
         form = {"id": "new", "when": "always", "state": "empty", "kind": "hold", "minutes": "30",

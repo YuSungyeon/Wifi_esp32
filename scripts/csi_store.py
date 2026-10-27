@@ -162,8 +162,9 @@ def parse_sink_status(frame: bytes) -> tuple[str, dict]:
     """SINK_STATUS 프레임 → (싱크 eFuse MAC, 카운터). 카운터는 부팅 이후 누적."""
     payload = frame[HEADER_SIZE:]
     mac = ":".join(f"{b:02X}" for b in payload[:6])
-    keys = ("sink_recv", "sink_sent", "sink_drop", "sink_usb_timeout", "sink_foreign")
-    return mac, dict(zip(keys, np.frombuffer(payload[16:36], dtype="<u4").tolist()))
+    keys = ("sink_recv", "sink_sent", "sink_drop", "sink_usb_timeout", "sink_foreign",
+            "sink_usb_rx", "sink_led_cmds")
+    return mac, dict(zip(keys, np.frombuffer(payload[16:44], dtype="<u4").tolist()))
 
 
 def parse_ident(frame: bytes) -> tuple[str, str, dict]:

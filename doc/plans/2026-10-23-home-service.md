@@ -137,6 +137,9 @@ Authorization: Bearer <device_token>
 - `csi_serial_reader` 가 **1초마다 현재 값을 그대로 다시 쓴다** — 보드가 리셋돼도 1초 안에
   복구되고, 변경 추적이 필요 없다.
 - 쓰기만 한다. **DTR/RTS 는 건드리지 않는다**(CLAUDE.md).
+- 정본은 [realtime-uplink.md "조명 명령"](../realtime-uplink.md). LED 는 내장 WS2812, **GPIO38**(v1.1 보드).
+- 엔진은 조명 기준(수면 시간·X분·N초)을 `home_service.json` 의 `config` 에서 읽는다(연동 전이면
+  기본값). 클라우드가 바꾸면 `Sender` 가 그 파일을 고쳐 다음 판단부터 따라간다.
 
 ### 4.3 연동 (홈페이지 → 로컬)
 
@@ -159,8 +162,13 @@ Authorization: Bearer <device_token>
 
 - 표준 라이브러리 `http.server`(제어판과 같은 방식) + `sqlite3`. 앞단은 **Caddy**(도메인만
   적으면 HTTPS 인증서 자동). systemd 로 상시 실행.
-- 문자 발송은 `realtime.sms.send()` 재사용 — EC2 에 저장소를 clone 하고 `pip install numpy solapi`
-  (`sms` → `csi_store` 가 numpy 를 import 한다).
+- 문자 발송은 `cloud/server.py:send_sms()` 한 함수다(SOLAPI). **키와 발신 번호는 환경 변수**
+  `SOLAPI_API_KEY`·`SOLAPI_API_SECRET`·`SOLAPI_FROM` — EC2 의 systemd `EnvironmentFile` 에 둔다
+  (2026-10-27). 셋 중 하나라도 없으면 보내지 않고 `error: …` 를 남긴다. 의존성은
+  `cloud/requirements.txt`(`solapi` 하나). **PLANNED: 카카오톡 알림으로 바꾼다** — 시연 전까지는 문자,
+  바꿀 때는 이 함수 하나만 갈아 끼운다.
+- 로컬 문자 알림(`realtime/sms.py`, 제어판 실시간 탭 카드)은 **2026-10-27 제거**했다 — 같은 상황에
+  두 통 가고, 집 기기가 죽은 것은 로컬이 알 수 없다.
 
 한 계정 = 한 집이다(여러 집은 범위 밖). 그래서 설정은 기기가 아니라 **계정**에 둔다 — 기기를
 연동하기 전에도 설정할 수 있고, 기기를 바꿔 끼워도 설정이 남는다.
@@ -227,11 +235,23 @@ SOLAPI 설정이 없으면 보내지 못하고 `error: API 키가 없습니다` 
 
 ### 1일 차 (10/23) — 조명
 
-- [ ] `realtime/home.py`: `in_sleep()`, `last_boundary()`, `led()` + `tests/test_home.py`
-- [ ] `engine.py`: 설정 파일(없으면 기본값)을 읽어 `view()["led"]`
-- [ ] 싱크 펌웨어: `usb_serial_jtag_read_bytes` task → LED. 수신·전달 task 우선순위를 건드리지 않는다
-- [ ] reader: LED 바이트 1초 주기 쓰기
-- [ ] 보드 확인: `LED_GPIO` 가 DevKitC v1.0 은 48, v1.1 은 38 — 실제 보드로 맞춘다
+- [x] `realtime/home.py`: `in_sleep()`, `last_boundary()`, `led()` + `tests/test_home.py` (2026-10-27)
+- [x] `engine.py`: 설정 파일(없으면 기본값)을 읽어 `view()["led"]` — 실시간일 때만, 클라우드에도 함께 보낸다
+- [x] 싱크 펌웨어: `usb_serial_jtag_read_bytes` task(우선순위 3) → LED. `espressif/led_strip ~2.5.5`
+- [x] reader: LED 바이트 1초 주기 쓰기 — `SINK_STATUS` 를 본 포트에만, `write_timeout=0`
+- [x] 보드 확인: **GPIO38** — 처음엔 Arduino 스케치(`LED_PIN 48`)를 따라 48 로 했다가 불이 안 켜졌다.
+  부팅 색 시험(48 빨강·38 초록)에서 초록이 보여 v1.1 보드로 확정 (troubleshooting/08)
+- 2026-10-27 실측: 싱크(58:E6:C5:73:FE:BC)에 플래시 → 바이트를 직접 보내며 읽기를 계속해도 `SINK_STATUS`
+  가 끊기지 않았다(12초 6프레임). reader 가 상태 파일의 `led` 를 싱크로 쓰는 것까지 돌렸다.
+- 2026-10-27 **전체 고리 실측** (세션 `20261027/204619_live_s63`, 886초, TX + RX 3대 + 싱크, 학습한 방과
+  **다른 방**): 정지 → `led=True` (첫 판단 20:47:00). 방을 나가자 20:54:18 빈 방 → `led=False`, 5분 동안
+  다시 켜지지 않았다(빈 방 확률이 0.54~0.89 로 흔들렸지만 유지 시간 때문에 상태가 바뀌지 않음). 들어오자
+  21:00:20 정지 → `led=True`. **LED 실물 켜짐·꺼짐은 사용자가 눈으로 확인했다.** 나간 뒤 꺼지기까지
+  ~15~20초(창 15초 + 정지↔빈 방 직행 유지 10초) — 설계대로다.
+- 수신률: 싱크 `drop=0`·`usb_timeout=0`, `led_cmds=803`(1초 재전송). RX 전달률(받은 프레임/보낸 프레임)은
+  RX101 98.6% · RX102 98.8% · RX103 99.7% — LED 전 세션 s61·s62(99.7~100%)보다 RX101·102 가 ~1% 낮다.
+  싱크 쪽 드롭이 0 이라 손실은 무선 구간이고, 이번엔 방·배치가 달라 **LED 영향인지는 가르지 못했다**
+  (같은 배치에서 옛 펌웨어와 맞바꿔 재야 가른다).
 - **완료 기준**: 손을 흔들면 LED 켜짐, 방을 비우면 꺼짐. 수면 시간을 지금으로 바꾸면 static X분 뒤 꺼짐.
   싱크 수신률(`SINK_STATUS` recv/sent)이 LED 추가 전과 같다.
 

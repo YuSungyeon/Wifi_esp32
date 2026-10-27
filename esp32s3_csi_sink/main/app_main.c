@@ -10,6 +10,9 @@
  * 프레임을 **해석하지 않고 그대로 흘려보낸다.** RX 가 만든 v4 프레임(CRC 포함)이
  * host 까지 무손상으로 도달하는지 확인할 수 있고, 프레임 규격이 바뀌어도 sink 는
  * 고칠 게 없다. host 파서는 USB 직결과 동일하다 (scripts/csi_store.py).
+ *
+ * 반대 방향(host → SINK)으로는 1바이트 조명 명령만 받는다 — '1' 켬, '0' 끔.
+ * 내장 RGB LED 가 집 상태 서비스의 "집의 불" 이다 (doc/realtime-uplink.md "조명 명령").
  */
 
 #include <string.h>
@@ -26,10 +29,19 @@
 #include "freertos/ringbuf.h"
 #include "driver/usb_serial_jtag.h"
 #include "esp_timer.h"
+#include "led_strip.h"
 
 #define SINK_CHANNEL            11
 #define SINK_RINGBUF_BYTES      (64 * 1024)
 #define SINK_USJ_TX_BUF_BYTES   (16 * 1024)
+
+/* "집의 불" — 내장 WS2812. 우리 보드는 DevKitC-1 **v1.1** 이라 GPIO38 이다 (v1.0 은 48).
+ * 처음 산 보드에 넣었던 Arduino 스케치는 48 이었고 이 LED 를 한 번도 건드리지 못했다 — 2026-10-27
+ * 부팅 색 시험(48 빨강·38 초록)으로 확인 (troubleshooting/08). 색은 따뜻한 흰색 — 실물을 보고 고친다. */
+#define LED_GPIO                38
+#define LED_R                   60
+#define LED_G                   40
+#define LED_B                   12
 
 /* 역할별 MAC — esp32s3_csi_recv_poc/main/app_main.c 와 짝이다.
  * RX 가 unicast 로 이 MAC 에 보내므로 여기서도 같은 값을 써야 한다. */
@@ -42,6 +54,8 @@ static volatile uint32_t g_sent = 0;      /* USB 로 완전히 나간 프레임 
 static volatile uint32_t g_drop = 0;      /* ring buffer full */
 static volatile uint32_t g_foreign = 0;   /* 우리 프레임이 아닌 ESP-NOW 패킷 (주로 TX 자극) */
 static volatile uint32_t g_usb_timeout = 0; /* USB write 가 100ms 안에 못 나가 프레임을 포기한 횟수 */
+static volatile uint32_t g_usb_rx = 0;      /* host → 싱크로 받은 바이트 (조명 명령) */
+static volatile uint32_t g_led_cmds = 0;    /* 그중 유효한 조명 명령 '0'/'1' */
 static uint8_t g_base_mac[6];
 
 /* sink 는 프레임을 해석하지 않는다. 서명·길이 확인에 필요한 앞부분만 안다. */
@@ -141,11 +155,38 @@ static void status_task(void *arg)
         uint8_t *p = buf + sizeof(sink_hdr_t);
         memcpy(p, g_base_mac, 6);
         memcpy(p + 6, "sink", 4);
-        uint32_t ctr[8] = { g_recv, g_sent, g_drop, g_usb_timeout, g_foreign, 0, 0, 0 };
+        uint32_t ctr[8] = { g_recv, g_sent, g_drop, g_usb_timeout, g_foreign, g_usb_rx, g_led_cmds, 0 };
         memcpy(p + 16, ctr, sizeof(ctr));   /* payload 48B: MAC 6 + "sink" 10 + 8×u32 */
         uint32_t crc = crc32_zlib(buf, sizeof(buf));
         memcpy(&h->crc32, &crc, 4);
         if (xRingbufferSend(g_ringbuf, buf, sizeof(buf), 0) != pdTRUE) g_drop++;
+    }
+}
+
+static led_strip_handle_t g_led;
+
+/* host 가 보내는 조명 명령을 읽는다. 별도 task 라 ESP-NOW 콜백·USB writer 를 막지 않는다.
+ * host 는 1초마다 같은 값을 다시 보내므로(리셋 복구용) 바뀔 때만 다시 그린다. */
+static void led_cmd_task(void *arg)
+{
+    (void)arg;
+    int cur = 0;                                   /* 부팅 때 껐다 */
+    while (1) {
+        uint8_t b;
+        if (usb_serial_jtag_read_bytes(&b, 1, portMAX_DELAY) != 1) continue;
+        g_usb_rx++;
+        if (b != '0' && b != '1') continue;        /* 다른 바이트는 무시 — 계약 */
+        g_led_cmds++;
+        int on = (b == '1');
+        if (on == cur) continue;
+        if (on) {
+            led_strip_set_pixel(g_led, 0, LED_R, LED_G, LED_B);
+            led_strip_refresh(g_led);
+        } else {
+            led_strip_clear(g_led);
+        }
+        cur = on;
+        ESP_LOGI(TAG, "led %s", on ? "on" : "off");
     }
 }
 
@@ -199,6 +240,16 @@ void app_main(void)
     xTaskCreate(usb_writer_task, "usb_writer", 4096, NULL, 5, NULL);
     xTaskCreate(hz_log_task, "hz_log", 3072, NULL, 4, NULL);
     xTaskCreate(status_task, "sink_status", 3072, NULL, 4, NULL);
+
+    led_strip_config_t led_cfg = {
+        .strip_gpio_num = LED_GPIO, .max_leds = 1,
+        .led_pixel_format = LED_PIXEL_FORMAT_GRB, .led_model = LED_MODEL_WS2812,
+    };
+    led_strip_rmt_config_t rmt_cfg = { .resolution_hz = 10 * 1000 * 1000 };
+    ESP_ERROR_CHECK(led_strip_new_rmt_device(&led_cfg, &rmt_cfg, &g_led));
+    led_strip_clear(g_led);                        /* 부팅 직후엔 끈다 */
+    /* 수신·전달(5)·상태(4)보다 낮게 — 조명이 1초 늦는 것은 괜찮고 프레임을 잃는 것은 안 된다 */
+    xTaskCreate(led_cmd_task, "led_cmd", 3072, NULL, 3, NULL);
 
     ESP_LOGI(TAG, "================ CSI SINK ================");
     ESP_LOGI(TAG, "channel=%d mac=" MACSTR, SINK_CHANNEL, MAC2STR(SINK_MAC));

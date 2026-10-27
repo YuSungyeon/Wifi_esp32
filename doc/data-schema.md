@@ -68,12 +68,14 @@ v2 는 magic 2바이트와 `raw_len` 상한만 검사했다. raw CSI 바이트 �
 |---:|---:|---|
 | 0 | 6 | 싱크 eFuse base MAC |
 | 6 | 10 | `"sink"` |
-| 16 | 8×4 | `recv`, `sent`, `drop`, `usb_timeout`, `foreign`, 예약 3 (u32) |
+| 16 | 8×4 | `recv`, `sent`, `drop`, `usb_timeout`, `foreign`, `usb_rx`, `led_cmds`, 예약 1 (u32) |
 
 싱크는 IDENT 를 내지 않는다 — 내면 host 가 RX 로 착각해 registry 를 뒤진다. 이 프레임으로
 "RX 는 보냈다는데 host 엔 안 왔다"가 싱크 링버퍼 드롭(`drop`)인지 USB 타임아웃
 (`usb_timeout`)인지 싱크 수신 이전(둘 다 0)인지 가른다. `foreign` 은 우리 프레임이 아닌
-ESP-NOW 패킷 수(주로 TX 자극 broadcast, ~100Hz). reader 는 세션 구간 델타를 같은 포트의
+ESP-NOW 패킷 수(주로 TX 자극 broadcast, ~100Hz). `usb_rx`·`led_cmds` 는 host 가 보낸
+조명 명령을 싱크가 받은 바이트 수와 그중 유효한 `'0'`/`'1'` 수다(2026-10-27 추가, 예약 칸을 썼으므로
+옛 펌웨어는 0 — [realtime-uplink.md "조명 명령"](realtime-uplink.md)). reader 는 세션 구간 델타를 같은 포트의
 모든 RX 레코드에 `sink_*` 로 남긴다.
 
 MAC 은 `device_registry.csv` 의 `sta_mac` 조회에 쓴다 — host 가 esptool 로 포트를

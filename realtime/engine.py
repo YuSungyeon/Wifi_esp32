@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from model_train.robust.shared_temporal import amplitude_input  # noqa: E402
-from realtime import home, sms  # noqa: E402
+from realtime import home  # noqa: E402
 from realtime.state import Event, Reading, StateMachine  # noqa: E402
 from realtime.stream import CsiStream  # noqa: E402
 
@@ -151,22 +151,22 @@ class Engine:
         # (기준, 연속 횟수) — 1단계가 이만큼 연속으로 움직임을 보면 상태 모델보다 먼저 motion 후보를 낸다.
         # None 이면 1단계는 화면 표시 전용.
         self.stage1_gate = stage1_gate
-        self._sms: sms.Watcher | None = None      # 실시간일 때만 생긴다 (_alert)
-        self._cloud: home.Sender | None = None    # 〃 — 집 상태 서비스 클라우드 전송
+        self._cloud: home.Sender | None = None    # 실시간일 때만 생긴다 (_alert)
+        self._led: bool | None = None             # 싱크 LED("집의 불") — None 이면 아직 모른다
 
     def _alert(self) -> None:
-        """문자 알림 — **실시간에서만** 부른다 (`doc/realtime-inference.md` §10).
+        """집 상태 서비스 — 조명을 판단하고 클라우드로 상태를 보낸다. **실시간에서만** 부른다.
 
-        재생은 지난 상태를 다시 흘리는 것이라, 여기서 조건이 맞아도 그건 과거다.
-        `step(now=...)` 가 주어졌으면 재생이므로 호출부가 걸러 준다.
+        알림 판단은 클라우드가 한다(집 상태 서비스 계획 §3.3). 재생은 지난 상태를 다시 흘리는
+        것이라 보내면 과거를 지금 일처럼 알린다. `step(now=...)` 가 주어졌으면 재생이므로
+        호출부가 걸러 준다.
         """
-        if self._sms is None:
-            self._sms = sms.Watcher(session=self.dir.name)
-        self._sms.check(self.sm.state)
         if self._cloud is None:
             self._cloud = home.Sender()
-        # ponytail: 조명(led)은 아직 판단하지 않는다 — 싱크보드 LED 작업(계획 1일 차) 때 채운다
-        self._cloud.offer(self.sm.state, time.time() - self.sm.held_s)
+        # 조명 기준은 클라우드가 내려 준 설정(연동 전이면 기본값). reader 가 view()["led"] 를 싱크로 쓴다
+        cfg = {**home.DEFAULT, **(home.load().get("config") or {})}
+        self._led = home.led(self.sm.state, self.sm.held_s, time.time(), cfg, self._led)
+        self._cloud.offer(self.sm.state, time.time() - self.sm.held_s, self._led)
 
     # ── 판단 한 번 ──────────────────────────────────────────────────────────
     def _window_input(self, win) -> np.ndarray:
@@ -279,7 +279,7 @@ class Engine:
                 "n_rx": len(self._rx) if self._rx else len(self.stream.rx_alive()),
                 "hz": round(self._hz, 1),
                 "session": self.dir.name, "window_s": self.window / 100,
-                "cloud": self._cloud.last if self._cloud else None,
+                "cloud": self._cloud.last if self._cloud else None, "led": self._led,
                 "model": self.model_name, "model_kind": self.kind,
                 "events": [{"t": round(e.t, 2), "from": e.frm, "to": e.to,
                             "confidence": round(e.confidence, 4)} for e in self.events[-30:]]}

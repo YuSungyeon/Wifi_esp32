@@ -54,6 +54,7 @@ RX 가 보내는 IDENT 도 그대로 전달되므로 `device_id` 자동 식별�
 
 ```bash
 # SINK (registry 등록 불필요 — device_id 를 쓰지 않는다)
+# LED 드라이버(espressif/led_strip)는 첫 빌드 때 component manager 가 받아 온다 (인터넷 필요)
 cd esp32s3_csi_sink && idf.py set-target esp32s3 && idf.py -p <포트> flash
 
 # RX 업링크 모드 (보드마다 CSI_RX_ID 를 다르게, 오프셋은 rx_id × OFFSET_MS 로 자동 분산)
@@ -71,6 +72,26 @@ idf.py -DCSI_UPLINK_ENABLED=0 -p <포트> flash
 텍스트로 나온다**: `5s: cb=… (+…, 99.4Hz) uplink_ok=… fail=… ringbuf_drop=…`.
 싱크 없이도 그 RX 의 CSI 콜백률과 업링크 성공률을 바로 볼 수 있다 (`screen`/`cat` 으로 충분).
 `fail=0` 이면 싱크가 켜져 ACK 하고 있다는 뜻이다.
+
+## 조명 명령 — host → 싱크 (집 상태 서비스)
+
+**상태: CURRENT CONTRACT** (2026-10-27). 싱크의 내장 RGB LED(WS2812, **GPIO38**, GRB — 우리 보드는 DevKitC-1 v1.1. v1.0 은 GPIO48)를
+"집의 불" 로 쓴다. 판단은 host 엔진이 하고([계획](plans/2026-10-23-home-service.md) §3.2), 싱크는
+켜고 끄기만 한다.
+
+| 방향 | 내용 |
+|---|---|
+| host → 싱크 | **1바이트** — `'1'`(0x31) 켬, `'0'`(0x30) 끔. 다른 바이트는 무시 |
+| 누가 쓰나 | 그 포트를 이미 열고 있는 `csi_serial_reader` — 세션 폴더 `realtime_status.json` 의 `led` 를 **1초마다 그대로 다시 쓴다**. 값이 `null` 이면 쓰지 않는다 |
+| 언제만 쓰나 | 그 포트에서 `SINK_STATUS` 를 본 뒤에만 — RX 보드는 USB 를 읽지 않아 쓰면 host 버퍼만 찬다. 쓰기는 non-blocking(`write_timeout=0`) |
+
+- 1초 재전송이라 싱크가 리셋돼도 1초 안에 원래 불로 돌아온다. 변경 추적이 필요 없다.
+- 싱크가 명령을 받았는지는 `SINK_STATUS` 의 `usb_rx`·`led_cmds` 로 host 에서 본다
+  ([data-schema.md](data-schema.md)) — 불이 안 켜질 때 "안 받았나 / 받았는데 못 켰나" 를 가른다.
+- 부팅 직후에는 끈다.
+- 싱크의 읽기는 **별도 task** 다. ESP-NOW 수신 콜백과 USB writer 를 막지 않는다 — 콜백 안
+  동기 I/O 금지 규칙(CLAUDE.md)은 그대로다.
+- DTR/RTS 는 건드리지 않는다. 쓰기만 한다.
 
 ## 수집
 

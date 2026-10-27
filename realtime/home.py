@@ -85,6 +85,23 @@ def last_boundary(now: float, hhmm: str) -> float:
     return b.timestamp()
 
 
+def led(state: str, held_s: float, now: float, cfg: dict, cur: bool | None) -> bool | None:
+    """조명을 켤지(§3.2). `cur` 는 지금 조명 — 판단을 못 하면 그대로 둔다. None 이면 아직 모른다.
+
+    수면 중에는 뒤척임(짧은 motion)에 켜지지 않고, 가만히 X분이면 끈다. X분은 수면 시작부터 센다.
+    """
+    if state == "empty":
+        return False
+    if state not in ("static", "motion"):          # deciding · suspended — 모르면 건드리지 않는다
+        return cur
+    ws = window_start(now, "sleep", cfg)
+    if ws is None:
+        return True
+    if state == "motion":
+        return True if held_s >= cfg["motion_wake_s"] else cur
+    return False if now - max(now - held_s, ws) >= cfg["sleep_off_min"] * 60 else cur
+
+
 def emergency_held(now: float, since: float, cfg: dict) -> float:
     """응급 판단에 쓰는 유지 시간(초). 수면 중이면 0 — 시계가 멈춰 있다."""
     ws = window_start(now, "awake", cfg)
