@@ -132,6 +132,9 @@ SOLAPI 요금 단위와 같다). 날짜는 `Asia/Seoul`. 넘으면 보내지 않
 - **하루 메일 상한 100통 — 서비스 전체.** 가입은 아무 주소에나 메일을 보내게 하므로, 열어 두면 남의 메일함에
   스팸을 쏘는 데 쓰일 수 있다. 문자 상한과 같은 표(`sms_daily`, 열쇠 `mail:날짜`)로 센다.
 - 이 기능 전에 가입한 계정은 인증된 것으로 친다(열을 더할 때 `verified = created`).
+- **실서버 확인 (2026-10-27)**: `https://meshsense.cloud` 에서 가입 → 인증 메일 수신 → 코드 입력 → 홈. 첫 배포에선
+  `Connection unexpectedly closed` 로 실패했는데 진짜 이유는 Gmail 535(앱 비밀번호 불일치)였고, smtplib 의
+  `AUTH LOGIN` 재시도가 그 이유를 가렸다(troubleshooting/07). PLAIN 으로 고정하고 앱 비밀번호를 새로 만들어 해결.
 
 ## 4. 계약
 
