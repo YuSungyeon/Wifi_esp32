@@ -23,7 +23,8 @@ SUSPENDED = "suspended"
 class Reading:
     t: float                 # 초 단위 단조 시각
     probs: tuple             # (empty, static, motion)
-    n_rx: int                # 이 창에서 살아 있던 RX 수
+    n_rx: int                # 지금 살아 있는 RX 수
+    missing: tuple = ()      # 끊긴 RX — 화면 사유문에 이름을 적는다
 
 
 @dataclass(frozen=True)
@@ -35,10 +36,12 @@ class Event:
 
 
 class StateMachine:
-    def __init__(self, conf: float = 0.6, degraded_conf: float = 0.85,
+    def __init__(self, conf: float = 0.6, required_rx: int = 3,
                  motion_hold_s: float = 1.0, rest_hold_s: float = 5.0,
                  direct_switch_s: float = 10.0) -> None:
-        self.conf, self.degraded_conf = conf, degraded_conf
+        # 모델이 쓰는 RX 가 하나라도 없으면 멈춘다 — 배포 모델은 3대로만 학습·평가됐다
+        # (doc/realtime-inference.md §5 ⑤, 2026-10-28). 2-RX 모델이 생기면 이 값을 내린다.
+        self.conf, self.required_rx = conf, required_rx
         self.motion_hold_s, self.rest_hold_s = motion_hold_s, rest_hold_s
         self.direct_switch_s = direct_switch_s
         self.state, self.since, self.confidence, self.note = DECIDING, 0.0, 0.0, ""
@@ -46,13 +49,12 @@ class StateMachine:
         self._cand: str | None = None      # 지금 쌓고 있는 후보
         self._cand_from = 0.0              # 그 후보가 시작된 시각
         self._t = 0.0
-        self._degraded = False
         self._last_decided = ""
 
     # ── 조회 ────────────────────────────────────────────────────────────────
     @property
     def threshold(self) -> float:
-        return self.degraded_conf if self._degraded else self.conf
+        return self.conf
 
     @property
     def held_s(self) -> float:
@@ -78,15 +80,14 @@ class StateMachine:
     def update(self, r: Reading) -> Event | None:
         self._t = r.t
         self.probs = tuple(r.probs)
-        self._degraded = r.n_rx == 2
         self.note = ""
 
-        if r.n_rx <= 1:
+        if r.n_rx < self.required_rx:
             self._cand = None
-            self.note = f"RX {r.n_rx}대 — 판단 정지. 마지막 판단 {self._last_decided or '없음'}"
+            lost = " · " + ", ".join(f"RX{x}" for x in r.missing) + " 끊김" if r.missing else ""
+            self.note = (f"RX {r.n_rx}/{self.required_rx}대{lost} — 판단 정지. "
+                         f"마지막 판단 {self._last_decided or '없음'}")
             return self._to(r.t, SUSPENDED, 0.0) if self.state != SUSPENDED else None
-        if self._degraded:
-            self.note = f"RX 2대 — 확신 {self.degraded_conf:.0%} 이상일 때만 판단합니다"
 
         top = int(max(range(3), key=lambda i: r.probs[i]))
         candidate, p = CLASSES[top], float(r.probs[top])
