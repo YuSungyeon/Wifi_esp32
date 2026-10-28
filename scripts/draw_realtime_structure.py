@@ -49,7 +49,9 @@ def matrix(ax, x, y, w, h, label, cols=15, rows=6, color=BLUE):
 def save(fig, name):
     OUT.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT/(name+'.png'), dpi=160, bbox_inches='tight', pad_inches=.25)
-    fig.savefig(OUT/(name+'.svg'), bbox_inches='tight', pad_inches=.25)
+    svg = OUT/(name+'.svg')
+    fig.savefig(svg, bbox_inches='tight', pad_inches=.25)
+    svg.write_text('\n'.join(line.rstrip() for line in svg.read_text().splitlines())+'\n')
     plt.close(fig)
 
 
@@ -129,12 +131,12 @@ def state():
                   '확률이 충분한 같은 후보가 필요한 시간만큼 유지되면 상태 변경',14)
     box(ax,50,113,85,9,'판정용 확률 입력\n15초 모델 확률 또는 움직임 우선 조건으로 설정된 (0, 0, 1)',ORANGE)
     arrow(ax,50,108.5,50,102)
-    box(ax,50,97,65,10,'RX 확인',ORANGE,size=17)
+    box(ax,50,97,65,10,'필수 RX 3대의 최근 수신 확인\n3초간 미수신 RX가 있는가?',ORANGE,size=15)
     arrow(ax,82.5,97,95,97)
-    box(ax,88,82,22,10,'RX ≤ 1\nsuspended\n후보 삭제',size=12)
+    box(ax,88,82,22,10,'RX 하나라도 끊김\nsuspended\n후보 삭제',size=11)
     arrow(ax,95,97,88,87)
-    arrow(ax,50,92,50,85,'RX ≥ 2')
-    box(ax,45,78,61,13,'최대 확률의 클래스를 후보로 선택\nRX 3대: 60% 이상\nRX 2대: 85% 이상',ORANGE)
+    arrow(ax,50,92,50,85,'3대 모두 수신')
+    box(ax,45,78,61,13,'최대 확률의 클래스를 후보로 선택\n후보 확률 기준: 60% 이상',ORANGE)
     arrow(ax,14.5,78,7,78)
     box(ax,10,59,19,12,'확률 미달\n현재 상태 유지\n후보 삭제',size=11)
     arrow(ax,7,78,10,65)

@@ -1,5 +1,7 @@
 # 실시간 분류 상세 구조도
 
+> 상태: **CURRENT** — 2026-10-28 main 통합 기준. 필수 RX 중 하나라도 3초간 미수신이면 판단 정지.
+
 ![RX 3대에서 두 모델의 확률까지](assets/realtime-structure/01-pipeline.png)
 
 ![두 모델의 CNN 층과 특징 통합 구조](assets/realtime-structure/02-cnn.png)
