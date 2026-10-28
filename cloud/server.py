@@ -464,6 +464,7 @@ LINE = {
     "walk": '<circle cx="13" cy="4" r="2"/><path d="M9 21l2-6 3 2v4M7 12l3-4 4 1 2 4 3 1"/>',
     "plug": '<path d="M9 2v6M15 2v6M7 8h10v4a5 5 0 0 1-10 0zM12 17v5"/>',
     "heart": '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+    "user": '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
     "users": '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 4a3 3 0 0 1 0 6M21 20a6 6 0 0 0-4-5.7"/>',
 }
 
@@ -507,17 +508,22 @@ def page(title: str, body: str, user=None, active: str = "", refresh: int | None
          flash: str = "", header: str = "") -> str:
     nav, tabs = header, ""
     if user is not None:
-        av = f'<div class="avatar" title="{e(user["name"])}">{e(user["name"][:1])}</div>'
+        av = (f'<details class="umenu"><summary class="avatar" aria-label="내 메뉴">{e(user["name"][:1])}</summary>'
+              f'<div class="drop"><div class="dhead"><b>{e(user["name"])}</b><small>{e(user["email"])}</small></div>'
+              '<button type="button" class="ditem" data-open="me">내 정보</button>'
+              '<form method="post" action="/logout"><button class="ditem">로그아웃</button></form></div></details>')
         links = "".join(f'<a href="/{k}"{" class=on" if k == active else ""}>{t}</a>' for k, t in NAV)
         nav = (f'<header class="top"><a class="brand" href="/home">{LOGO}MeshSense</a>'
                f'<nav class="pills">{links}</nav>'
-               f'<form method="post" action="/logout" class="who">{av}<button class="btn ghost sm">로그아웃</button></form></header>'
+               f'<div class="who">{av}</div></header>'
                f'<div class="mtitle"><a class="brand" href="/home">{LOGO}MeshSense</a>{av}</div>')
         tabs = '<nav class="tabs">' + "".join(
             f'<a href="/{k}"{" class=on" if k == active else ""}><svg viewBox="0 0 24 24" fill="none" '
             f'stroke="currentColor" stroke-width="1.8">{ICONS[k]}</svg>{t}</a>' for k, t in NAV) + "</nav>"
     meta = f'<meta http-equiv="refresh" content="{refresh}">' if refresh else ""
     fl = f'<div class="flash">{e(flash)}</div>' if flash else ""
+    if user is not None:
+        tabs += me_dialog(user)
     return f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">{meta}
 <title>{e(title)} · MeshSense</title>
@@ -556,6 +562,29 @@ document.querySelectorAll('input[data-phone]').forEach(function (inp) {
   document.querySelectorAll('a[href^="/settings"]').forEach(function (a) { a.addEventListener('click', keep); });
   document.querySelectorAll('form:not([data-stay]):not(#cfg)').forEach(function (f) { f.addEventListener('submit', keep); });
 })();
+// 사용자 메뉴·내 정보 팝업 — 바깥을 누르면 닫는다
+document.addEventListener('click', function (ev) {
+  document.querySelectorAll('details.umenu[open]').forEach(function (d) { if (!d.contains(ev.target)) d.open = false; });
+});
+(function () {
+  var dlg = document.getElementById('me');
+  if (!dlg) return;
+  var open = function () {
+    dlg.querySelector('input[name=back]').value = location.pathname;
+    document.querySelectorAll('details.umenu').forEach(function (d) { d.open = false; });
+    dlg.showModal();
+  };
+  document.querySelectorAll('[data-open=me]').forEach(function (b) { b.addEventListener('click', open); });
+  dlg.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', function () { dlg.close(); }); });
+  dlg.addEventListener('click', function (ev) { if (ev.target === dlg) dlg.close(); });
+  var u = new URL(location.href), m = u.searchParams.get('me');
+  if (m !== null) {
+    var p = dlg.querySelector('.memsg');
+    p.textContent = m === 'ok' ? '저장했어요' : m; p.hidden = false; p.classList.toggle('bad', m !== 'ok');
+    u.searchParams.delete('me'); history.replaceState(null, '', u.pathname + u.search + u.hash);
+    open();
+  }
+})();
 // 켜기/끄기 단추: 서버는 눌린 카드(#sleep …)로 돌려보내 화면이 위로 밀린다. 뒤에서 보내고 제자리에서 다시 그린다
 document.querySelectorAll('form[data-stay]').forEach(function (f) {
   f.addEventListener('submit', function (ev) {
@@ -565,6 +594,19 @@ document.querySelectorAll('form[data-stay]').forEach(function (f) {
   });
 });
 </script>"""
+
+
+def me_dialog(user) -> str:
+    """내 정보 팝업(시안 v9). 저장하면 보던 화면으로 돌아와 `?me=` 문장을 팝업 안에 띄운다."""
+    return (f'<dialog id="me" class="modal"><form method="post" action="/account">'
+            f'{chead("user", "내 정보", right="<button type=button class=x data-close aria-label=닫기>×</button>")}'
+            '<p class="sub">긴급·외출·끊김 알림이 이 번호로 가요.</p><p class="memsg" hidden></p>'
+            f'<label class="mt0">이름</label><input name="name" value="{e(user["name"])}" maxlength="20" required>'
+            f'<label>휴대폰</label><input name="phone" data-phone inputmode="tel" value="{e(fmt_phone(user["phone"]))}" required>'
+            f'<label>이메일</label><div class="ro">{e(user["email"])} <span class="ok-badge">✓ 인증됨</span></div>'
+            '<input type="hidden" name="back" value="/home">'
+            '<div class="edbar"><button class="btn primary">저장</button>'
+            '<button type="button" class="btn ghost" data-close>닫기</button></div></form></dialog>')
 
 
 def head(title: str, sub: str = "", right: str = "") -> str:
@@ -793,8 +835,7 @@ def page_settings(user, flash: str, edit: str = "", preset: str = "", contact: d
 <p class="sub fix">{"깨어 있는 시간에 너무 오래 움직임이 없으면, 먼저 나에게 묻고 답이 없으면 지인에게 알려요." if on else
                     "<b>지금은 꺼져 있어요.</b> 오래 움직임이 없어도 나와 지인에게 문자를 보내지 않아요."}</p>
 <div class="fg"><div><label class="mt0">나에게 확인 문자</label>{num('static_alert_min', '분 움직임 없으면')}</div>
-<div><label class="mt0">지인에게 문자</label>{num('confirm_min', '분 안에 확인 없으면')}</div>
-<div class="full"><label>내 번호</label><input name="phone" data-phone inputmode="tel" value="{e(fmt_phone(user['phone']))}" required></div></div></div>
+<div><label class="mt0">지인에게 문자</label>{num('confirm_min', '분 안에 확인 없으면')}</div></div></div>
 {away_card(c)}
 <div class="savebar"><button class="btn primary">저장</button></div></form>
 <div class="stack">{rules_card(c, edit, preset)}{contacts_card(user, c, contact or {})}</div></div>""")
@@ -864,7 +905,7 @@ def away_card(c: dict) -> str:
             f'<label>다시 알림</label>{seg("away_repeat_min", AWAY_REPEAT, c["away_repeat_min"])}'
             '<p class="note">처음 잡히면 바로 보내고, 그 뒤엔 이 간격마다 최대 한 통이에요. 멈췄다 움직였다 해도 그 사이엔 안 보내요.</p>'
             f'<label>알릴 사람</label>{seg("away_notify", AWAY_NOTIFY, c["away_notify"])}'
-            '<p class="smsmeta">문자 예시 · 시각은 실제로 잡힌 때, 가만히 있다 잡히면 "사람이"</p>'
+            '<p class="smsmeta">문자 예시</p>'
             '<div class="smsprev">[MeshSense] 외출 중인데 방에서 움직임이 잡혔습니다 (14:02)</div></div>')
 
 
@@ -892,10 +933,17 @@ def page_devices(user, now: float) -> str:
         f'{datetime.fromtimestamp(d["created"], home.TZ).strftime("%m/%d")} 연결</small></div>'
         f'<form method="post" action="/devices/del"><input type="hidden" name="id" value="{d["id"]}">'
         f'<button class="btn">해제</button></form></div>' for d in devs)
-    body = (head("기기", "집에서 판단을 돌리는 컴퓨터를 이 계정에 연결합니다")
-            + f'<div class="grid2"><div class="card"><h2>새 기기 연결</h2><p class="sub">코드는 10분 동안 한 번만 쓸 수 있어요.</p>{new}</div>'
-            f'<div class="card"><h2>연결된 기기</h2>{rows or EMPTY_P.format("아직 없어요.")}'
-            f'<p class="note">해제하면 그 기기는 더 이상 기록을 보내지 못해요. 집 조명은 계속 동작합니다.</p></div></div>')
+    sub = head("기기", "집에서 판단을 돌리는 컴퓨터를 이 계정에 연결합니다")
+    if devs:                                       # 연결됨 — 코드 발급 칸은 없다 (시안 v9)
+        body = sub + (f'<div class="grid2"><div class="card"><h2>연결된 기기</h2>{rows}'
+                      '<p class="note">해제해도 집 조명은 계속 동작합니다. 홈페이지 기록은 끊긴 것으로 보여요.</p></div>'
+                      '<div class="card"><h2>다른 컴퓨터로 바꾸려면</h2><p class="sub">한 계정에는 집 기기 <b>한 대</b>만 연결돼요.</p>'
+                      '<ol class="steps"><li>지금 기기를 <b>해제</b>해요</li><li>이 화면에 다시 생기는 <b>연동 코드 발급</b>을 눌러요</li>'
+                      '<li>새 컴퓨터의 <b>제어판 → 연동</b> 탭에 코드를 넣어요</li></ol></div></div>')
+    else:
+        body = sub + (f'<div class="grid2"><div class="card"><h2>집 기기 연결</h2><p class="sub">한 계정에는 집 기기 <b>한 대</b>만 '
+                      f'연결돼요. 코드는 10분 동안 한 번만 쓸 수 있어요.</p>{new}</div>'
+                      f'<div class="card"><h2>연결된 기기</h2>{EMPTY_P.format("아직 없어요.")}</div></div>')
     return page("기기", body, user, "devices", refresh=30 if code else None)
 
 
@@ -1191,15 +1239,12 @@ def r_settings_save(h):
         if not v.isdigit() or not lo <= int(v) <= hi:
             return h.redirect("/settings?e=" + quote(f"숫자는 {lo}~{hi} 사이로 적어 주세요"))
         cfg[k] = int(v)
-    if not phone_ok(f.get("phone", "")):
-        return h.redirect("/settings?e=" + quote("휴대폰 번호 형식이 아니에요"))
     away = {k: f.get(k, str(cfg[k])) for k in ("away_trigger", "away_repeat_min", "away_notify")}   # 빠지면 그대로
     if (away["away_trigger"] not in AWAY_TRIGGER or away["away_repeat_min"] not in AWAY_REPEAT
             or away["away_notify"] not in AWAY_NOTIFY):
         return h.redirect("/settings?e=" + quote("외출 모드 값을 확인해 주세요"))
     cfg.update(away_trigger=away["away_trigger"], away_repeat_min=int(away["away_repeat_min"]),
                away_notify=away["away_notify"])
-    q("update users set phone=? where id=?", (digits(f["phone"]), u["id"]))
     save_config(u["id"], cfg)
     h.redirect("/settings?ok=1")
 
@@ -1270,6 +1315,21 @@ def r_contact_cancel(h):
     if (u := h.need_user()):
         q("delete from contact_codes where user_id=?", (u["id"],))
         h.redirect("/settings#contacts")
+
+
+def r_account(h):
+    """내 정보 저장. 번호는 숫자만 — 긴급·외출·끊김 문자가 가는 번호다."""
+    if not (u := h.need_user()):
+        return
+    f = h.form()
+    name, phone = f.get("name", "").strip(), digits(f.get("phone", ""))
+    back = f.get("back", "")
+    back = back if back in ("/home", "/history", "/settings", "/devices") else "/home"   # 남의 주소로는 보내지 않는다
+    err = ("이름을 적어 주세요" if not name or len(name) > 20 else
+           "휴대폰 번호 형식이 아니에요" if not phone_ok(phone) else "")
+    if not err:
+        q("update users set name=?, phone=? where id=?", (name, phone, u["id"]))
+    h.redirect(back + "?me=" + quote(err or "ok"))
 
 
 def flip(key: str):
@@ -1349,6 +1409,8 @@ def r_code(h):
     if not (u := h.need_user()):
         return
     now = time.time()
+    if device_of(u["id"]):
+        return h.redirect("/devices")              # 한 계정 = 집 기기 한 대 (§4.3) — 먼저 해제한다
     q("delete from pair_codes where user_id=? or expires<?", (u["id"], now))
     while True:
         code = f"{secrets.randbelow(10 ** 6):06d}"
@@ -1400,6 +1462,8 @@ def r_api_pair(h):
         PAIR_FAILS.append(now)
         return h.json({"error": "코드가 틀렸거나 만료되었습니다"}, 400)
     q("delete from pair_codes where code=?", (code,))
+    if device_of(row["user_id"]):                 # 코드를 받은 뒤 다른 기기가 먼저 붙었다
+        return h.json({"error": "이미 연결된 기기가 있어요 — 홈페이지 → 기기에서 먼저 해제해 주세요"}, 409)
     token = secrets.token_urlsafe(32)
     q("insert into devices(user_id,name,token_hash,created) values(?,?,?,?)",
       (row["user_id"], name, sha(token), now))
@@ -1678,7 +1742,7 @@ ROUTES = [
     ("POST", r"/settings", r_settings_save), ("POST", r"/contacts/send", r_contact_send),
     ("POST", r"/contacts/verify", r_contact_verify), ("POST", r"/contacts/resend", r_contact_resend),
     ("POST", r"/contacts/cancel", r_contact_cancel), ("POST", r"/emergency", flip("emergency")),
-    ("POST", r"/sleep", flip("sleep")),
+    ("POST", r"/sleep", flip("sleep")), ("POST", r"/account", r_account),
     ("POST", r"/contacts/del", r_contact_del), ("POST", r"/rules/save", r_rule_save),
     ("POST", r"/rules/toggle", r_rule_toggle), ("POST", r"/rules/del", r_rule_del), ("GET", r"/devices", r_devices),
     ("POST", r"/devices/code", r_code), ("POST", r"/devices/del", r_device_del),
@@ -1719,6 +1783,20 @@ a{color:var(--ink)} h1,h2{color:var(--ink);margin:0;font-weight:600}
 .pills a{padding:7px 16px;border-radius:999px;font-size:14px;font-weight:500;color:var(--muted);text-decoration:none}
 .pills a.on{background:var(--canvas);color:var(--ink);box-shadow:var(--sh2)}
 .who{display:flex;align-items:center;gap:4px;margin:0}
+.umenu{position:relative} .umenu summary{list-style:none;cursor:pointer} .umenu summary::-webkit-details-marker{display:none}
+.drop{position:absolute;right:0;top:44px;z-index:20;min-width:200px;background:var(--canvas);border:1px solid var(--line);
+ border-radius:12px;box-shadow:var(--sh2);padding:6px}
+.dhead{padding:8px 10px 10px;border-bottom:1px solid var(--line-soft);margin-bottom:4px}
+.dhead b{display:block;color:var(--ink);font-size:14px} .dhead small{color:var(--muted);font-size:12px}
+.drop form{margin:0} .ditem{display:block;width:100%;text-align:left;font:inherit;font-size:14px;color:var(--ink);
+ background:none;border:0;border-radius:8px;padding:9px 10px;cursor:pointer} .ditem:hover{background:var(--card)}
+.modal{border:1px solid var(--line);border-radius:16px;padding:24px;width:min(440px,calc(100vw - 32px));
+ background:var(--canvas);color:var(--body);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal::backdrop{background:rgba(0,0,0,.4)} .modal form{margin:0}
+.modal .x{font:inherit;font-size:22px;line-height:1;background:none;border:0;color:var(--muted);cursor:pointer;padding:4px}
+.modal .edbar{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+.memsg{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--ok)} .memsg.bad{color:var(--bad)}
+.ro{height:44px;display:flex;align-items:center;gap:8px;color:var(--ink);font-size:15px}
 .avatar{width:36px;height:36px;border-radius:50%;background:#fde68a;color:#111;display:grid;place-items:center;
  font-size:13px;font-weight:600}
 .tabs{display:none;position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--canvas);
@@ -1798,7 +1876,8 @@ input:focus{outline:0;border-color:var(--ink)} input.date{width:auto}
 .unit{display:flex;align-items:center;gap:10px} .unit input{width:96px;flex:none;text-align:right}
 .unit span{color:var(--muted);font-size:14px}
 .row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
-input[type=time]{min-width:0}
+input[type=time]{min-width:0;display:block;-webkit-appearance:none;appearance:none}   /* iOS 는 기본 모양이 칸 밖으로 나간다 */
+input[type=time]::-webkit-date-and-time-value{text-align:left} .fg>div{min-width:0}
 select{height:44px;padding:0 12px;font:inherit;color:var(--ink);background:var(--canvas);border:1px solid var(--line);
  border-radius:8px;max-width:100%}
 .rule{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line-soft)}

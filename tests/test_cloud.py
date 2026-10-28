@@ -197,13 +197,40 @@ class CloudFlow(unittest.TestCase):
         S.tick(time.time())
         self.assertEqual(len(self.sent), 1)                                  # 늘 깨어 있으니 응급이 간다
 
-    def test_phone_is_stored_as_digits_and_shown_with_hyphens(self):
-        self.signup()
-        self.post("/settings", sleep_start="00:00", sleep_end="07:00", sleep_off_min="10", motion_wake_s="5",
-                  static_alert_min="60", confirm_min="5", phone="010-9999-8888")
+    def test_phone_is_stored_as_digits(self):
+        self.post("/signup", name="성연", email="me@example.com", pw="password1", phone="010-9999-8888")
         self.assertEqual(S.q("select phone from users", one=True)["phone"], "01099998888")
-        self.assertIn('value="010-9999-8888"', self.get("/settings"))
+        self.post("/verify", code=self.last_code())
+        self.assertNotIn("내 번호", self.get("/settings"))                    # 가입 때 받은 번호를 쓴다
         self.assertEqual(S.fmt_phone("0101234"), "010-1234")
+
+    def test_my_info_popup_saves_and_returns(self):
+        page_ = self.signup()
+        self.assertIn('data-open="me"', page_)                               # 사용자 메뉴 → 내 정보
+        self.assertIn('<dialog id="me"', page_)
+        url, _ = self.post("/account", name="성연2", phone="010-7777-6666", back="/settings")
+        self.assertTrue(url.endswith("/settings?me=ok"))                      # 보던 화면으로
+        u = S.q("select * from users", one=True)
+        self.assertEqual((u["name"], u["phone"]), ("성연2", "01077776666"))
+        url, _ = self.post("/account", name="성연", phone="123", back="https://evil.example")
+        self.assertIn("/home?me=", url)                                      # 남의 주소로는 안 보낸다
+        self.assertEqual(S.q("select phone from users", one=True)["phone"], "01077776666")
+
+    def test_one_device_per_account(self):
+        self.signup_and_pair()
+        page_ = self.get("/devices")
+        self.assertNotIn('action="/devices/code"', page_)                   # 연결돼 있으면 발급 칸이 없다
+        self.assertIn("다른 컴퓨터로 바꾸려면", page_)
+        self.post("/devices/code")
+        self.assertIsNone(S.q("select * from pair_codes", one=True))         # 직접 눌러도 안 만든다
+        uid = S.q("select id from users", one=True)["id"]
+        S.q("insert into pair_codes(code,user_id,expires) values(?,?,?)", ("123456", uid, time.time() + 600))
+        st, res = self.api("/api/pair", {"code": "123456", "name": "두 번째"})
+        self.assertEqual(st, 409)                                            # 코드가 있어도 두 번째는 거절
+        self.assertEqual(S.q("select count(*) n from devices", one=True)["n"], 1)
+        d = S.q("select id from devices", one=True)["id"]
+        self.post("/devices/del", id=str(d))
+        self.assertIn('action="/devices/code"', self.get("/devices"))       # 해제하면 다시 받을 수 있다
 
     def test_contact_needs_the_code_sent_to_that_phone(self):
         self.signup()
