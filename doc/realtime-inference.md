@@ -162,17 +162,53 @@ softmax 평균이다.
 
 ## 3. 데이터 흐름
 
-```text
-보드 → SINK → USB → ① csi_serial_reader.py (현행 그대로, .csi 저장)
-                        │
-                        ▼
-                     ② 실시간 판단 프로그램 (신규)
-                        · 저장 중인 .csi 를 tail 로 따라 읽는다
-                        · 3-RX 를 tx_seq 격자로 정렬 (공식 전처리와 같은 규칙)
-                        · 최근 W초 링버퍼 유지
-                        · 0.3초마다 상태 모델 + 1단계 → 게이트 → 판정 규칙
-                        ▼
-                     ③ 출력: 상태 전환 이벤트 파일 + 제어판(GUI) 현재 상태 표시
+[상세 구조도: 전체 연결 · CNN 각 층 · 상태 기계](realtime-structure.md)
+
+```mermaid
+flowchart TB
+    RX1["RX101 · CSI 원본 I/Q"] --> RAW
+    RX2["RX102 · CSI 원본 I/Q"] --> RAW
+    RX3["RX103 · CSI 원본 I/Q"] --> RAW
+    RAW["SINK → USB → CRC 검사 · .csi 저장<br/>실시간 프로그램이 읽고 tx_seq로 3대 정렬"]
+    RAW --> AMP["진폭 계산: √(I² + Q²)<br/>RX당 51톤 → 총 153개 진폭 신호<br/>짧은 누락 보간"]
+    AMP --> BUF["실시간 프로그램이 최근 데이터를 보관<br/>기본 0.3초마다 두 길이의 창을 꺼냄"]
+
+    subgraph LONG["15초 진폭 모델 · 3분류"]
+        W15["최근 15초 · 1,500시점 × 153신호"]
+        P15["RX당 17개 선택 → 총 51신호<br/>각 신호를 이 창의 평균 + 0.5로 나눔<br/>10시점씩 평균 → 시간 평균 제거 → ×3 · 범위 제한<br/>유효 입력: 150시점 × 51신호 × 진폭 1채널"]
+        C15["51신호에 같은 CNN 적용<br/>Conv 1→8 · k5 / p2 → BN · ReLU · AvgPool2<br/>Conv 8→16 · k5 / p2 → BN · ReLU · AvgPool2<br/>Conv 16→16 · k3 / p1 → BN · ReLU<br/>Conv stride 1 · Pool stride 2"]
+        F15["시간축 평균·표준편차 → 신호당 특징 32개<br/>51신호의 평균·표준편차·최대 → 통합 특징 96개<br/>Linear 96→32 → ReLU → Linear 32→3"]
+        O15["Softmax → seed 3개 모델의 확률 평균<br/>empty / static / motion"]
+        W15 --> P15 --> C15 --> F15 --> O15
+    end
+
+    subgraph SHORT["3초 진폭 모델 · 움직임 2분류"]
+        W3["최근 3초 · 300시점 × 153신호"]
+        P3["RX당 17개 선택 → 총 51신호<br/>각 신호를 이 창의 평균 + 0.5로 나눔<br/>10시점씩 평균 → 시간 평균 제거 → ×3 · 범위 제한<br/>유효 입력: 30시점 × 51신호 × 진폭 1채널"]
+        C3["51신호에 같은 CNN 적용<br/>Conv 1→8 · k5 / p2 → BN · ReLU · AvgPool2<br/>Conv 8→16 · k5 / p2 → BN · ReLU · AvgPool2<br/>Conv 16→16 · k3 / p1 → BN · ReLU<br/>Conv stride 1 · Pool stride 2"]
+        F3["시간축 평균·표준편차 → 신호당 특징 32개<br/>51신호의 평균·표준편차·최대 → 통합 특징 96개<br/>Linear 96→32 → ReLU → Linear 32→2"]
+        O3["Softmax → seed 3개 모델의 확률 평균<br/>rest / motion"]
+        W3 --> P3 --> C3 --> F3 --> O3
+    end
+
+    BUF --> W15
+    BUF --> W3
+    O15 --> G
+    O3 --> G{"3초 모델의 최근 3회가<br/>모두 motion 확률 90% 이상인가?"}
+    G -->|예| OV["판정용 확률: empty 0 · static 0 · motion 1"]
+    G -->|아니오| KEEP["15초 모델의 세 확률 그대로 사용<br/>15초 모델의 motion도 사용"]
+    OV --> SM
+    KEEP --> SM["상태 기계<br/>① RX 확인: 1대 이하 판단 정지<br/>② 후보 확률 기준: 3대 60% · 2대 85%<br/>③ 새 후보 유지: motion 1초 · empty/static 5초<br/>empty↔static 직접 전환은 10초<br/>조건 충족 전에는 현재 상태 유지"]
+    SM --> OUT["GUI · CLI 최종 표시와 상태 전환 기록<br/>empty: 빈 방 · static: 정지한 사람 · motion: 움직임<br/>준비 중 deciding · 수신 부족 suspended"]
+
+    classDef input fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef model fill:#eef2ff,stroke:#6366f1,color:#312e81
+    classDef rule fill:#fff7ed,stroke:#ea580c,color:#7c2d12
+    classDef output fill:#dcfce7,stroke:#16a34a,color:#14532d
+    class RX1,RX2,RX3,RAW,AMP,BUF input
+    class W15,P15,C15,F15,O15,W3,P3,C3,F3,O3 model
+    class G,OV,KEEP,SM rule
+    class OUT output
 ```
 
 **수집 코드는 고치지 않는다.** 판단 프로그램이 `.csi` 를 뒤따라 읽는 이유:
@@ -199,15 +235,33 @@ JSONL(`csi_amp`, 진폭만)과 공식 전처리 계약은 바꾸지 않는다.
 들어오거나 나가려면 움직여야 하기 때문이다. 그래서 빈 방·정지 판정은 움직임이 끝난 뒤
 한 번 내리고, 다음 움직임 전까지 쉽게 뒤집지 않는다. 이것이 장시간 오탐을 막는 핵심이다.
 
-```text
-        움직임 감지
-   ┌──────────────────────────────────────────┐
-   ▼                                          │
-[motion] ──조용해짐──▶ [deciding] ──W초 동안 움직임 없음──┐
-   ▲                        ▲                             │
-   │                        └── 확신도 < 기준 ─────────────┤
-   │                                                       ▼
-   └──────── 움직임 감지 ◀──────────────── [empty] 또는 [static]
+```mermaid
+stateDiagram-v2
+    direction TB
+    state "판단 준비 · deciding" as D
+    state "움직임 · motion" as M
+    state "빈 방 · empty" as E
+    state "정지한 사람 · static" as S
+
+    [*] --> D
+    D --> M: motion 후보 1초 유지
+    D --> E: empty 후보 5초 유지
+    D --> S: static 후보 5초 유지
+
+    M --> E: empty 후보 5초 유지
+    E --> M: motion 후보 1초 유지
+    M --> S: static 후보 5초 유지
+    S --> M: motion 후보 1초 유지
+
+    E --> S: static 후보 10초 유지
+    S --> E: empty 후보 10초 유지
+
+    note right of D
+        화살표는 화면 상태가 바뀌는 조건
+        후보 확률 기준: RX 3대 60%, RX 2대 85%
+        확률 부족: 현재 상태 유지, 후보 초기화
+        후보가 바뀌면 유지 시간도 다시 시작
+    end note
 ```
 
 모델은 0.3초마다 3-class 확률을 낸다. 상태 기계는 그 위에서 **확신 기준**과 **유지 시간**만

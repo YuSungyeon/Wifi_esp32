@@ -30,6 +30,7 @@
 | 17 | [진폭·위상 입력 규격 결정](adr-csi-phase-experiment.md) | **ACCEPTED** — 이전 3초 비교 실험의 별도 입력 경로 |
 | 18 | [30초 3분류 입력 규격 결정](adr-robust-three-class-experiment.md) | **ACCEPTED** — 상대 진폭·긴 구간을 쓰는 후속 실험 |
 | 19 | [모델 실험·학습 작업 기록](sprint/2026-09-phase-classification.md) | **HISTORICAL** — 실험·검증·설명 문서의 작업 이력 |
+| 20 | [수집 데이터셋 공개 적합성 점검](dataset-release-readiness.md) | **SUPPORTING ANALYSIS** — 9/16·17·19·20 75세션의 무결성·라벨·설계·메타데이터·공개 요건 (2026-10-27) |
 
 ## 문서 상태 규칙
 
