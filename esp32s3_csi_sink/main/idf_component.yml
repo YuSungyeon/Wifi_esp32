@@ -1,0 +1,3 @@
+## 싱크 LED("집의 불") — 내장 WS2812 를 RMT 로 그린다 (doc/realtime-uplink.md "조명 명령")
+dependencies:
+  espressif/led_strip: "~2.5.5"

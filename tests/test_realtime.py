@@ -64,13 +64,15 @@ class StateMachineTest(unittest.TestCase):
         feed(self.sm, 20.0, 6, (0.02, 0.03, 0.95))
         self.assertEqual(self.sm.state, "motion")
 
-    def test_two_rx_raises_the_threshold(self):
-        sm = StateMachine(conf=0.7, degraded_conf=0.85)
-        feed(sm, 0.0, 100, (0.8, 0.15, 0.05), n_rx=2)   # 0.8 < 0.85
-        self.assertEqual(sm.state, "deciding")
-        self.assertIn("RX 2대", sm.note)
-        feed(sm, 30.0, 100, (0.9, 0.05, 0.05), n_rx=2)
-        self.assertEqual(sm.state, "empty")
+    def test_one_missing_rx_suspends_and_names_it(self):
+        # 배포 모델은 3대로만 학습·평가됐다 — 2대로 판단하는 척하지 않는다 (§5 ⑤, 2026-10-28)
+        feed(self.sm, 0.0, 60, (0.9, 0.05, 0.05))
+        self.sm.update(Reading(t=30.0, probs=(0.9, 0.05, 0.05), n_rx=2, missing=(102,)))
+        self.assertEqual(self.sm.state, "suspended")
+        self.assertIn("RX 2/3대", self.sm.note)
+        self.assertIn("RX102 끊김", self.sm.note)
+        feed(self.sm, 31.0, 100, (0.02, 0.03, 0.95))                   # 돌아오면 다시 판단한다
+        self.assertEqual(self.sm.state, "motion")
 
     def test_one_rx_suspends_and_reports_the_last_decision(self):
         feed(self.sm, 0.0, 60, (0.9, 0.05, 0.05))
@@ -354,3 +356,43 @@ class LiveSessionTest(unittest.TestCase):
             self.assertIsNone(gui.live_session_dir(raw))          # 시작 지연 중: 파일이 아직 없다
             (new / "device_101.csi").write_bytes(b"x")
             self.assertEqual(gui.live_session_dir(raw), new)      # 수집 중
+
+
+class FrozenWindowTest(unittest.TestCase):
+    """한 RX 가 멈추면 창도 멈춘다 — 멈춘 창은 3대가 다 살아 있어 보여도 지금 끊겼으면 멈춰야 한다."""
+
+    def engine(self, d):
+        from realtime.engine import Engine
+        return Engine(Path(d), model_path=None, stage1=None)
+
+    def test_silent_rx_suspends_even_if_the_window_looks_whole(self):
+        import tempfile
+        from unittest import mock
+        from realtime import home
+        with tempfile.TemporaryDirectory() as d:
+            eng = self.engine(d)
+            frozen = ((0.05, 0.9, 0.05), (101, 102, 103))             # 끊기기 직전 창 — 정지, 3대
+            with mock.patch.object(home, "Sender") as snd, \
+                    mock.patch.object(eng, "predict", return_value=frozen), \
+                    mock.patch.object(eng.stream, "rx_alive", return_value=(101, 102, 103)):
+                snd.return_value.last = {}
+                for _ in range(40):
+                    eng._t0 -= 0.3                                     # 엔진 시계를 판단 간격만큼 민다
+                    eng.step()
+                self.assertEqual(eng.sm.state, "static")
+                with mock.patch.object(eng.stream, "rx_alive", return_value=(101, 103)):
+                    eng.step()
+                self.assertEqual(eng.sm.state, "suspended")
+                self.assertIn("RX102 끊김", eng.sm.note)
+                self.assertEqual(snd.return_value.offer.call_args[0][0], "suspended")   # 클라우드에도 판단 정지
+
+    def test_waits_quietly_before_any_frame_arrives(self):
+        import tempfile
+        from unittest import mock
+        from realtime import home
+        with tempfile.TemporaryDirectory() as d:
+            eng = self.engine(d)
+            with mock.patch.object(home, "Sender") as snd, mock.patch.object(eng.stream, "rx_alive", return_value=()):
+                snd.return_value.last = {}
+                eng.step()
+            self.assertEqual(eng.sm.state, "deciding")                 # 켜자마자 판단 정지로 튀지 않는다

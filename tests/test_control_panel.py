@@ -374,10 +374,11 @@ class FileNameTest(unittest.TestCase):
 class TabTest(unittest.TestCase):
     """탭 이름이 곧 할 일이고, 순서가 곧 작업 순서다 (설계 §2)."""
 
-    def test_exactly_four_tabs_in_work_order(self):
+    def test_tabs_in_work_order(self):
+        # 연동(cloud)은 2026-10-25 집 상태 서비스로 다섯 번째에 붙었다 (설계 §6b)
         import re
         self.assertEqual(re.findall(r'data-t="(\w+)"', gui.PAGE),
-                         ["collect", "sessions", "train", "realtime"])
+                         ["collect", "sessions", "train", "realtime", "cloud"])
 
     def test_collect_is_the_default_tab(self):
         self.assertIn('data-t="collect" class="on"', gui.PAGE)

@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from model_train.robust.shared_temporal import amplitude_input  # noqa: E402
+from realtime import home  # noqa: E402
 from realtime.state import Event, Reading, StateMachine  # noqa: E402
 from realtime.stream import CsiStream  # noqa: E402
 
@@ -150,6 +151,24 @@ class Engine:
         # (기준, 연속 횟수) — 1단계가 이만큼 연속으로 움직임을 보면 상태 모델보다 먼저 motion 후보를 낸다.
         # None 이면 1단계는 화면 표시 전용.
         self.stage1_gate = stage1_gate
+        self._cloud: home.Sender | None = None    # 실시간일 때만 생긴다 (_alert)
+        self._led: bool | None = None             # 싱크 LED("집의 불") — None 이면 아직 모른다
+
+    def _alert(self) -> None:
+        """집 상태 서비스 — 조명을 판단하고 클라우드로 상태를 보낸다. **실시간에서만** 부른다.
+
+        알림 판단은 클라우드가 한다(집 상태 서비스 계획 §3.3). 재생은 지난 상태를 다시 흘리는
+        것이라 보내면 과거를 지금 일처럼 알린다. `step(now=...)` 가 주어졌으면 재생이므로
+        호출부가 걸러 준다.
+        """
+        if self._cloud is None:
+            self._cloud = home.Sender()
+        # 조명 기준은 클라우드가 내려 준 설정(연동 전이면 기본값). reader 가 view()["led"] 를 싱크로 쓴다
+        cfg = {**home.DEFAULT, **(home.load().get("config") or {})}
+        self._led = home.led(self.sm.state, self.sm.held_s, time.time(), cfg, self._led)
+        live = self.stream.rx_alive()
+        self._cloud.offer(self.sm.state, time.time() - self.sm.held_s, self._led,
+                          {str(rx): rx in live for rx in self.stream.rx_order})
 
     # ── 판단 한 번 ──────────────────────────────────────────────────────────
     def _window_input(self, win) -> np.ndarray:
@@ -203,22 +222,28 @@ class Engine:
         self._activity.append(self.activity())
         del self._activity[:-ACTIVITY_KEEP]
         got = self.predict()
-        if got is None:
+        # 실시간에선 "지금" 살아 있는 RX 를 **수신 시각**으로 본다 — 창으로 보면 안 된다. 창 끝은 모든 RX 가
+        # 도달한 지점이라 한 대가 멈추면 창도 그 순간에 멈추고, 멈춘 창 안에선 세 대가 다 살아 있어 마지막
+        # 상태를 굳힌 채 내보냈다(doc/realtime-inference.md §5 ⑤). 재생은 파일이 고정이라 창으로 본다.
+        live = self.stream.rx_alive() if now is None else None
+        # 켜자마자 아직 아무것도 안 들어왔으면 기다린다 — 들어오기 시작했는데 모자라면 그때 멈춘다
+        lost = live is not None and len(live) < self.sm.required_rx and (live or self.sm.state != "deciding")
+        if lost:
+            reading = Reading(t=t, probs=(0.0, 0.0, 0.0), n_rx=len(live),
+                              missing=tuple(rx for rx in self.stream.rx_order if rx not in live))
+        elif got is None:
             # 창이 덜 찼거나 긴 공백으로 이번 판단을 건너뛴다. **후보 유지 시간은 그대로 둔다** —
             # 이것을 "확신 없음" 으로 넘기면 후보가 지워져 15초 유지가 공백마다 처음부터 다시 쌓인다.
-            # RX 손실은 별도: 창이 안 나오는 이유가 RX 끊김이면 그것만 상태 기계에 알린다.
-            alive = self.stream.rx_alive() if now is None else ()
-            if now is None and len(alive) <= 1 and self.sm.state != "deciding":
-                reading = Reading(t=t, probs=(0.0, 0.0, 0.0), n_rx=len(alive))
-            else:
-                self.sm._t = t
-                write_status(self.dir / STATUS_NAME, self.view())
-                return None
+            self.sm._t = t
+            if now is None:
+                self._alert()
+            write_status(self.dir / STATUS_NAME, self.view())
+            return None
         else:
             probs, alive = got
             if self._motion_now():
                 probs = (0.0, 0.0, 1.0)      # 1단계가 본 움직임이 30초 창의 평균을 이긴다
-            reading = Reading(t=t, probs=probs, n_rx=len(alive))
+            reading = Reading(t=t, probs=probs, n_rx=len(alive if live is None else live))
             self._window_probs.append((t, probs))
         ev = self.sm.update(reading)
         if ev:
@@ -227,6 +252,8 @@ class Engine:
                 fp.write(json.dumps({"t": round(ev.t, 2), "from": ev.frm, "to": ev.to,
                                      "confidence": round(ev.confidence, 4),
                                      "wall": time.time()}, ensure_ascii=False) + "\n")
+        if now is None:
+            self._alert()
         write_status(self.dir / STATUS_NAME, self.view())
         return ev
 
@@ -258,6 +285,7 @@ class Engine:
                 "n_rx": len(self._rx) if self._rx else len(self.stream.rx_alive()),
                 "hz": round(self._hz, 1),
                 "session": self.dir.name, "window_s": self.window / 100,
+                "cloud": self._cloud.last if self._cloud else None, "led": self._led,
                 "model": self.model_name, "model_kind": self.kind,
                 "events": [{"t": round(e.t, 2), "from": e.frm, "to": e.to,
                             "confidence": round(e.confidence, 4)} for e in self.events[-30:]]}

@@ -75,6 +75,7 @@ def open_serial(port: str, baud: int, *, force_lines: bool = False) -> "serial.S
     ser.port = port
     ser.baudrate = baud
     ser.timeout = 0.2
+    ser.write_timeout = 0          # 조명 바이트 — 막히면 버리고 다음 초에 (수신을 멈추지 않는다)
     if force_lines:
         ser.dtr = False
         ser.rts = False
@@ -86,6 +87,18 @@ def open_serial(port: str, baud: int, *, force_lines: bool = False) -> "serial.S
         except OSError:
             pass
     return ser
+
+
+def led_byte(session_dir: Path) -> Optional[bytes]:
+    """엔진이 정한 싱크 조명(`realtime_status.json` 의 `led`). 없거나 아직 모르면 None.
+
+    계약: doc/realtime-uplink.md "조명 명령" — `b"1"` 켬, `b"0"` 끔.
+    """
+    try:
+        v = json.loads((Path(session_dir) / "realtime_status.json").read_text(encoding="utf-8")).get("led")
+    except (OSError, ValueError, AttributeError):   # 실시간이 안 돌거나, rename 직전의 부분 파일
+        return None
+    return None if v is None else (b"1" if v else b"0")
 
 
 def lookup_device_id(mac: str, registry: Path) -> tuple[Optional[int], str]:
@@ -234,6 +247,7 @@ def main() -> int:
     start = time.monotonic()
     last_frame_at = start
     last_flush = start
+    last_led = start
     rc = 0
 
     def stream_for(rx_id: int) -> "RxStream":
@@ -325,6 +339,17 @@ def main() -> int:
                 for x in streams.values():
                     x.flush()
                 last_flush = now
+
+            # 조명은 싱크에만, 1초마다 같은 값을 다시 쓴다 — 싱크가 리셋돼도 1초 안에 돌아온다.
+            # RX 보드는 USB 를 읽지 않으므로 SINK_STATUS 를 본 포트에만 쓴다.
+            if sink_base and now - last_led >= 1.0:
+                last_led = now
+                b = led_byte(args.session_dir)
+                if b is not None:
+                    try:
+                        ser.write(b)
+                    except serial.SerialException:     # write_timeout=0 — 못 쓰면 다음 초에
+                        pass
 
             identified = any(x.device_id is not None for x in streams.values())
             if not identified and now - start > args.ident_timeout:
