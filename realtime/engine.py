@@ -166,7 +166,9 @@ class Engine:
         # 조명 기준은 클라우드가 내려 준 설정(연동 전이면 기본값). reader 가 view()["led"] 를 싱크로 쓴다
         cfg = {**home.DEFAULT, **(home.load().get("config") or {})}
         self._led = home.led(self.sm.state, self.sm.held_s, time.time(), cfg, self._led)
-        self._cloud.offer(self.sm.state, time.time() - self.sm.held_s, self._led)
+        live = self.stream.rx_alive()
+        self._cloud.offer(self.sm.state, time.time() - self.sm.held_s, self._led,
+                          {str(rx): rx in live for rx in self.stream.rx_order})
 
     # ── 판단 한 번 ──────────────────────────────────────────────────────────
     def _window_input(self, win) -> np.ndarray:

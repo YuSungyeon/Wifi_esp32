@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT))
 from cloud import server as S  # noqa: E402
 from realtime import home  # noqa: E402
 
-ME, MOM = "010-1111-2222", "010-3333-4444"
+ME, MOM = "01011112222", "01033334444"   # 저장·발송은 숫자만 (§3.8)
 
 
 class CloudFlow(unittest.TestCase):
@@ -66,6 +66,12 @@ class CloudFlow(unittest.TestCase):
                 return r.status, json.loads(r.read())
         except urllib.error.HTTPError as e:
             return e.code, json.loads(e.read())
+
+    def add_contact(self, name, phone):
+        """지인 등록(§3.8) — 인증 문자에서 코드를 꺼내 넣는다. 그 문자는 뒤 검사의 발송 수에서 뺀다."""
+        self.post("/contacts/send", name=name, phone=phone)
+        code = re.search(r"인증번호 (\d{6})", self.sent.pop()[1]).group(1)
+        return self.post("/contacts/verify", code=code)
 
     def last_code(self):
         return re.search(r"인증 코드 (\d{6})", self.mails[-1][1]).group(1)
@@ -113,7 +119,7 @@ class CloudFlow(unittest.TestCase):
     def test_emergency_confirm_then_escalate(self):
         token = self.signup_and_pair()
         self.awake_now()
-        self.post("/contacts/add", name="엄마", phone=MOM)
+        self.add_contact("엄마", MOM)
         now = time.time()
         st, res = self.api("/api/state", {"state": "static", "since": now - 7200, "led": True}, token)
         self.assertEqual(st, 200)
@@ -161,6 +167,79 @@ class CloudFlow(unittest.TestCase):
         S.tick(time.time())
         self.assertEqual(self.sent, [])
 
+    def test_emergency_can_be_turned_off(self):
+        token = self.signup_and_pair()
+        self.awake_now()
+        self.api("/api/state", {"state": "static", "since": time.time() - 7200}, token)
+        S.tick(time.time())
+        self.assertEqual(len(self.sent), 1)
+        self.post("/emergency")                                             # 끄면 판단하지 않고 열린 건도 닫는다
+        self.assertIn("지금은 꺼져 있어요", self.get("/settings"))
+        S.tick(time.time() + 120)
+        self.assertEqual(len(self.sent), 1)
+        self.assertIsNotNone(self.emergency()["resolved"])
+        self.post("/emergency")                                             # 다시 켜면 새 건
+        S.tick(time.time())
+        self.assertEqual(len(self.sent), 2)
+
+    def test_sleep_can_be_turned_off(self):
+        token = self.signup_and_pair()
+        h = datetime.now(home.TZ).hour
+        self.post("/settings", sleep_start=f"{(h - 1) % 24:02d}:00", sleep_end=f"{(h + 1) % 24:02d}:00",
+                  sleep_off_min="10", motion_wake_s="5", static_alert_min="60", confirm_min="1", phone=ME)
+        self.api("/api/state", {"state": "static", "since": time.time() - 7200}, token)
+        S.tick(time.time())
+        self.assertEqual(self.sent, [])                                      # 수면 중이라 안 보낸다
+        self.post("/sleep")
+        self.assertIn("하루 내내 깨어 있는 시간", self.get("/settings"))
+        st, res = self.api("/api/state", {"state": "static", "since": time.time() - 7200}, token)
+        self.assertIs(res["config"]["sleep"], False)                          # 집 기기도 안다 — 조명을 끄지 않는다
+        S.tick(time.time())
+        self.assertEqual(len(self.sent), 1)                                  # 늘 깨어 있으니 응급이 간다
+
+    def test_phone_is_stored_as_digits_and_shown_with_hyphens(self):
+        self.signup()
+        self.post("/settings", sleep_start="00:00", sleep_end="07:00", sleep_off_min="10", motion_wake_s="5",
+                  static_alert_min="60", confirm_min="5", phone="010-9999-8888")
+        self.assertEqual(S.q("select phone from users", one=True)["phone"], "01099998888")
+        self.assertIn('value="010-9999-8888"', self.get("/settings"))
+        self.assertEqual(S.fmt_phone("0101234"), "010-1234")
+
+    def test_contact_needs_the_code_sent_to_that_phone(self):
+        self.signup()
+        self.assertIn('action="/contacts/send"', self.get("/settings?contact=new"))
+        self.post("/contacts/send", name="민수", phone="010-4444-5555")
+        nums, text = self.sent[-1]
+        self.assertEqual(nums, ["01044445555"])                             # 지인 번호로 간다
+        self.assertIn("성연님이 긴급 연락처로", text)
+        code = re.search(r"인증번호 (\d{6})", text).group(1)
+        page_ = self.get("/settings")
+        self.assertIn("확인하고 등록", page_)
+        self.assertNotIn("민수</b>", page_)                                  # 아직 등록 전
+        self.post("/contacts/resend")                                        # 60초 안에는 다시 안 보낸다
+        self.assertEqual(len(self.sent), 1)
+        wrong = "000000" if code != "000000" else "111111"
+        for _ in range(4):
+            _, body = self.post("/contacts/verify", code=wrong)
+        self.assertIn("1번 더", body)
+        self.assertIn("무효", self.post("/contacts/verify", code=wrong)[1])
+        _, body = self.post("/contacts/verify", code=code)                    # 5번 틀린 뒤엔 맞아도 무효
+        self.assertIn("만료", body)
+        self.assertEqual(S.config(S.q("select * from users", one=True))["contacts"], [])
+
+        url, body = self.add_contact("민수", "01044445555")
+        self.assertIn("민수님을 지인으로 등록했어요", body)
+        self.assertIn(">닫기</a>", body)
+        self.assertIn("✓ 문자 동의", body)
+        c = S.config(S.q("select * from users", one=True))["contacts"]
+        self.assertEqual((c[0]["phone"], bool(c[0]["consent"])), ("01044445555", True))
+        self.post("/contacts/send", name="또", phone="010-4444-5555")
+        self.assertEqual(len(self.sent), 1)                                  # 이미 있는 번호엔 안 보낸다
+        with self.assertRaises(urllib.error.HTTPError) as cm:                # 동의 없이 넣던 옛 길은 닫혔다
+            self.post("/contacts/add", name="x", phone="01012341234")
+        self.assertEqual(cm.exception.code, 404)
+        self.assertEqual(len(S.config(S.q("select * from users", one=True))["contacts"]), 1)
+
     def test_intrusion_when_away(self):
         token = self.signup_and_pair()
         self.api("/api/state", {"state": "empty", "since": time.time()}, token)
@@ -168,6 +247,83 @@ class CloudFlow(unittest.TestCase):
         self.api("/api/state", {"state": "motion", "since": time.time()}, token)
         self.assertEqual(len(self.sent), 1)
         self.assertIn("외출 중", self.sent[0][1])
+
+    # ── 외출 모드 (§3.7) ────────────────────────────────────────────────────
+    def away_settings(self, **kw):
+        h = datetime.now(home.TZ).hour
+        form = dict(sleep_start=f"{(h + 2) % 24:02d}:00", sleep_end=f"{(h + 3) % 24:02d}:00", sleep_off_min="10",
+                    motion_wake_s="5", static_alert_min="600", confirm_min="5", phone=ME,
+                    away_trigger="motion", away_repeat_min="30", away_notify="me")
+        form.update(kw)
+        url, body = self.post("/settings", **form)
+        self.assertIn("저장했어요", body)
+
+    def go(self, token, state, at):
+        """상태 하나를 `at` 시각으로 보낸다 — 서버 시계를 그 시각으로."""
+        from unittest import mock
+        with mock.patch.object(S.time, "time", return_value=at):
+            return self.api("/api/state", {"state": state, "since": at}, token)
+
+    def test_away_sends_once_then_waits_the_interval(self):
+        token = self.signup_and_pair()
+        self.away_settings(away_repeat_min="30")
+        self.post("/away")
+        t = time.time()
+        for i, st in enumerate(("motion", "static", "motion", "static", "motion")):   # 멈췄다 움직였다
+            self.go(token, st, t + i * 60)
+        self.assertEqual(len(self.sent), 1)                                  # 처음 한 통만
+        self.go(token, "static", t + 30 * 60)
+        self.go(token, "motion", t + 31 * 60)                                # 30분 지나 또 움직임
+        self.assertEqual(len(self.sent), 2)
+
+    def test_away_once_per_outing_resets_when_turned_on_again(self):
+        token = self.signup_and_pair()
+        self.away_settings(away_repeat_min="0")
+        self.post("/away")
+        t = time.time()
+        self.go(token, "motion", t)
+        self.go(token, "static", t + 60)
+        self.go(token, "motion", t + 3 * 3600)
+        self.assertEqual(len(self.sent), 1)                                  # 외출당 한 번
+        self.post("/away"); self.post("/away")                               # 껐다 켜면 새 외출
+        self.go(token, "static", time.time() + 10)
+        self.go(token, "motion", time.time() + 20)
+        self.assertEqual(len(self.sent), 2)
+
+    def test_away_present_trigger_and_contacts(self):
+        token = self.signup_and_pair()
+        self.add_contact("엄마", MOM)
+        self.away_settings(away_trigger="present", away_notify="all")
+        self.post("/away")
+        self.go(token, "static", time.time())                                # 가만히 있어도
+        self.assertEqual(self.sent[0][0], [ME, MOM])
+        self.assertIn("사람이 잡혔습니다", self.sent[0][1])
+
+    def test_away_settings_are_validated(self):
+        self.signup_and_pair()
+        h = datetime.now(home.TZ).hour
+        url, body = self.post("/settings", sleep_start="00:00", sleep_end="07:00", sleep_off_min="10",
+                              motion_wake_s="5", static_alert_min="60", confirm_min="5", phone=ME,
+                              away_trigger="motion", away_repeat_min="7", away_notify="me")
+        self.assertIn("외출 모드 값", body)
+        self.away_settings(away_repeat_min="60", away_notify="all")
+        c = S.config(S.q("select * from users limit 1", one=True))
+        self.assertEqual((c["away_repeat_min"], c["away_notify"]), (60, "all"))
+        self.assertIn('value="60" checked', self.get("/settings"))
+
+    # ── RX 생존 → 보드 그림 (§4.1) ──────────────────────────────────────────
+    def test_rx_liveness_is_stored_and_drawn(self):
+        token = self.signup_and_pair()
+        self.assertEqual(self.api("/api/state", {"state": "static", "since": time.time(),
+                                                  "rx": {"101": "yes"}}, token)[0], 400)
+        st, _ = self.api("/api/state", {"state": "suspended", "since": time.time(),
+                                        "rx": {"101": True, "102": False, "103": True}}, token)
+        self.assertEqual(st, 200)
+        body = self.get("/home")
+        self.assertIn("RX102 · 꺼짐", body)
+        self.assertIn("판단 정지", body)
+        self.api("/api/state", {"state": "static", "since": time.time()}, token)   # rx 없이 보내도 이전 값을 둔다
+        self.assertIn("RX102 · 꺼짐", self.get("/home"))
 
     def test_offline_once_then_recovers(self):
         token = self.signup_and_pair()
@@ -328,7 +484,7 @@ class CloudFlow(unittest.TestCase):
 
     def test_admin_detail_hides_settings_and_deletes_everything(self):
         token = self.signup_and_pair()
-        self.post("/contacts/add", name="엄마", phone=MOM)
+        self.add_contact("엄마", MOM)
         self.add_rule(state="empty", kind="hold", minutes="30")
         self.api("/api/state", {"state": "empty", "since": time.time() - 3600}, token)
         S.tick(time.time())                                                  # 나만의 상황 알림이 실제로 생긴다
@@ -389,7 +545,7 @@ class CloudFlow(unittest.TestCase):
     def test_absent_rule_escalates_to_contacts(self):
         token = self.signup_and_pair()
         self.awake_now()                                     # confirm_min = 1
-        self.post("/contacts/add", name="엄마", phone=MOM)
+        self.add_contact("엄마", MOM)
         self.add_rule(state="motion", kind="absent", minutes="60", notify="escalate")
         S.q("update devices set created=? ", (time.time() - 7200,))   # 연동 2시간 전, 움직임 본 적 없음
         self.api("/api/state", {"state": "static", "since": time.time() - 10}, token)

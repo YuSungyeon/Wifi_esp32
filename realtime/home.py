@@ -34,8 +34,9 @@ HEARTBEAT_S = 60
 #: 웹에서 편집하고 로컬로 내려가는 설정(§3.4). 계정마다 하나.
 DEFAULT: dict = {"sleep_start": "00:00", "sleep_end": "07:00",
                  "motion_wake_s": 5, "sleep_off_min": 10,
-                 "static_alert_min": 60, "confirm_min": 5,
-                 "away": False, "contacts": [], "rules": []}
+                 "static_alert_min": 60, "confirm_min": 5, "emergency": True, "sleep": True,
+                 "away": False, "away_trigger": "motion", "away_repeat_min": 30, "away_notify": "me",
+                 "contacts": [], "rules": []}
 
 
 def _minutes(hhmm: str) -> int:
@@ -53,8 +54,13 @@ def in_window(now: float, start: str, end: str) -> bool:
     return a <= cur < b if a < b else (cur >= a or cur < b)
 
 
+def no_sleep(cfg: dict) -> bool:
+    """수면 시간이 없다 = 늘 깨어 있다 — 설정에서 껐거나(`sleep`) 시작 = 끝 (§3.1)."""
+    return not cfg.get("sleep", True) or cfg["sleep_start"] == cfg["sleep_end"]
+
+
 def in_sleep(now: float, cfg: dict) -> bool:
-    return in_window(now, cfg["sleep_start"], cfg["sleep_end"])
+    return not no_sleep(cfg) and in_window(now, cfg["sleep_start"], cfg["sleep_end"])
 
 
 def window_start(now: float, when: str, cfg: dict, start: str = "", end: str = "") -> float | None:
@@ -66,7 +72,7 @@ def window_start(now: float, when: str, cfg: dict, start: str = "", end: str = "
         return float("-inf")
     if when == "custom":
         a, b = start, end
-    elif cfg["sleep_start"] == cfg["sleep_end"]:          # 수면 시간이 없다 = 늘 깨어 있다
+    elif no_sleep(cfg):
         return float("-inf") if when == "awake" else None
     elif when == "sleep":
         a, b = cfg["sleep_start"], cfg["sleep_end"]
@@ -174,12 +180,13 @@ class Sender:
         self._cv = threading.Condition()
         threading.Thread(target=self._run, daemon=True).start()
 
-    def offer(self, state: str, since: float, led: bool | None = None) -> None:
+    def offer(self, state: str, since: float, led: bool | None = None, rx: dict | None = None) -> None:
+        """`rx` = RX 별 생존 `{"101": True, ...}` — 웹 홈의 보드 그림이 쓴다. 상태처럼 바뀌면 바로 보낸다."""
         with self._cv:
-            if self._want is None or self._want["state"] != state:
+            if self._want is None or self._want["state"] != state or self._want.get("rx") != rx:
                 self._dirty = True
                 self._cv.notify()
-            self._want = {"state": state, "since": round(since, 1), "led": led}
+            self._want = {"state": state, "since": round(since, 1), "led": led, "rx": rx}
 
     def _run(self) -> None:
         while True:

@@ -38,6 +38,12 @@ class SleepWindow(unittest.TestCase):
     def test_equal_start_end_means_no_sleep(self):
         self.assertFalse(home.in_sleep(at(3), cfg("03:00", "03:00")))
 
+    def test_sleep_turned_off_means_always_awake(self):
+        c = {**cfg("00:00", "07:00"), "sleep": False}
+        self.assertFalse(home.in_sleep(at(3), c))
+        self.assertIs(home.led("static", 3600, at(3), c, True), True)            # 조명을 끄지 않는다
+        self.assertEqual(home.emergency_held(at(3), at(2), c), 3600)            # 응급 시계도 멈추지 않는다
+
     def test_last_boundary_is_yesterday_when_not_reached_yet(self):
         self.assertEqual(home.last_boundary(at(6), "07:00"), at(7, day=23))
         self.assertEqual(home.last_boundary(at(8), "07:00"), at(7))
@@ -111,6 +117,17 @@ class SenderTest(unittest.TestCase):
                 snd.offer(state, 0.0)
                 time.sleep(0.05)
         self.assertEqual(sent, ["static", "motion"])
+
+    def test_rx_change_sends_right_away(self):
+        import time
+        sent = []
+        with unittest.mock.patch.object(home.Sender, "send", lambda self, body: sent.append(body["rx"])):
+            snd = home.Sender()
+            all3, lost = {"101": True, "102": True, "103": True}, {"101": True, "102": False, "103": True}
+            for rx in (all3, all3, lost, lost):
+                snd.offer("static", 0.0, True, rx)
+                time.sleep(0.05)
+        self.assertEqual(sent, [all3, lost])                                  # 상태는 그대로여도 보드가 꺼지면 바로
 
 
 class ReplayTest(unittest.TestCase):

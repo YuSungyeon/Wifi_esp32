@@ -65,6 +65,10 @@ RULE_STATES = {"empty": "빈 방이", "static": "정지가", "motion": "움직�
 RULE_KINDS = {"hold": "계속되면", "absent": "한 번도 없으면"}
 NOTIFY = {"me": "나에게", "escalate": "나에게, 확인 없으면 지인에게", "all": "나와 지인에게 바로"}
 MAX_RULES = 10
+AWAY_TRIGGER = {"motion": ("움직임이 잡히면", "권장 · 커튼이 흔들리는 정도로는 잘 안 울려요"),
+                "present": ("사람이 있으면 (가만히 있어도)", "더 민감해요 · 정지 판단이 흔들리면 잘못 울릴 수 있어요")}
+AWAY_REPEAT = {"0": "외출당 한 번", "10": "10분", "30": "30분", "60": "60분"}
+AWAY_NOTIFY = {"me": "나에게", "all": "나와 지인에게"}
 #: 예시로 시작 (§3.5) — 버튼 이름, 편집기에 미리 채울 값
 PRESETS = {
     "night": ("밤에 집에 안 들어옴", {"when": "sleep", "state": "empty", "kind": "hold", "minutes": 30, "notify": "me"}),
@@ -97,7 +101,7 @@ SCHEMA = """
 create table if not exists users(id integer primary key, email text unique not null, name text not null,
   phone text not null, pw_hash text not null, salt text not null, config text not null, created real not null);
 create table if not exists devices(id integer primary key, user_id integer not null, name text not null,
-  token_hash text unique not null, state text, since real, led integer, last_seen real, created real not null);
+  token_hash text unique not null, state text, since real, led integer, last_seen real, created real not null, rx text);
 create table if not exists pair_codes(code text primary key, user_id integer not null, expires real not null);
 create table if not exists events(id integer primary key, device_id integer not null, state text not null,
   since real not null, received real not null);
@@ -107,6 +111,8 @@ create table if not exists email_codes(user_id integer primary key, code_hash te
   tries integer not null, sent real not null);
 create table if not exists alerts(id integer primary key, device_id integer not null, kind text not null,
   rule text, label text, token text unique, created real not null, confirmed real, escalated real, resolved real, status text);
+create table if not exists contact_codes(user_id integer primary key, name text not null, phone text not null,
+  code_hash text not null, expires real not null, tries integer not null, sent real not null);
 """
 
 
@@ -116,6 +122,9 @@ def init(db: Path, base: str, secret: bytes | None = None) -> None:
     CONN = sqlite3.connect(db, check_same_thread=False)
     CONN.row_factory = sqlite3.Row
     CONN.executescript(SCHEMA)
+    if "rx" not in [r["name"] for r in CONN.execute("pragma table_info(devices)")]:
+        CONN.execute("alter table devices add column rx text")   # RX 별 생존 (§4.1, 2026-10-28)
+        CONN.commit()
     if "verified" not in [r["name"] for r in CONN.execute("pragma table_info(users)")]:
         # 메일 인증(§3.6) 이전에 가입한 계정은 인증된 것으로 친다
         CONN.execute("alter table users add column verified real")
@@ -177,6 +186,12 @@ def stale(dev, now: float) -> bool:
 def digits(number: str) -> str:
     """`010-1234-5678` → `01012345678`. SOLAPI 는 하이픈을 받지 않는다."""
     return re.sub(r"\D", "", str(number))
+
+
+def fmt_phone(number: str) -> str:
+    """저장은 숫자만, 보일 때만 `010-1234-5678` — 입력칸의 PHONE_JS 와 같은 자리(3·7번째 뒤)에 끊는다."""
+    d = digits(number)
+    return f"{d[:3]}-{d[3:7]}-{d[7:]}" if len(d) > 7 else f"{d[:3]}-{d[3:]}" if len(d) > 3 else d
 
 
 def send_sms(numbers: list[str], text: str) -> str:
@@ -336,7 +351,7 @@ def tick(now: float) -> None:
 
         # (열쇠, 참인가, 알릴 사람, 문장) — 긴급 알림도 "나에게, 확인 없으면 지인에게" 인 상황 하나다
         minutes = int(cfg["static_alert_min"])
-        conds = [("emergency", not gone and dev["state"] == "static"
+        conds = [("emergency", cfg["emergency"] and not gone and dev["state"] == "static"
                   and home.emergency_held(now, dev["since"], cfg) >= minutes * 60,
                   "escalate", f"{minutes}분째 움직임 없음")]
         conds += [(r["id"], not gone and rule_due(dev, r, cfg, now), r["notify"], rule_text(r))
@@ -400,7 +415,7 @@ def segments(uid: int, t0: float, t1: float, now: float) -> list[tuple]:
 def bar(segs: list[tuple], t0: float, now: float, cfg: dict) -> str:
     pct = lambda x: f"{max(0.0, min(100.0, (x - t0) / 864)):.3f}%"   # noqa: E731 — 86400초 = 100%
     a, b = home._minutes(cfg["sleep_start"]) / 14.4, home._minutes(cfg["sleep_end"]) / 14.4
-    spans = [] if a == b else ([(a, b)] if a < b else [(0, b), (a, 100)])
+    spans = [] if home.no_sleep(cfg) else ([(a, b)] if a < b else [(0, b), (a, 100)])
     band = "".join(f'<i style="left:{x:.3f}%;width:{y - x:.3f}%"></i>' for x, y in spans)
     body = "".join(f'<i class="{CLS[s]}" style="left:{pct(x)};width:calc({pct(y)} - {pct(x)})"></i>'
                    for x, y, s in segs)
@@ -437,6 +452,56 @@ LOGO = ('<svg class="logo" viewBox="-12 -12 502 523" fill="none" stroke-width="3
         'ke-linejoin="round" stroke="currentColor" aria-hidden="true"><path d="M373.886 321.902H436.266L467.457 415.473L415.473 488.25H82.7772L10 394.679L82.7772 280.315H165.951L217.935 217.935H321.902L373.886 321.902ZM373.886 321.902H301.109M113.967 93.1739L197.141 10H342.696L425.87 93.1739"/><path d="M150.356 129.562L207.538 72.3804H332.299L389.481 129.562M191.943 171.149L228.331 134.761H311.505L347.894 171.149"/></svg>')
 NAV = (("home", "홈"), ("history", "기록"), ("settings", "설정"), ("devices", "기기"))
 
+#: 카드 머리·칩에 쓰는 작은 선 아이콘 (24 격자) — 시안 v6
+LINE = {
+    "bulb": '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',
+    "wifi": '<path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M2 9a15 15 0 0 1 20 0"/><circle cx="12" cy="19.5" r="1"/>',
+    "moon": '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+    "sun": '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    "shield": '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+    "chart": '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    "bell": '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/>',
+    "walk": '<circle cx="13" cy="4" r="2"/><path d="M9 21l2-6 3 2v4M7 12l3-4 4 1 2 4 3 1"/>',
+    "plug": '<path d="M9 2v6M15 2v6M7 8h10v4a5 5 0 0 1-10 0zM12 17v5"/>',
+    "heart": '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+    "users": '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 4a3 3 0 0 1 0 6M21 20a6 6 0 0 0-4-5.7"/>',
+}
+
+
+def svgi(k: str) -> str:
+    return (f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
+            f'stroke-linejoin="round" aria-hidden="true">{LINE[k]}</svg>')
+
+
+def ico(k: str, cls: str = "") -> str:
+    return f'<span class="ico {cls}">{svgi(k)}</span>'
+
+
+def chead(k: str, title: str, cls: str = "", right: str = "") -> str:
+    return f'<div class="chead">{ico(k, cls)}<h2>{title}</h2>{right}</div>'
+
+
+def board(rx: dict | None, offline: bool) -> str:
+    """보드 그림(시안 v6) — 좌표 없이. 가운데 원이 방 상태, 둘레가 RX 생존. 살아 있으면 신호선이 흐른다."""
+    import math
+    ids = sorted(rx) if rx else ["101", "102", "103"]
+    links, nodes = [], []
+    for i, n in enumerate(ids):
+        ang = math.radians(-90 + i * 360 / len(ids))
+        x, y = 150 + 112 * math.cos(ang), 150 + 112 * math.sin(ang)
+        alive = None if (offline or not rx) else bool(rx[n])     # None = 모름(신호 끊김·옛 클라이언트)
+        cls = {True: "", False: " dead", None: " unknown"}[alive]
+        links.append(f'<line class="link{cls}" x1="{x:.1f}" y1="{y:.1f}" x2="150" y2="150"/>')
+        ly = y - 22 if y < 100 else y + 30
+        nodes.append(f'<g class="node{cls}">' + (f'<circle class="ping" cx="{x:.1f}" cy="{y:.1f}" r="12"/>' if alive else "")
+                     + f'<circle class="dot" cx="{x:.1f}" cy="{y:.1f}" r="12"/>'
+                     f'<path class="mark" d="M{x-5:.1f} {y+1:.1f}a6 6 0 0 1 10 0M{x-2.5:.1f} {y+4:.1f}a3 3 0 0 1 5 0"/>'
+                     f'<text x="{x:.1f}" y="{ly:.1f}" text-anchor="middle">RX{e(n)}{" · 꺼짐" if alive is False else ""}</text></g>')
+    return ('<svg class="board" viewBox="0 0 300 300" role="img" aria-label="수신 보드 상태">' + "".join(links)
+            + '<circle class="ring" cx="150" cy="150" r="58"/><circle class="who" cx="150" cy="150" r="40"/>'
+            '<circle class="who d2" cx="150" cy="150" r="40"/><circle class="who-core" cx="150" cy="150" r="22"/>'
+            '<circle class="idle-mark" cx="150" cy="150" r="22"/>' + "".join(nodes) + "</svg>")
+
 
 def page(title: str, body: str, user=None, active: str = "", refresh: int | None = None,
          flash: str = "", header: str = "") -> str:
@@ -462,7 +527,44 @@ def page(title: str, body: str, user=None, active: str = "", refresh: int | None
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="MeshSense">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<style>{CSS}</style></head><body>{nav}<main>{fl}{body}</main>{tabs}</body></html>"""
+<style>{CSS}</style></head><body>{nav}<main>{fl}{body}</main>{tabs}{PHONE_JS}</body></html>"""
+
+
+PHONE_JS = """<script>
+document.querySelectorAll('input[data-phone]').forEach(function (inp) {
+  function fmt() {
+    var d = inp.value.replace(/\\D/g, '').slice(0, 11);
+    inp.value = d.length > 7 ? d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7)
+              : d.length > 3 ? d.slice(0, 3) + '-' + d.slice(3) : d;
+    inp.setCustomValidity(d && !/^01\\d{8,9}$/.test(d) ? '010 으로 시작하는 10~11자리' : '');
+  }
+  inp.addEventListener('input', fmt); fmt();
+});
+// 설정 안의 링크·폼(나만의 상황·지인)도 서버가 카드(#rules …)로 돌려보내 화면이 밀린다. 보던 자리를 기억했다 되돌린다
+(function () {
+  var K = 'meshsense.scroll', here = location.pathname;
+  try {
+    var v = JSON.parse(sessionStorage.getItem(K) || 'null');
+    sessionStorage.removeItem(K);
+    if (v && v.p === here) {
+      var go = function () { window.scrollTo(0, v.y); };
+      go(); window.addEventListener('load', go);
+    }
+  } catch (e) {}
+  var keep = function () { try { sessionStorage.setItem(K, JSON.stringify({p: here, y: window.scrollY})); } catch (e) {} };
+  if (here !== '/settings') return;
+  document.querySelectorAll('a[href^="/settings"]').forEach(function (a) { a.addEventListener('click', keep); });
+  document.querySelectorAll('form:not([data-stay]):not(#cfg)').forEach(function (f) { f.addEventListener('submit', keep); });
+})();
+// 켜기/끄기 단추: 서버는 눌린 카드(#sleep …)로 돌려보내 화면이 위로 밀린다. 뒤에서 보내고 제자리에서 다시 그린다
+document.querySelectorAll('form[data-stay]').forEach(function (f) {
+  f.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    fetch(f.action, {method: 'POST', body: new URLSearchParams(new FormData(f))})
+      .then(function () { location.reload(); }, function () { f.submit(); });
+  });
+});
+</script>"""
 
 
 def head(title: str, sub: str = "", right: str = "") -> str:
@@ -477,7 +579,7 @@ def page_login(h, signup: bool, err: str) -> str:
 <label>이름 <span class="hint">지인에게 가는 문자에 들어가요</span></label><input name="name" required maxlength="20">
 <label>이메일</label><input name="email" type="email" required autocomplete="username">
 <label>비밀번호 <span class="hint">8자 이상</span></label><input name="pw" type="password" required minlength="8" autocomplete="new-password">
-<label>내 휴대폰 번호</label><input name="phone" inputmode="tel" required placeholder="010-0000-0000">
+<label>내 휴대폰 번호</label><input name="phone" data-phone inputmode="tel" required placeholder="010-0000-0000">
 <button class="btn primary wide lg mt">가입하기</button></form>
 <p class="note center">이미 계정이 있나요? <a href="/">로그인</a></p>"""
     else:
@@ -514,32 +616,78 @@ def page_home(user, now: float) -> str:
                       f'<p>{e(em["label"])} — 본인에게 문자를 보냈습니다.</p>{msg}'
                       f'<form method="post" action="/c/{e(em["token"])}"><button class="btn wide lg">괜찮아요</button></form></div>')
     if dev is None:
-        hero = ('<div class="card hero" style="--c:var(--line)"><div class="lbl">지금 방은</div>'
-                '<div class="st display">—</div><div class="desc">아직 연결된 집 기기가 없어요.</div>'
-                '<a class="btn primary mt" href="/devices">기기 연결하기</a></div>')
+        live = ('<div class="live s-idle" style="--c:var(--line)"><div><div class="lbl">아직 연결된 집 기기가 없어요</div>'
+                '<div class="st">—</div><div class="desc">집 컴퓨터를 연결하면 방 상태가 여기 보여요.</div>'
+                f'<a class="btn primary mt16" href="/devices">기기 연결하기</a></div>{board(None, True)}</div>')
     else:
-        st = "offline" if stale(dev, now) else (dev["state"] or "deciding")
-        held = now - (dev["last_seen"] if st == "offline" else dev["since"] or now)
-        lamp = ('<i class="lamp"></i>켜짐' if dev["led"] else '<i class="lampoff"></i>꺼짐') \
-            if dev["led"] is not None else "—"
-        sig = (f'<i class="{"baddot" if st == "offline" else "okdot"}"></i>{ago(now - dev["last_seen"])}'
-               if dev["last_seen"] else "—")
-        hero = (f'<div class="card hero" style="--c:var(--st-{CLS[st]})"><div class="lbl">지금 방은</div>'
-                f'<div class="st display">{LABEL[st]}</div>'
-                f'<div class="desc">{DESC[st]} · <b>{dur(held)}째</b></div><div class="facts">'
-                f'<div class="fact"><small>조명</small><b>{lamp}</b></div>'
-                f'<div class="fact"><small>집 기기</small><b>{sig}</b></div>'
-                f'<div class="fact"><small>지금은</small><b>{"수면 시간" if home.in_sleep(now, cfg) else "깨어 있는 시간"}</b></div>'
-                f'</div></div>')
-    away = (f'<form method="post" action="/away" class="card switch"><div class="t"><h2>외출 모드</h2>'
-            f'<div class="muted small">켜 두면 움직임을 침입으로 보고 알려요</div></div>'
-            f'<button class="toggle{" on" if cfg["away"] else ""}" aria-label="외출 모드 전환"></button></form>')
-    today = (f'<div class="card"><div class="rowhead"><h2>오늘</h2><a class="muted small" href="/history">기록 보기 →</a></div>'
-             f'<div class="mt">{bar(segments(user["id"], t0, t0 + 86400, now), t0, now, cfg)}</div></div>')
-    body = (head("홈", datetime.fromtimestamp(now, home.TZ).strftime("%m월 %d일 · %H:%M"))
-            + f'<div class="grid"><div class="stack">{urgent}{hero}{away}</div>'
-            f'<div class="stack">{today}<div class="card"><h2>최근 알림</h2>{alerts_table(user["id"], 0, now + 1, 5, True)}</div></div></div>')
+        gone = stale(dev, now)
+        st = "offline" if gone else (dev["state"] or "deciding")
+        held = now - (dev["last_seen"] if gone else dev["since"] or now)
+        lamp = ("켜짐" if dev["led"] else "꺼짐") if dev["led"] is not None else "모름"
+        sleep = home.in_sleep(now, cfg)
+        rx = json.loads(dev["rx"]) if dev["rx"] else None
+        lbl = ('<i class="livedot bad"></i>집 기기 신호 끊김' if gone else
+               '<i class="livedot"></i>실시간 · Wi-Fi 감지 중')
+        chips = (f'<div class="chips2"><span class="chip2{" on" if dev["led"] else ""}">{svgi("bulb")}조명 {lamp}</span>'
+                 f'<span class="chip2{" bad" if gone else " ok"}">{svgi("wifi")}'
+                 f'{ago(now - dev["last_seen"]) + " 신호" if dev["last_seen"] else "신호 없음"}</span>'
+                 f'<span class="chip2">{svgi("moon" if sleep else "sun")}{"수면 시간" if sleep else "깨어 있는 시간"}</span></div>')
+        orb = st if st in ("empty", "static", "motion") else "idle"
+        live = (f'<div class="live s-{orb}" style="--c:var(--st-{CLS[st]})"><div><div class="lbl">{lbl}</div>'
+                f'<div class="st">{LABEL[st]}</div><div class="desc">{DESC[st]} · <b>{dur(held)}째</b></div>'
+                f'{chips}</div>{board(rx, gone)}</div>')
+    if cfg["away"]:
+        since = cfg.get("away_since")
+        rep_min = int(cfg["away_repeat_min"])
+        how = "처음 잡히면 바로 알려요" + (f", 이후 {rep_min}분마다" if rep_min else " — 외출 동안 한 번만")
+        away = (f'<form method="post" action="/away" data-stay class="card switch away-on">{ico("shield", "warn")}'
+                f'<div class="t"><h2>외출 모드 <span class="pill warn">켜짐{" · " + hm(since) + "부터" if since else ""}</span></h2>'
+                f'<div class="muted small">{how}</div></div>'
+                f'<button class="toggle on" aria-label="외출 모드 끄기"></button></form>')
+    else:
+        away = (f'<form method="post" action="/away" data-stay class="card switch">{ico("shield")}'
+                f'<div class="t"><h2>외출 모드</h2><div class="muted small">켜 두면 방에 사람이 잡힐 때 침입으로 보고 알려요</div></div>'
+                f'<button class="toggle" aria-label="외출 모드 켜기"></button></form>')
+    segs = segments(user["id"], t0, t0 + 86400, now)
+    tot = {}
+    for x, y, s_ in segs:
+        tot[s_] = tot.get(s_, 0) + y - x
+    n_alert = q("select count(*) n from alerts a join devices d on d.id=a.device_id where d.user_id=? and a.created>=?",
+                (user["id"], t0), one=True)["n"]
+    more = '<a class="muted small" href="/history">기록 →</a>'
+    today = (f'<div class="card">{chead("chart", "오늘 하루", right=more)}'
+             f'<div class="mt">{bar(segs, t0, now, cfg)}</div><div class="kpis">'
+             f'<div class="kpi"><small>방에 있음</small><b>{dur(tot.get("static", 0) + tot.get("motion", 0))}</b></div>'
+             f'<div class="kpi"><small>빈 방</small><b>{dur(tot.get("empty", 0))}</b></div>'
+             f'<div class="kpi"><small>알림</small><b>{n_alert}건</b></div></div></div>')
+    greet = f'<p class="greet"><b>{e(user["name"])}</b>님의 방 · {datetime.fromtimestamp(now, home.TZ).strftime("%m월 %d일 %H:%M")}</p>'
+    more_a = '<a class="muted small" href="/history">전체 →</a>'
+    body = (greet + urgent + f'<div class="hgrid">{live}<div class="side">{away}'
+            f'<div class="card grow">{chead("bell", "최근 알림", right=more_a)}{alerts_list(user["id"], 4)}</div></div></div>'
+            f'<div class="wide-today">{today}</div>')
     return page("홈", body, user, "home", refresh=15)
+
+
+ALERT_ICON = {"intrusion": ("walk", "warn"), "offline": ("plug", "danger"), "emergency": ("heart", "danger"),
+              "rule": ("bell", "brand")}
+
+
+def alerts_list(uid: int, limit: int) -> str:
+    """홈의 최근 알림 — 종류별 아이콘(시안 v6). 기록 화면은 표(alerts_table)를 그대로 쓴다."""
+    rows = q("select a.* from alerts a join devices d on d.id=a.device_id where d.user_id=? "
+             "order by a.created desc limit ?", (uid, limit))
+    if not rows:
+        return EMPTY_P.format("알림이 없어요.")
+    out = []
+    for a in rows:
+        k, cls = ALERT_ICON[a["kind"]]
+        what = ("확인함" if a["confirmed"] else "지인에게 보냄" if a["escalated"]
+                else "복구됨" if a["kind"] == "offline" and a["resolved"] else "보냄")
+        if (a["status"] or "").startswith("error"):
+            what = '<span class="err">발송 실패</span>'
+        out.append(f'<li>{ico(k, cls)}<div><b>{e(a["label"] or KIND[a["kind"]])}</b><small>{what}</small></div>'
+                   f'<span class="t">{datetime.fromtimestamp(a["created"], home.TZ).strftime("%m/%d %H:%M")}</span></li>')
+    return f'<ul class="alist">{"".join(out)}</ul>'
 
 
 def alerts_table(uid: int, t0: float, t1: float, limit: int, with_day: bool) -> str:
@@ -609,7 +757,7 @@ def rules_card(c: dict, edit: str, preset: str) -> str:
             rows.append(rule_editor(r, r["id"]))
             continue
         rows.append(f'<div class="rule{"" if r["on"] else " off"}">'
-                    f'<form method="post" action="/rules/toggle"><input type="hidden" name="id" value="{e(r["id"])}">'
+                    f'<form method="post" action="/rules/toggle" data-stay><input type="hidden" name="id" value="{e(r["id"])}">'
                     f'<button class="toggle sm{" on" if r["on"] else ""}" aria-label="켜기/끄기"></button></form>'
                     f'<div class="txt"><b>{e(rule_text(r))}</b><small>{NOTIFY[r["notify"]]}</small></div>'
                     f'<a class="btn ghost" href="/settings?rule={e(r["id"])}#rules">수정</a></div>')
@@ -621,37 +769,103 @@ def rules_card(c: dict, edit: str, preset: str) -> str:
         chips = "".join(f'<a class="chip" href="/settings?preset={k}#rules">+ {t}</a>' for k, (t, _) in PRESETS.items())
         tail = (f'<div class="chips"><span class="muted small">예시로 시작:</span>{chips}</div>'
                 '<a class="btn wide mt10" href="/settings?rule=new#rules">+ 상황 직접 만들기</a>')
-    return (f'<div class="card" id="rules"><h2>나만의 상황</h2><p class="sub">정해 둔 상황이 되면 알려요. '
+    return (f'<div class="card" id="rules">{chead("bell", "나만의 상황", "brand")}<p class="sub">정해 둔 상황이 되면 알려요. '
             f'조건이 처음 맞는 순간 한 번 보내요.</p>{"".join(rows)}{tail}</div>')
 
 
-def page_settings(user, flash: str, edit: str = "", preset: str = "") -> str:
+def page_settings(user, flash: str, edit: str = "", preset: str = "", contact: dict | None = None) -> str:
+    """설정(시안 v8). 왼쪽 = 판단 규칙(수면·긴급·외출), 오른쪽 = 나만의 상황·지인."""
     c = config(user)
     num = lambda k, unit: f'<div class="unit"><input name="{k}" type="number" min="1" value="{int(c[k])}" required><span>{unit}</span></div>'  # noqa: E731
-    people = "".join(
-        f'<div class="person"><span class="av" style="background:{AVC[i % len(AVC)]}">{e(p["name"][:1])}</span>'
-        f'<div><b>{e(p["name"])}</b><small>{e(p["phone"])}</small></div>'
-        f'<form method="post" action="/contacts/del"><input type="hidden" name="i" value="{i}">'
-        f'<button class="btn ghost">삭제</button></form></div>' for i, p in enumerate(c["contacts"]))
+    sl, on = c["sleep"], c["emergency"]
+    sw = lambda v, form, what: f'<button class="toggle{" on" if v else ""}" form="{form}" aria-label="{what} 켜고 끄기"></button>'  # noqa: E731
     body = (head("설정", "저장하면 집 기기가 1분 안에 새 설정을 받아 갑니다",
                  '<button class="btn primary hide-small" form="cfg">저장</button>')
             + f"""<div class="grid2"><form id="cfg" method="post" action="/settings" class="stack">
-<div class="card"><h2>수면 시간</h2><p class="sub">이 시간엔 오래 가만히 있어도 응급 알림을 보내지 않고 조명을 꺼 드려요.</p>
-<div class="row"><div><label class="mt0">시작</label><input type="time" name="sleep_start" value="{e(c['sleep_start'])}" required></div>
-<div><label class="mt0">끝</label><input type="time" name="sleep_end" value="{e(c['sleep_end'])}" required></div></div>
-<label>조명 끄기 <span class="hint">수면 시작부터 셉니다</span></label>{num('sleep_off_min', '분 가만히 있으면')}
-<label>조명 켜기 <span class="hint">뒤척임엔 켜지지 않게</span></label>{num('motion_wake_s', '초 넘게 움직이면')}</div>
-<div class="card"><h2>긴급 알림</h2><p class="sub">깨어 있는 시간에 너무 오래 움직임이 없으면, 먼저 나에게 묻고 답이 없으면 지인에게 알려요.</p>
-<label class="mt0">나에게 확인 문자</label>{num('static_alert_min', '분 움직임이 없으면')}
-<label>지인에게 문자</label>{num('confirm_min', '분 안에 확인하지 않으면')}
-<label>내 번호</label><input name="phone" inputmode="tel" value="{e(user['phone'])}" required></div>
+<div class="card{" sleep-on" if sl else ""}" id="sleep">{chead("moon", "수면 시간", "sleep" if sl else "", sw(sl, "sleepform", "수면 시간"))}
+<p class="sub fix">{"이 시간엔 오래 가만히 있어도 응급 알림을 보내지 않고 조명을 꺼 드려요." if sl else
+                    "<b>지금은 꺼져 있어요.</b> 하루 내내 깨어 있는 시간으로 보고, 사람이 있으면 조명을 켜 둬요."}</p>
+<div class="fg"><div><label class="mt0">시작</label><input type="time" name="sleep_start" value="{e(c['sleep_start'])}" required></div>
+<div><label class="mt0">끝</label><input type="time" name="sleep_end" value="{e(c['sleep_end'])}" required></div>
+<div><label>조명 끄기 <span class="hint">수면 시작부터</span></label>{num('sleep_off_min', '분 가만히 있으면')}</div>
+<div><label>조명 켜기 <span class="hint">뒤척임 제외</span></label>{num('motion_wake_s', '초 넘게 움직이면')}</div></div></div>
+<div class="card{" rose-on" if on else ""}" id="emergency">{chead("heart", "긴급 알림", "rose" if on else "", sw(on, "emgform", "긴급 알림"))}
+<p class="sub fix">{"깨어 있는 시간에 너무 오래 움직임이 없으면, 먼저 나에게 묻고 답이 없으면 지인에게 알려요." if on else
+                    "<b>지금은 꺼져 있어요.</b> 오래 움직임이 없어도 나와 지인에게 문자를 보내지 않아요."}</p>
+<div class="fg"><div><label class="mt0">나에게 확인 문자</label>{num('static_alert_min', '분 움직임 없으면')}</div>
+<div><label class="mt0">지인에게 문자</label>{num('confirm_min', '분 안에 확인 없으면')}</div>
+<div class="full"><label>내 번호</label><input name="phone" data-phone inputmode="tel" value="{e(fmt_phone(user['phone']))}" required></div></div></div>
+{away_card(c)}
 <div class="savebar"><button class="btn primary">저장</button></div></form>
-<div class="stack">{rules_card(c, edit, preset)}<div class="card"><h2>지인</h2><p class="sub">문자 받는 데 동의한 분만 넣어 주세요. 최대 {MAX_CONTACTS}명.</p>
-{people or '<p class="muted small">아직 없어요.</p>'}
-<form method="post" action="/contacts/add"><div class="row mt16"><input name="name" placeholder="이름" required maxlength="20">
-<input name="phone" placeholder="010-0000-0000" inputmode="tel" required></div>
-<button class="btn wide mt10">+ 지인 추가</button></form></div></div></div>""")
-    return page("설정", body, user, "settings", flash=flash)
+<div class="stack">{rules_card(c, edit, preset)}{contacts_card(user, c, contact or {})}</div></div>""")
+    return page("설정", body + '<form id="awayform" method="post" action="/away?from=settings" data-stay></form>'
+                '<form id="emgform" method="post" action="/emergency" data-stay></form>'
+                '<form id="sleepform" method="post" action="/sleep" data-stay></form>', user, "settings", flash=flash)
+
+
+def contacts_card(user, c: dict, view: dict) -> str:
+    """지인(§3.8, 시안 v8). 진행 중인 인증이 있으면 ② 코드 입력, `added` 면 ③ 등록됨, `new` 면 ① 번호 입력."""
+    now = time.time()
+    people = "".join(
+        f'<div class="person"><span class="av" style="background:{AVC[i % len(AVC)]}">{e(p["name"][:1])}</span>'
+        f'<div><b>{e(p["name"])}</b><small>{e(fmt_phone(p["phone"]))}'
+        + (f' · <span class="ok-badge">✓ 문자 동의 {datetime.fromtimestamp(p["consent"], home.TZ).strftime("%m/%d")}</span>'
+           if p.get("consent") else "")
+        + f'</small></div><form method="post" action="/contacts/del"><input type="hidden" name="i" value="{i}">'
+        f'<button class="btn ghost">삭제</button></form></div>' for i, p in enumerate(c["contacts"]))
+    steps = lambda n: ('<div class="stepdots">' + "".join(f'<i class="{"on" if i <= n else ""}"></i>' for i in (1, 2, 3))  # noqa: E731
+                       + f'<span>{n}/3</span></div>')
+    add = '<a class="btn wide mt10" href="/settings?contact=new#contacts">+ 지인 추가</a>'
+    full = len(c["contacts"]) >= MAX_CONTACTS
+    cc = q("select * from contact_codes where user_id=? and expires>? and tries<?", (user["id"], now, VERIFY_TRIES), one=True)
+    if cc:
+        wait = int(VERIFY_RESEND_S - (now - cc["sent"]))
+        left = int(cc["expires"] - now)
+        resend = (f'<span>다시 보내기 ({wait}초 뒤)</span>' if wait > 0 else
+                  '<button class="linkbtn" form="ccresend">다시 보내기</button>')
+        box = (f'<div class="pending">{steps(2)}<div class="who">{e(cc["name"])} · {e(fmt_phone(cc["phone"]))}</div>'
+               f'<p class="muted small mt0">문자를 보냈어요. 지인이 받은 6자리를 넣어 주세요 · <b>{left // 60}:{left % 60:02d}</b> 남음</p>'
+               '<form method="post" action="/contacts/verify" class="addrow"><input class="codein" name="code" placeholder="000000" '
+               'inputmode="numeric" maxlength="6" autocomplete="off" required><button class="btn primary">확인하고 등록</button></form>'
+               f'<p class="note">문자가 안 왔대요? {resend} · <button class="linkbtn" form="cccancel">취소</button> — 5번까지 다시 넣을 수 있어요.</p>'
+               '<form id="ccresend" method="post" action="/contacts/resend"></form><form id="cccancel" method="post" action="/contacts/cancel"></form></div>')
+    elif view.get("added"):
+        box = (f'<div class="pending">{steps(3)}<div class="who">✓ {e(view["added"])}님을 지인으로 등록했어요</div>'
+               '<p class="muted small mt0">문자 동의를 확인했어요 · 긴급 알림이 이 번호로도 가요.</p>'
+               '<a class="closelink" href="/settings#contacts">닫기</a></div>') + ("" if full else add)
+    elif view.get("new") and not full:
+        box = (f'<form method="post" action="/contacts/send" class="pending">{steps(1)}<div class="who">새 지인</div>'
+               '<p class="muted small mt0">지인에게 동의 문자가 가요. 받은 인증번호를 지인에게 물어 넣어 주세요.</p>'
+               '<div class="fg"><div><label>이름</label><input name="name" required maxlength="20" autocomplete="off"></div>'
+               '<div><label>전화번호</label><input name="phone" data-phone inputmode="tel" placeholder="010-0000-0000" required></div></div>'
+               '<button class="btn primary wide mt16">인증번호 보내기</button>'
+               '<a class="closelink" href="/settings#contacts">취소</a></form>')
+    else:
+        box = "" if full else add
+    return (f'<div class="card" id="contacts">{chead("users", "지인")}<p class="sub">긴급할 때 문자를 받을 분이에요. '
+            f'지인 번호로 인증번호를 보내 동의를 확인한 뒤 등록돼요. 최대 {MAX_CONTACTS}명.</p>'
+            f'{people or EMPTY_P.format("아직 없어요.")}{box}</div>')
+
+
+def away_card(c: dict) -> str:
+    """외출 모드 설정(§3.7, 시안 v6). 칸은 설정 폼(cfg) 안, 켜고 끄는 단추만 따로 폼(awayform)."""
+    def radio(name, k, cur):
+        return f'<input type="radio" name="{name}" value="{k}"{" checked" if str(cur) == k else ""}>'
+    trig = "".join(f'<label class="opt">{radio("away_trigger", k, c["away_trigger"])}<div><b>{t}</b><small>{d}</small></div></label>'
+                   for k, (t, d) in AWAY_TRIGGER.items())
+    seg = lambda name, opts, cur: '<div class="seg">' + "".join(  # noqa: E731
+        f'<label>{radio(name, k, cur)}<span>{t}</span></label>' for k, t in opts.items()) + "</div>"
+    on = c["away"]
+    return (f'<div class="card{" away-on" if on else ""}" id="away">'
+            + chead("shield", "외출 모드", "warn" if on else "",
+                    f'<button class="toggle{" on" if on else ""}" form="awayform" aria-label="외출 모드 켜고 끄기"></button>')
+            + '<p class="sub fix">집을 비운 동안 방에 사람이 잡히면 알려요. 홈 화면에서도 켜고 끌 수 있어요.</p>'
+            f'<label class="mt0">무엇을 침입으로 볼까요</label>{trig}'
+            f'<label>다시 알림</label>{seg("away_repeat_min", AWAY_REPEAT, c["away_repeat_min"])}'
+            '<p class="note">처음 잡히면 바로 보내고, 그 뒤엔 이 간격마다 최대 한 통이에요. 멈췄다 움직였다 해도 그 사이엔 안 보내요.</p>'
+            f'<label>알릴 사람</label>{seg("away_notify", AWAY_NOTIFY, c["away_notify"])}'
+            '<p class="smsmeta">문자 예시 · 시각은 실제로 잡힌 때, 가만히 있다 잡히면 "사람이"</p>'
+            '<div class="smsprev">[MeshSense] 외출 중인데 방에서 움직임이 잡혔습니다 (14:02)</div></div>')
 
 
 EMPTY_P = '<p class="muted small mt">{}</p>'   # f-string 안에 역슬래시를 못 쓰는 Python 3.9(Amazon Linux) 대비
@@ -870,7 +1084,7 @@ def r_signup(h):
     salt = secrets.token_hex(16)
     now = time.time()
     uid = q("insert into users(email,name,phone,pw_hash,salt,config,created) values(?,?,?,?,?,?,?)",
-            (email, name, phone, hash_pw(pw, salt), salt, json.dumps(home.DEFAULT), now))
+            (email, name, digits(phone), hash_pw(pw, salt), salt, json.dumps(home.DEFAULT), now))
     msg = mail_code(q("select * from users where id=?", (uid,), one=True), now)
     h.redirect("/verify" + ("?e=" + quote(msg) if msg else ""), cookie_for(uid))
 
@@ -942,8 +1156,10 @@ def r_away(h):
     if (u := h.need_user()):
         cfg = config(u)
         cfg["away"] = not cfg["away"]
+        if cfg["away"]:
+            cfg["away_since"] = time.time()          # 외출 한 번의 시작 — 침입 문자를 여기서부터 센다
         save_config(u["id"], cfg)
-        h.redirect("/home")
+        h.redirect("/settings#away" if h.qs.get("from") == "settings" else "/home")   # 누른 화면으로 돌아간다
 
 
 def r_history(h):
@@ -958,7 +1174,8 @@ def r_history(h):
 def r_settings(h):
     if (u := h.need_user()):
         h.send(200, page_settings(u, "저장했어요" if h.qs.get("ok") else h.qs.get("e", ""),
-                                  h.qs.get("rule", ""), h.qs.get("preset", "")))
+                                  h.qs.get("rule", ""), h.qs.get("preset", ""),
+                                  {"new": h.qs.get("contact") == "new", "added": h.qs.get("added", "")[:20]}))
 
 
 def r_settings_save(h):
@@ -976,23 +1193,94 @@ def r_settings_save(h):
         cfg[k] = int(v)
     if not phone_ok(f.get("phone", "")):
         return h.redirect("/settings?e=" + quote("휴대폰 번호 형식이 아니에요"))
-    q("update users set phone=? where id=?", (f["phone"], u["id"]))
+    away = {k: f.get(k, str(cfg[k])) for k in ("away_trigger", "away_repeat_min", "away_notify")}   # 빠지면 그대로
+    if (away["away_trigger"] not in AWAY_TRIGGER or away["away_repeat_min"] not in AWAY_REPEAT
+            or away["away_notify"] not in AWAY_NOTIFY):
+        return h.redirect("/settings?e=" + quote("외출 모드 값을 확인해 주세요"))
+    cfg.update(away_trigger=away["away_trigger"], away_repeat_min=int(away["away_repeat_min"]),
+               away_notify=away["away_notify"])
+    q("update users set phone=? where id=?", (digits(f["phone"]), u["id"]))
     save_config(u["id"], cfg)
     h.redirect("/settings?ok=1")
 
 
-def r_contact_add(h):
+def contact_code(u, name: str, phone: str, now: float) -> str:
+    """지인 번호로 인증번호를 보낸다(이전 것은 무효). 돌려주는 값은 화면에 띄울 문장, 잘 갔으면 빈 문장."""
+    code = f"{secrets.randbelow(10 ** 6):06d}"
+    status = notify([phone], f"[MeshSense] {u['name']}님이 긴급 연락처로 등록하려 해요. "
+                             f"동의하면 인증번호 {code} 을 {u['name']}님께 알려 주세요.", now)
+    if not status.startswith("sent"):
+        sys.stderr.write(f"지인 인증 문자 실패: {status}\n")
+        return ("오늘은 문자를 더 보낼 수 없어요. 내일 다시 시도해 주세요" if "상한" in status
+                else "문자를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요")
+    q("insert or replace into contact_codes(user_id,name,phone,code_hash,expires,tries,sent) values(?,?,?,?,?,0,?)",
+      (u["id"], name, phone, sha(code), now + VERIFY_TTL_S, now))
+    return ""
+
+
+def r_contact_send(h):
     if not (u := h.need_user()):
         return
-    f, cfg = h.form(), config(u)
-    name, phone = f.get("name", ""), f.get("phone", "")
+    f, cfg, now = h.form(), config(u), time.time()
+    name, phone = f.get("name", "").strip(), digits(f.get("phone", ""))
+    bad = lambda m: h.redirect("/settings?contact=new&e=" + quote(m) + "#contacts")  # noqa: E731
     if not name or len(name) > 20 or not phone_ok(phone):
-        return h.redirect("/settings?e=" + quote("이름과 휴대폰 번호를 확인해 주세요"))
+        return bad("이름과 휴대폰 번호를 확인해 주세요")
     if len(cfg["contacts"]) >= MAX_CONTACTS:
-        return h.redirect("/settings?e=" + quote(f"지인은 {MAX_CONTACTS}명까지예요"))
-    cfg["contacts"].append({"name": name, "phone": phone})
-    save_config(u["id"], cfg)
-    h.redirect("/settings")
+        return bad(f"지인은 {MAX_CONTACTS}명까지예요")
+    if any(digits(c["phone"]) == phone for c in cfg["contacts"]):
+        return bad("이미 등록된 번호예요")
+    msg = contact_code(u, name, phone, now)
+    h.redirect("/settings?" + ("contact=new&e=" + quote(msg) if msg else "") + "#contacts")
+
+
+def r_contact_verify(h):
+    if not (u := h.need_user()):
+        return
+    now, code = time.time(), re.sub(r"\s", "", h.form().get("code", ""))
+    c = q("select * from contact_codes where user_id=?", (u["id"],), one=True)
+    if c is None or c["expires"] < now or c["tries"] >= VERIFY_TRIES:
+        return h.redirect("/settings?e=" + quote("인증번호가 만료됐어요. 다시 보내기를 눌러 주세요") + "#contacts")
+    if not hmac.compare_digest(sha(code), c["code_hash"]):
+        q("update contact_codes set tries=tries+1 where user_id=?", (u["id"],))
+        left = VERIFY_TRIES - c["tries"] - 1
+        return h.redirect("/settings?e=" + quote(f"인증번호가 맞지 않아요 — {left}번 더 넣을 수 있어요" if left
+                                                 else "5번 틀려 인증번호가 무효가 됐어요. 다시 보내기를 눌러 주세요")
+                          + "#contacts")
+    cfg = config(u)
+    if len(cfg["contacts"]) < MAX_CONTACTS and not any(digits(x["phone"]) == c["phone"] for x in cfg["contacts"]):
+        cfg["contacts"].append({"name": c["name"], "phone": c["phone"], "consent": now})
+        save_config(u["id"], cfg)
+    q("delete from contact_codes where user_id=?", (u["id"],))
+    h.redirect("/settings?added=" + quote(c["name"]) + "#contacts")
+
+
+def r_contact_resend(h):
+    if not (u := h.need_user()):
+        return
+    now = time.time()
+    c = q("select * from contact_codes where user_id=?", (u["id"],), one=True)
+    if c is None or now - c["sent"] < VERIFY_RESEND_S:
+        return h.redirect("/settings#contacts")
+    msg = contact_code(u, c["name"], c["phone"], now)
+    h.redirect("/settings" + ("?e=" + quote(msg) if msg else "") + "#contacts")
+
+
+def r_contact_cancel(h):
+    if (u := h.need_user()):
+        q("delete from contact_codes where user_id=?", (u["id"],))
+        h.redirect("/settings#contacts")
+
+
+def flip(key: str):
+    """설정의 켜기/끄기 단추(수면·긴급) — 누른 카드로 돌아간다."""
+    def route(h):
+        if (u := h.need_user()):
+            cfg = config(u)
+            cfg[key] = not cfg[key]
+            save_config(u["id"], cfg)
+            h.redirect(f"/settings#{key}")
+    return route
 
 
 def r_contact_del(h):
@@ -1094,7 +1382,7 @@ def r_confirm_post(h, token):
 
 def public_config(cfg: dict) -> dict:
     """집 기기에 내려 보내는 설정 — 조명 판단에 필요한 것만. 지인 번호는 내려가지 않는다."""
-    return {k: cfg[k] for k in ("sleep_start", "sleep_end", "sleep_off_min", "motion_wake_s", "away")}
+    return {k: cfg[k] for k in ("sleep", "sleep_start", "sleep_end", "sleep_off_min", "motion_wake_s", "away")}
 
 
 def r_api_pair(h):
@@ -1126,10 +1414,12 @@ def r_api_state(h):
     if dev is None:
         return h.json({"error": "토큰이 무효입니다"}, 401)
     b, now = h.json_body(), time.time()
-    state, since, led = b.get("state"), b.get("since"), b.get("led")
+    state, since, led, rx = b.get("state"), b.get("since"), b.get("led"), b.get("rx")
     if (state not in STATES or isinstance(since, bool) or not isinstance(since, (int, float))
-            or not isinstance(led, (bool, type(None)))):
-        return h.json({"error": "state·since·led 형식이 아닙니다"}, 400)
+            or not isinstance(led, (bool, type(None)))
+            or not (rx is None or (isinstance(rx, dict) and len(rx) <= 8
+                                   and all(str(k).isdigit() and isinstance(v, bool) for k, v in rx.items())))):
+        return h.json({"error": "state·since·led·rx 형식이 아닙니다"}, 400)
     since = min(float(since), now)
     gap = dev["last_seen"] is not None and now - dev["last_seen"] > OFFLINE_S
     if gap:
@@ -1138,15 +1428,29 @@ def r_api_state(h):
     if gap or state != dev["state"]:
         q("insert into events(device_id,state,since,received) values(?,?,?,?)",
           (dev["id"], state, max(since, dev["last_seen"] or since) if gap else since, now))
-    q("update devices set state=?, since=?, led=?, last_seen=? where id=?",
-      (state, since, None if led is None else int(led), now, dev["id"]))
+    q("update devices set state=?, since=?, led=?, last_seen=?, rx=? where id=?",
+      (state, since, None if led is None else int(led), now,
+       dev["rx"] if rx is None else json.dumps(rx), dev["id"]))
     user = q("select * from users where id=?", (dev["user_id"],), one=True)
     cfg = config(user)
-    if state == "motion" and dev["state"] != "motion" and cfg["away"]:
-        raise_alert(dev, user, "intrusion", now,
-                    f"[MeshSense] 외출 중인데 방에서 움직임이 잡혔습니다 ({hm(now)})",
-                    [user["phone"]], resolved=True)
+    check_intrusion(dev, user, cfg, state, now)
     h.json({"config": public_config(cfg)})
+
+
+def check_intrusion(dev, user, cfg: dict, state: str, now: float) -> None:
+    """외출 모드(§3.7) — 외출 한 번에 처음 맞으면 바로, 이후 away_repeat_min 마다 최대 한 통."""
+    hit = state == "motion" or (cfg["away_trigger"] == "present" and state == "static")
+    if not (cfg["away"] and hit):
+        return
+    last = q("select created from alerts where device_id=? and kind='intrusion' and created>=? "
+             "order by created desc limit 1", (dev["id"], cfg.get("away_since") or 0), one=True)
+    repeat = int(cfg["away_repeat_min"]) * 60
+    if last and (repeat == 0 or now - last["created"] < repeat):
+        return
+    what = "움직임이" if state == "motion" else "사람이"
+    raise_alert(dev, user, "intrusion", now, f"[MeshSense] 외출 중인데 방에서 {what} 잡혔습니다 ({hm(now)})",
+                [user["phone"]] + ([c["phone"] for c in cfg["contacts"]] if cfg["away_notify"] == "all" else []),
+                resolved=True)
 
 
 MANIFEST = json.dumps({"name": "MeshSense Home", "short_name": "MeshSense", "start_url": "/home",
@@ -1310,7 +1614,7 @@ def delete_user(uid: int) -> None:
     for d in q("select id from devices where user_id=?", (uid,)):
         q("delete from alerts where device_id=?", (d["id"],))
         q("delete from events where device_id=?", (d["id"],))
-    for t in ("devices", "pair_codes", "email_codes"):
+    for t in ("devices", "pair_codes", "email_codes", "contact_codes"):
         q(f"delete from {t} where user_id=?", (uid,))
     q("delete from users where id=?", (uid,))
 
@@ -1371,7 +1675,10 @@ ROUTES = [
     ("POST", r"/logout", r_logout), ("GET", r"/verify", r_verify), ("POST", r"/verify", r_verify_post),
     ("POST", r"/verify/resend", r_verify_resend), ("POST", r"/verify/restart", r_verify_restart), ("GET", r"/home", r_home), ("POST", r"/away", r_away),
     ("GET", r"/history", r_history), ("GET", r"/settings", r_settings),
-    ("POST", r"/settings", r_settings_save), ("POST", r"/contacts/add", r_contact_add),
+    ("POST", r"/settings", r_settings_save), ("POST", r"/contacts/send", r_contact_send),
+    ("POST", r"/contacts/verify", r_contact_verify), ("POST", r"/contacts/resend", r_contact_resend),
+    ("POST", r"/contacts/cancel", r_contact_cancel), ("POST", r"/emergency", flip("emergency")),
+    ("POST", r"/sleep", flip("sleep")),
     ("POST", r"/contacts/del", r_contact_del), ("POST", r"/rules/save", r_rule_save),
     ("POST", r"/rules/toggle", r_rule_toggle), ("POST", r"/rules/del", r_rule_del), ("GET", r"/devices", r_devices),
     ("POST", r"/devices/code", r_code), ("POST", r"/devices/del", r_device_del),
@@ -1421,7 +1728,7 @@ a{color:var(--ink)} h1,h2{color:var(--ink);margin:0;font-weight:600}
 .tabs a.on{color:var(--ink)} .tabs svg{width:24px;height:24px}
 .mtitle{display:none}
 main{max-width:1200px;margin:0 auto;padding:32px 24px 48px}
-.flash{background:var(--card);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:14px;color:var(--ink);font-weight:500}
+.flash{position:sticky;top:76px;z-index:5;box-shadow:var(--sh2);background:var(--card);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:14px;color:var(--ink);font-weight:500}
 .pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px}
 .pagehead h1{font-size:32px;letter-spacing:-.03em} .pagehead p{margin:4px 0 0;color:var(--muted);font-size:14px}
 .pagehead form{margin:0}
@@ -1545,11 +1852,100 @@ pre{background:var(--card);color:var(--ink);border-radius:8px;padding:12px 14px;
 .search{margin:0 0 12px} .search input{max-width:320px}
 .danger-card{border-color:#fecaca} .danger-card h2{color:#ef4444} .danger-btn{color:#ef4444}
 .confirm .count{font-size:64px;color:var(--ink);font-variant-numeric:tabular-nums;margin:24px 0 4px}
+/* ── 시안 v6 (계획 §5.1) — 브랜드 청록은 로고·보드·위쪽 빛에만, 상태 색은 그대로 ── */
+:root{--brand:#0d9488;--brand-soft:#ccfbf1;--warn-soft:#fef3c7;--warn-ink:#92400e;--danger-soft:#fee2e2;--danger-ink:#dc2626}
+@media(prefers-color-scheme:dark){:root{--brand:#2dd4bf;--brand-soft:#134e4a;--warn-soft:#3a2a05;--warn-ink:#fcd34d;
+ --danger-soft:#3b1212;--danger-ink:#f87171}}
+html{background:var(--soft)}
+body{min-height:100vh;background:radial-gradient(1200px 520px at 15% -10%,color-mix(in srgb,var(--brand) 12%,transparent),transparent 62%) no-repeat,var(--soft)}
+.top{background:color-mix(in srgb,var(--canvas) 85%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.brand .logo{color:var(--brand)} .adm-top .brand .logo{color:inherit}
+.greet{font-size:14px;color:var(--muted);margin:0 0 12px} .greet b{color:var(--ink)}
+.g75{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}
+.live{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:center;border-radius:20px;padding:28px;
+ background:linear-gradient(135deg,color-mix(in srgb,var(--c) 9%,var(--canvas)),var(--canvas) 70%);
+ border:1px solid color-mix(in srgb,var(--c) 25%,var(--line));box-shadow:var(--sh2)}
+.live .lbl{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted)}
+.livedot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none;animation:beat 2s infinite}
+.livedot.bad{background:var(--bad);animation:none}
+@keyframes beat{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 60%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.live .st{font-size:72px;font-weight:700;letter-spacing:-.05em;color:var(--c);line-height:1;margin:14px 0 8px}
+.live .desc{font-size:16px} .live .desc b{color:var(--ink)}
+.chips2{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.chip2{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;background:var(--canvas);
+ border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap}
+.chip2 svg{width:15px;height:15px;color:var(--muted)} .chip2.on svg{color:var(--lamp)} .chip2.ok svg{color:var(--ok)}
+.chip2.bad svg{color:var(--bad)}
+.board{width:300px;height:300px;overflow:visible}
+.board .ring{fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:3 5}
+.board .link{stroke:var(--brand);stroke-width:2;stroke-dasharray:4 8;opacity:.55;animation:flow 1.4s linear infinite}
+.board .link.dead,.board .link.unknown{stroke:var(--line);opacity:1;animation:none;stroke-dasharray:2 10}
+@keyframes flow{to{stroke-dashoffset:-24}}
+.board .dot{fill:var(--brand)} .board .mark{fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round}
+.board .dead .dot,.board .unknown .dot{fill:var(--line)} .board .dead .mark,.board .unknown .mark{stroke:var(--muted)}
+.board text{font:600 11px Pretendard,sans-serif;fill:var(--muted)} .board .dead text{fill:var(--bad)}
+.board .ping{fill:var(--brand);opacity:0;transform-box:fill-box;transform-origin:center;animation:ping 2.4s ease-out infinite}
+@keyframes ping{0%{transform:scale(1);opacity:.5}100%{transform:scale(2.4);opacity:0}}
+.board .who{fill:var(--c);opacity:0;transform-box:fill-box;transform-origin:center} .board .who-core{fill:var(--c)}
+.board .idle-mark{fill:none;stroke:var(--muted);stroke-width:2;stroke-dasharray:4 4;display:none}
+.s-static .board .who{opacity:.22;animation:breathe 4s ease-in-out infinite} .s-static .board .who.d2{display:none}
+.s-motion .board .who{animation:ripple 1.6s ease-out infinite} .s-motion .board .who.d2{animation-delay:.8s}
+@keyframes breathe{50%{transform:scale(1.3);opacity:.34}}
+@keyframes ripple{0%{transform:scale(.55);opacity:.5}100%{transform:scale(1.9);opacity:0}}
+.s-empty .board .who,.s-empty .board .who-core,.s-idle .board .who,.s-idle .board .who-core{display:none}
+.s-empty .board .idle-mark{display:block;stroke:var(--st-e)} .s-idle .board .idle-mark{display:block}
+.chead{display:flex;align-items:center;gap:10px;margin-bottom:4px} .chead h2{flex:1;margin:0}
+.ico{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--card);color:var(--ink);flex:none}
+.ico svg{width:17px;height:17px} .ico.brand{background:var(--brand-soft);color:var(--brand)}
+.ico.warn{background:var(--warn-soft);color:var(--warn-ink)} .ico.danger{background:var(--danger-soft);color:var(--danger-ink)}
+.switch .ico{margin-right:-4px}
+.away-on{border-color:color-mix(in srgb,#f59e0b 55%,var(--line));background:linear-gradient(135deg,var(--warn-soft),var(--canvas) 60%)}
+.pill.warn{background:var(--warn-soft);color:var(--warn-ink);margin-left:6px;vertical-align:2px}
+.alist{list-style:none;margin:12px 0 0;padding:0} .alist li{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-soft)}
+.alist li:last-child{border:0} .alist .ico{width:28px;height:28px;border-radius:8px} .alist .ico svg{width:15px;height:15px}
+.alist div{min-width:0} .alist b{display:block;font-size:14px;color:var(--ink);font-weight:600}
+.alist small{display:block;font-size:12px;color:var(--muted)} .alist .t{font-size:12px;color:var(--muted);margin-left:auto;white-space:nowrap}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:10px;margin:8px 0 0;cursor:pointer;font-weight:400}
+.opt:has(input:checked){border-color:var(--ink);background:var(--card)} .opt input{width:auto;height:auto;margin-top:3px;accent-color:var(--ink)}
+.opt b{font-size:14px;color:var(--ink)} .opt small{display:block;font-size:13px;color:var(--muted)}
+.seg{display:inline-flex;flex-wrap:wrap;background:var(--card);border-radius:10px;padding:4px;gap:2px}
+.seg label{margin:0;position:relative} .seg input{position:absolute;opacity:0;width:1px;height:1px}
+.seg span{display:block;font-size:13px;font-weight:600;color:var(--muted);padding:8px 12px;border-radius:7px;cursor:pointer}
+.seg input:checked+span{background:var(--canvas);color:var(--ink);box-shadow:var(--sh2)}
+.seg input:focus-visible+span{outline:2px solid var(--ink)}
+.smsmeta{margin:16px 0 0;font-size:12px;color:var(--muted)} .smsmeta+.smsprev{margin-top:6px}
+.smsprev{margin-top:14px;background:var(--card);border-radius:14px 14px 14px 4px;padding:10px 14px;font-size:14px;color:var(--ink);max-width:24rem}
+.kpi b{white-space:nowrap;font-size:clamp(16px,1.9vw,22px)}
+/* 시안 v8 — 중요도: 상태가 크게, 색은 외출 켜짐(away-on)과 같은 방식 */
+:root{--sleep-soft:#ede9fe;--sleep-ink:#6d28d9;--rose-soft:#ffe4e6;--rose-ink:#be123c}
+@media(prefers-color-scheme:dark){:root{--sleep-soft:#2a1650;--sleep-ink:#c4b5fd;--rose-soft:#3b1020;--rose-ink:#fda4af}}
+.ico.sleep{background:var(--sleep-soft);color:var(--sleep-ink)} .ico.rose{background:var(--rose-soft);color:var(--rose-ink)}
+.sleep-on{border-color:color-mix(in srgb,#8b5cf6 45%,var(--line));background:linear-gradient(135deg,var(--sleep-soft),var(--canvas) 60%)}
+.rose-on{border-color:color-mix(in srgb,#e11d48 40%,var(--line));background:linear-gradient(135deg,var(--rose-soft),var(--canvas) 60%)}
+.hgrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px;align-items:stretch}
+.urgent+.hgrid{margin-top:16px} .hgrid>.live{margin:0} .side{display:flex;flex-direction:column;gap:16px} .side>.card{margin:0} .side>.grow{flex:1}
+.wide-today{margin-top:16px} .wide-today .kpis{max-width:560px}
+.fg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px} .fg .full{grid-column:1/-1}
+.fg label{margin-top:14px} .fg label.mt0{margin-top:0}
+.ok-badge{font-size:12px;font-weight:600;color:var(--ok)}
+.pending{display:block;background:var(--card);border-radius:12px;padding:16px;margin-top:12px}
+.pending .who{font-weight:600;color:var(--ink);font-size:15px} .pending .fg{margin-top:4px}
+.codein{font:600 22px/1 ui-monospace,Menlo,monospace;letter-spacing:.3em;text-align:center}
+.addrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;margin-top:12px}
+.stepdots{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-bottom:8px}
+.stepdots i{width:6px;height:6px;border-radius:50%;background:var(--line)} .stepdots i.on{background:var(--ink)}
+.sub.fix{min-height:4.5em} .switch .t .muted{min-height:3em}
+@media (max-width:767px){.sub.fix{min-height:6em}}
+.closelink{display:block;width:max-content;margin:8px 0 0 auto;font-size:13px;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+@media (max-width:1100px){.hgrid{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:767px){.fg{grid-template-columns:minmax(0,1fr)} .addrow{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:1100px){.live{grid-template-columns:1fr;justify-items:center;text-align:center} .live .lbl,.chips2{justify-content:center}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
 @media (max-width:767px){
   .top{display:none} .tabs{display:flex}
   .mtitle{display:flex;align-items:center;justify-content:space-between;padding:calc(12px + env(safe-area-inset-top)) 20px 4px}
   main{padding:8px 16px calc(96px + env(safe-area-inset-bottom))}
-  .pagehead{margin:8px 0 16px} .pagehead h1{font-size:28px} .hide-small{display:none}
+  .flash{top:12px} .pagehead{margin:8px 0 16px} .pagehead h1{font-size:28px} .hide-small{display:none}
   .grid,.grid2{grid-template-columns:minmax(0,1fr)}
   .card{padding:20px} .hero{padding:22px} .hero .st{font-size:52px}
   .facts{grid-template-columns:1fr 1fr} .facts .fact:last-child{grid-column:1/-1}
@@ -1557,6 +1953,7 @@ pre{background:var(--card);color:var(--ink);border-radius:8px;padding:12px 14px;
   .savebar{display:flex;position:sticky;bottom:calc(76px + env(safe-area-inset-bottom));background:var(--soft);padding:12px 0}
   .savebar .btn{flex:1;height:48px}
   .kpi b{font-size:17px} .hide-m{display:none} .stats{grid-template-columns:1fr 1fr}
+  .g75{grid-template-columns:minmax(0,1fr)} .live{padding:22px} .live .st{font-size:56px} .board{width:260px;height:260px}
 }
 """
 
