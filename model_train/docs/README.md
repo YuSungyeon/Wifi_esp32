@@ -13,6 +13,9 @@
 
 ## 먼저 읽을 문서
 
+- [75세션 진폭·위상 재비교 계획](model-training/pilot-75-session-plan.md): 별도 파일럿의 후보·분할·평가 기준.
+- [75세션 진폭·위상 비교 결과](model-training/pilot-75-session-report.md): 108회 학습 결과와 60초 위상·진폭의 장단점.
+
 | 문서 | 알 수 있는 내용 |
 |---|---|
 | [실시간 상태 판단](../../doc/realtime-inference.md) | **지금 돌아가는 모델**과 판정 규칙·실측 |
