@@ -1,0 +1,182 @@
+[
+  {
+    "width": 300,
+    "end": 300,
+    "valid": true
+  },
+  {
+    "width": 300,
+    "end": 20730,
+    "valid": true
+  },
+  {
+    "width": 300,
+    "end": 40650,
+    "valid": true
+  },
+  {
+    "width": 300,
+    "end": 60750,
+    "valid": true
+  },
+  {
+    "width": 300,
+    "end": 80490,
+    "valid": true
+  },
+  {
+    "width": 300,
+    "end": 100530,
+    "valid": true
+  },
+  {
+    "width": 300,
+    "end": 720,
+    "valid": false
+  },
+  {
+    "width": 300,
+    "end": 46530,
+    "valid": false
+  },
+  {
+    "width": 300,
+    "end": 100470,
+    "valid": false
+  },
+  {
+    "width": 1500,
+    "end": 1530,
+    "valid": true
+  },
+  {
+    "width": 1500,
+    "end": 21660,
+    "valid": true
+  },
+  {
+    "width": 1500,
+    "end": 41340,
+    "valid": true
+  },
+  {
+    "width": 1500,
+    "end": 61140,
+    "valid": true
+  },
+  {
+    "width": 1500,
+    "end": 80700,
+    "valid": true
+  },
+  {
+    "width": 1500,
+    "end": 100530,
+    "valid": true
+  },
+  {
+    "width": 1500,
+    "end": 1770,
+    "valid": false
+  },
+  {
+    "width": 1500,
+    "end": 47970,
+    "valid": false
+  },
+  {
+    "width": 1500,
+    "end": 100200,
+    "valid": false
+  },
+  {
+    "width": 3000,
+    "end": 3000,
+    "valid": true
+  },
+  {
+    "width": 3000,
+    "end": 22920,
+    "valid": true
+  },
+  {
+    "width": 3000,
+    "end": 42270,
+    "valid": true
+  },
+  {
+    "width": 3000,
+    "end": 61950,
+    "valid": true
+  },
+  {
+    "width": 3000,
+    "end": 81090,
+    "valid": true
+  },
+  {
+    "width": 3000,
+    "end": 100530,
+    "valid": true
+  },
+  {
+    "width": 3000,
+    "end": 3270,
+    "valid": false
+  },
+  {
+    "width": 3000,
+    "end": 46830,
+    "valid": false
+  },
+  {
+    "width": 3000,
+    "end": 100410,
+    "valid": false
+  },
+  {
+    "width": 6000,
+    "end": 6000,
+    "valid": true
+  },
+  {
+    "width": 6000,
+    "end": 25410,
+    "valid": true
+  },
+  {
+    "width": 6000,
+    "end": 44310,
+    "valid": true
+  },
+  {
+    "width": 6000,
+    "end": 63120,
+    "valid": true
+  },
+  {
+    "width": 6000,
+    "end": 81690,
+    "valid": true
+  },
+  {
+    "width": 6000,
+    "end": 100530,
+    "valid": true
+  },
+  {
+    "width": 6000,
+    "end": 6270,
+    "valid": false
+  },
+  {
+    "width": 6000,
+    "end": 48210,
+    "valid": false
+  },
+  {
+    "width": 6000,
+    "end": 99840,
+    "valid": false
+  }
+]
