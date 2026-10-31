@@ -13,6 +13,7 @@
 
 ## 먼저 읽을 문서
 
+- [75세션 모델 구조 비교 설계](model-training/architecture-comparison-plan.md): 같은 진폭 15초 입력으로 여섯 구조를 비교하는 계획. 날짜별 평가와 10/13 재생 평가.
 - [75세션 진폭·위상 재비교 계획](model-training/pilot-75-session-plan.md): 별도 파일럿의 후보·분할·평가 기준.
 - [75세션 진폭·위상 비교 결과](model-training/pilot-75-session-report.md): 108회 학습 결과와 60초 위상·진폭의 장단점.
 - [여섯 후보의 10/13 실시간 기록 비교 계획](model-training/pilot-live-comparison-plan.md): 진폭 3초 모델을 고정한 재생 평가. 10/6 제외.
