@@ -130,6 +130,16 @@ class SenderTest(unittest.TestCase):
         self.assertEqual(sent, [all3, lost])                                  # 상태는 그대로여도 보드가 꺼지면 바로
 
 
+    def test_led_change_sends_right_away(self):
+        import time
+        sent = []
+        with unittest.mock.patch.object(home.Sender, "send", lambda self, body: sent.append(body["led"])):
+            snd = home.Sender()
+            for led in (False, False, True, True):                           # 수면 중 움직임이 N초를 넘었다
+                snd.offer("motion", 0.0, led)
+                time.sleep(0.05)
+        self.assertEqual(sent, [False, True])                                 # 상태는 그대로여도 조명이 켜지면 바로
+
 class ReplayTest(unittest.TestCase):
     """재생은 지난 상태를 다시 흘린다 — 여기서 보내면 과거를 지금 일처럼 알린다.
 
