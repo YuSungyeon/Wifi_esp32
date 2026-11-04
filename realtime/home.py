@@ -181,9 +181,11 @@ class Sender:
         threading.Thread(target=self._run, daemon=True).start()
 
     def offer(self, state: str, since: float, led: bool | None = None, rx: dict | None = None) -> None:
-        """`rx` = RX 별 생존 `{"101": True, ...}` — 웹 홈의 보드 그림이 쓴다. 상태처럼 바뀌면 바로 보낸다."""
+        """`rx` = RX 별 생존 `{"101": True, ...}` — 웹 홈의 보드 그림이 쓴다. 상태·조명처럼 바뀌면 바로 보낸다."""
         with self._cv:
-            if self._want is None or self._want["state"] != state or self._want.get("rx") != rx:
+            w = self._want
+            # 조명은 상태와 따로 바뀐다(수면 중 움직임 N초, 가만히 X분, 수면 끝) — 이것도 바로 보낸다
+            if w is None or w["state"] != state or w.get("rx") != rx or w.get("led") != led:
                 self._dirty = True
                 self._cv.notify()
             self._want = {"state": state, "since": round(since, 1), "led": led, "rx": rx}
