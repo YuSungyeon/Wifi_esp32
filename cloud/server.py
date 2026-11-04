@@ -162,6 +162,22 @@ def config(user) -> dict:
 
 def save_config(uid: int, cfg: dict) -> None:
     q("update users set config=? where id=?", (json.dumps(cfg, ensure_ascii=False), uid))
+    bump(uid)
+
+
+# ── 홈에 바뀐 것을 밀어 주기 (§5.1 홈 갱신, SSE) ───────────────────────────
+CHANGED = threading.Condition()
+VERSION: dict = {}             # 계정별 변경 번호 — 열린 홈 스트림이 이것이 오르기를 기다린다
+STREAM_PING_S = 25             # 조용해도 이만큼마다 ping — 중간 장비가 조용한 연결을 끊는다
+STREAM_LIFE_S = 600            # 한 연결은 10분 — 화면이 곧바로 다시 붙는다
+
+
+def bump(uid: int | None = None) -> None:
+    """그 계정(없으면 모두)의 홈을 다시 보내라고 깨운다. 실제로 보낼지는 스트림이 직전과 비교해 정한다."""
+    with CHANGED:
+        for k in ([uid] if uid is not None else list(VERSION)):
+            VERSION[k] = VERSION.get(k, 0) + 1
+        CHANGED.notify_all()
 
 
 def sha(s: str) -> str:
@@ -305,6 +321,7 @@ def raise_alert(dev, user, kind: str, now: float, text: str, numbers: list[str],
     status = notify(numbers, text, now)
     q("insert into alerts(device_id,kind,rule,label,token,created,resolved,status) values(?,?,?,?,?,?,?,?)",
       (dev["id"], kind, rule, label or KIND[kind], token, now, now if resolved else None, status))
+    bump(dev["user_id"])
 
 
 def last_end(dev, state: str) -> float | None:
@@ -377,6 +394,7 @@ def tick(now: float) -> None:
         for a in open_.values():                    # 지웠거나 끈 상황 — 열린 채 두지 않는다
             if a["kind"] != "intrusion":
                 q("update alerts set resolved=? where id=?", (now, a["id"]))
+    bump()                                          # 끊김(3분)·복구·지인 발송은 여기서 드러난다
 
 
 def ticker() -> None:
@@ -492,9 +510,9 @@ def board(rx: dict | None, offline: bool) -> str:
         x, y = 150 + 112 * math.cos(ang), 150 + 112 * math.sin(ang)
         alive = None if (offline or not rx) else bool(rx[n])     # None = 모름(신호 끊김·옛 클라이언트)
         cls = {True: "", False: " dead", None: " unknown"}[alive]
-        links.append(f'<line class="link{cls}" x1="{x:.1f}" y1="{y:.1f}" x2="150" y2="150"/>')
+        links.append(f'<line class="link{cls}" data-id="{e(n)}" x1="{x:.1f}" y1="{y:.1f}" x2="150" y2="150"/>')
         ly = y - 22 if y < 100 else y + 30
-        nodes.append(f'<g class="node{cls}">' + (f'<circle class="ping" cx="{x:.1f}" cy="{y:.1f}" r="12"/>' if alive else "")
+        nodes.append(f'<g class="node{cls}" data-id="{e(n)}"><circle class="ping" cx="{x:.1f}" cy="{y:.1f}" r="12"/>'
                      + f'<circle class="dot" cx="{x:.1f}" cy="{y:.1f}" r="12"/>'
                      f'<path class="mark" d="M{x-5:.1f} {y+1:.1f}a6 6 0 0 1 10 0M{x-2.5:.1f} {y+4:.1f}a3 3 0 0 1 5 0"/>'
                      f'<text x="{x:.1f}" y="{ly:.1f}" text-anchor="middle">RX{e(n)}{" · 꺼짐" if alive is False else ""}</text></g>')
@@ -505,7 +523,7 @@ def board(rx: dict | None, offline: bool) -> str:
 
 
 def page(title: str, body: str, user=None, active: str = "", refresh: int | None = None,
-         flash: str = "", header: str = "") -> str:
+         flash: str = "", header: str = "", live: bool = False) -> str:
     nav, tabs = header, ""
     if user is not None:
         av = (f'<details class="umenu"><summary class="avatar" aria-label="내 메뉴">{e(user["name"][:1])}</summary>'
@@ -521,6 +539,8 @@ def page(title: str, body: str, user=None, active: str = "", refresh: int | None
             f'<a href="/{k}"{" class=on" if k == active else ""}><svg viewBox="0 0 24 24" fill="none" '
             f'stroke="currentColor" stroke-width="1.8">{ICONS[k]}</svg>{t}</a>' for k, t in NAV) + "</nav>"
     meta = f'<meta http-equiv="refresh" content="{refresh}">' if refresh else ""
+    if live:
+        meta, tabs = '<noscript><meta http-equiv="refresh" content="15"></noscript>', tabs + HOME_JS
     fl = f'<div class="flash">{e(flash)}</div>' if flash else ""
     if user is not None:
         tabs += me_dialog(user)
@@ -586,13 +606,97 @@ document.addEventListener('click', function (ev) {
   }
 })();
 // 켜기/끄기 단추: 서버는 눌린 카드(#sleep …)로 돌려보내 화면이 위로 밀린다. 뒤에서 보내고 제자리에서 다시 그린다
-document.querySelectorAll('form[data-stay]').forEach(function (f) {
-  f.addEventListener('submit', function (ev) {
-    ev.preventDefault();
-    fetch(f.action, {method: 'POST', body: new URLSearchParams(new FormData(f))})
-      .then(function () { location.reload(); }, function () { f.submit(); });
-  });
+document.addEventListener('submit', function (ev) {
+  var f = ev.target;
+  if (!f.matches('form[data-stay]')) return;
+  ev.preventDefault();
+  fetch(f.action, {method: 'POST', body: new URLSearchParams(new FormData(f))})
+    .then(function () { location.reload(); }, function () { f.submit(); });
 });
+</script>"""
+
+
+HOME_JS = """<script>
+// 홈 갱신(§5.1, 시안 v10): 서버가 바뀌는 순간 밀어 준다(SSE). 바뀐 곳만 고치니 애니메이션이 이어진다
+(function () {
+  var card = document.querySelector('.live'), grid = document.querySelector('.hgrid');
+  if (!card) return;
+  var seen = null, held = null, key = '', busy = false, es = null, heard = Date.now();
+  var $ = function (sel) { return card.querySelector(sel); };
+  function ago(s) { s = Math.max(0, Math.floor(s)); return s < 60 ? s + '초 전' : s < 3600 ? Math.floor(s / 60) + '분 전' : Math.floor(s / 3600) + '시간 전'; }
+  function swap(el, txt, cls) {                                   // 글자만 살짝 흐렸다 바꾼다
+    if (!el || el.textContent === txt) return;
+    el.classList.add(cls); setTimeout(function () { el.textContent = txt; el.classList.remove(cls); }, 200);
+  }
+  function put(id, html) { var el = document.getElementById(id); if (el && el.innerHTML !== html) el.innerHTML = html; }
+  function dur(s) { var m = Math.floor(s / 60); return (m >= 60 ? Math.floor(m / 60) + '시간 ' + m % 60 + '분' : m + '분') + '째'; }
+  function tick() {                                               // 시간만 흐르는 것은 화면 시계로
+    var el = $('[data-seen]'); if (el && seen !== null) el.textContent = ago(seen) + ' 신호';
+    if (held !== null) $('.desc b').textContent = dur(held);
+    var c = document.querySelector('#h-urgent .count'), m = c && c.textContent.match(/^(\\d+):(\\d\\d)$/);
+    if (m) { var t = Math.max(0, m[1] * 60 + +m[2] - 1); c.textContent = Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
+  }
+  function apply(p) {
+    var d = p.data;
+    if (('nodev' in d) !== (grid.dataset.nodev === '1')) return location.reload();   // 기기가 붙거나 떨어졌다 — 드문 일
+    put('h-greet', p.greet); put('h-urgent', p.urgent); put('h-away', p.away); put('h-alerts', p.alerts); put('h-today', p.today);
+    if ('nodev' in d) return;
+    card.className = 'live s-' + d.orb;                           // 원 애니메이션만 바뀌고 빛·신호선은 이어진다
+    card.style.setProperty('--c', d.c);
+    swap($('.st'), d.label, 'swap'); swap($('.desc span'), d.desc, 'fade');
+    $('.desc b').textContent = d.held; held = d.held_s;
+    var k = d.lbl + d.chips.replace(/<span data-seen>[^<]*<\\/span>/, '');
+    if (k !== key) { $('.lbltx').innerHTML = d.lbl; $('.chips2').innerHTML = d.chips; key = k; }
+    seen = d.seen; tick();
+    var nodes = card.querySelectorAll('.board .node'), ids = [].map.call(nodes, function (n) { return n.dataset.id; });
+    if (d.rx && ids.join() !== Object.keys(d.rx).sort().join()) {            // RX 구성이 달라졌으면 그림째
+      var t = document.createElement('div'); t.innerHTML = d.board; card.querySelector('.board').replaceWith(t.firstChild);
+      return;
+    }
+    nodes.forEach(function (n) {
+      var id = n.dataset.id, st = d.gone || !d.rx ? 'unknown' : d.rx[id] ? '' : 'dead';
+      ['dead', 'unknown'].forEach(function (c) {
+        n.classList.toggle(c, st === c); card.querySelector('.board .link[data-id="' + id + '"]').classList.toggle(c, st === c);
+      });
+      n.querySelector('text').textContent = 'RX' + id + (st === 'dead' ? ' · 꺼짐' : '');
+    });
+  }
+  function ok(p) { heard = Date.now(); $('.net') && ($('.net').hidden = true); if (p) apply(p); }
+  function lost() { $('.net') && ($('.net').hidden = false); }
+  function connect() {                                            // 연결 하나를 열어 두고 서버가 보내 주길 기다린다
+    if (es) es.close();
+    es = new EventSource('/api/home/stream');
+    es.onmessage = function (e) { ok(JSON.parse(e.data)); };
+    es.addEventListener('ping', function () { ok(null); });
+    es.onerror = function () {
+      lost();
+      if (es.readyState === 2) fetch('/api/home', {cache: 'no-store'}).then(function (r) { if (r.status === 401) location.reload(); });
+    };
+  }
+  function poll() {                                               // 스트림을 못 쓰는 브라우저만
+    if (busy || document.hidden) return;
+    busy = true;
+    fetch('/api/home', {cache: 'no-store', credentials: 'same-origin'})
+      .then(function (r) {
+        if (r.status === 401 || !(r.headers.get('content-type') || '').includes('json')) { location.reload(); throw 0; }
+        return r.json();
+      })
+      .then(ok)
+      .catch(function (e) { if (e !== 0) lost(); })                 // 실패: 화면은 그대로, 표시만
+      .then(function () { busy = false; });
+  }
+  var s0 = $('[data-seen]'); if (s0) { var m = s0.textContent.match(/(\\d+)(초|분|시간)/); if (m) seen = m[1] * {'초': 1, '분': 60, '시간': 3600}[m[2]]; }
+  key = ($('.lbltx') ? $('.lbltx').innerHTML : '') + ($('.chips2') ? $('.chips2').innerHTML.replace(/<span data-seen>[^<]*<\\/span>/, '') : '');
+  var h0 = $('.desc b'); if (h0) { var hm = h0.textContent.match(/(?:(\\d+)시간 )?(\\d+)분째/); if (hm) held = ((+hm[1] || 0) * 60 + +hm[2]) * 60; }
+  setInterval(function () { if (seen !== null) seen++; if (held !== null) held++; tick(); }, 1000);
+  if (!window.EventSource) { setInterval(poll, 5000); return; }
+  connect();
+  // 살아 있음: 서버가 25초마다 ping 을 보낸다. 40초 동안 아무것도 없으면 조용히 끊긴 연결 — 다시 붙는다
+  setInterval(function () { if (Date.now() - heard > 40000) { lost(); heard = Date.now(); connect(); } }, 5000);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && Date.now() - heard > 40000) { heard = Date.now(); connect(); }
+  });
+})();
 </script>"""
 
 
@@ -641,7 +745,8 @@ def page_login(h, signup: bool, err: str) -> str:
     return page("로그인", body)
 
 
-def page_home(user, now: float) -> str:
+def home_parts(user, now: float) -> dict:
+    """홈의 조각(§5.1 홈 갱신). 처음 열 때는 page_home 이 잇고, 그 뒤엔 /api/home 이 5초마다 같은 것을 준다."""
     cfg, dev = config(user), device_of(user["id"])
     t0 = day_range(datetime.fromtimestamp(now, home.TZ).strftime("%Y-%m-%d"))[0]
     urgent = ""
@@ -661,6 +766,7 @@ def page_home(user, now: float) -> str:
         live = ('<div class="live s-idle" style="--c:var(--line)"><div><div class="lbl">아직 연결된 집 기기가 없어요</div>'
                 '<div class="st">—</div><div class="desc">집 컴퓨터를 연결하면 방 상태가 여기 보여요.</div>'
                 f'<a class="btn primary mt16" href="/devices">기기 연결하기</a></div>{board(None, True)}</div>')
+        data = {"nodev": True}
     else:
         gone = stale(dev, now)
         st = "offline" if gone else (dev["state"] or "deciding")
@@ -670,14 +776,19 @@ def page_home(user, now: float) -> str:
         rx = json.loads(dev["rx"]) if dev["rx"] else None
         lbl = ('<i class="livedot bad"></i>집 기기 신호 끊김' if gone else
                '<i class="livedot"></i>실시간 · Wi-Fi 감지 중')
-        chips = (f'<div class="chips2"><span class="chip2{" on" if dev["led"] else ""}">{svgi("bulb")}조명 {lamp}</span>'
+        seen = now - dev["last_seen"] if dev["last_seen"] else None
+        chips = (f'<span class="chip2{" on" if dev["led"] else ""}">{svgi("bulb")}조명 {lamp}</span>'
                  f'<span class="chip2{" bad" if gone else " ok"}">{svgi("wifi")}'
-                 f'{ago(now - dev["last_seen"]) + " 신호" if dev["last_seen"] else "신호 없음"}</span>'
-                 f'<span class="chip2">{svgi("moon" if sleep else "sun")}{"수면 시간" if sleep else "깨어 있는 시간"}</span></div>')
+                 f'<span data-seen>{ago(seen) + " 신호" if seen is not None else "신호 없음"}</span></span>'
+                 f'<span class="chip2">{svgi("moon" if sleep else "sun")}{"수면 시간" if sleep else "깨어 있는 시간"}</span>')
         orb = st if st in ("empty", "static", "motion") else "idle"
-        live = (f'<div class="live s-{orb}" style="--c:var(--st-{CLS[st]})"><div><div class="lbl">{lbl}</div>'
-                f'<div class="st">{LABEL[st]}</div><div class="desc">{DESC[st]} · <b>{dur(held)}째</b></div>'
-                f'{chips}</div>{board(rx, gone)}</div>')
+        rxb = board(rx, gone)
+        live = (f'<div class="live s-{orb}" style="--c:var(--st-{CLS[st]})"><div><div class="lbl"><span class="lbltx">{lbl}</span>'
+                f'<span class="net" hidden>연결 확인 중…</span></div>'
+                f'<div class="st">{LABEL[st]}</div><div class="desc"><span>{DESC[st]}</span> · <b>{dur(held)}째</b></div>'
+                f'<div class="chips2">{chips}</div></div>{rxb}</div>')
+        data = {"orb": orb, "c": f"var(--st-{CLS[st]})", "label": LABEL[st], "desc": DESC[st], "held": f"{dur(held)}째", "held_s": held,
+                "lbl": lbl, "chips": chips, "seen": seen, "gone": gone, "rx": rx, "board": rxb}
     if cfg["away"]:
         since = cfg.get("away_since")
         rep_min = int(cfg["away_repeat_min"])
@@ -702,12 +813,19 @@ def page_home(user, now: float) -> str:
              f'<div class="kpi"><small>방에 있음</small><b>{dur(tot.get("static", 0) + tot.get("motion", 0))}</b></div>'
              f'<div class="kpi"><small>빈 방</small><b>{dur(tot.get("empty", 0))}</b></div>'
              f'<div class="kpi"><small>알림</small><b>{n_alert}건</b></div></div></div>')
-    greet = f'<p class="greet"><b>{e(user["name"])}</b>님의 방 · {datetime.fromtimestamp(now, home.TZ).strftime("%m월 %d일 %H:%M")}</p>'
+    greet = f'<b>{e(user["name"])}</b>님의 방 · {datetime.fromtimestamp(now, home.TZ).strftime("%m월 %d일 %H:%M")}'
+    return {"greet": greet, "urgent": urgent, "live": live, "data": data, "away": away,
+            "alerts": alerts_list(user["id"], 4), "today": today}
+
+
+def page_home(user, now: float) -> str:
+    p = home_parts(user, now)
     more_a = '<a class="muted small" href="/history">전체 →</a>'
-    body = (greet + urgent + f'<div class="hgrid">{live}<div class="side">{away}'
-            f'<div class="card grow">{chead("bell", "최근 알림", right=more_a)}{alerts_list(user["id"], 4)}</div></div></div>'
-            f'<div class="wide-today">{today}</div>')
-    return page("홈", body, user, "home", refresh=15)
+    body = (f'<p class="greet" id="h-greet">{p["greet"]}</p><div id="h-urgent">{p["urgent"]}</div>'
+            f'<div class="hgrid" data-nodev="{int("nodev" in p["data"])}">{p["live"]}<div class="side"><div id="h-away">{p["away"]}</div>'
+            f'<div class="card grow">{chead("bell", "최근 알림", right=more_a)}<div id="h-alerts">{p["alerts"]}</div></div></div></div>'
+            f'<div class="wide-today" id="h-today">{p["today"]}</div>')
+    return page("홈", body, user, "home", live=True)
 
 
 ALERT_ICON = {"intrusion": ("walk", "warn"), "offline": ("plug", "danger"), "emergency": ("heart", "danger"),
@@ -1329,6 +1447,7 @@ def r_account(h):
            "휴대폰 번호 형식이 아니에요" if not phone_ok(phone) else "")
     if not err:
         q("update users set name=?, phone=? where id=?", (name, phone, u["id"]))
+        bump(u["id"])
     h.redirect(back + "?me=" + quote(err or "ok"))
 
 
@@ -1425,6 +1544,7 @@ def r_device_del(h):
         i = h.form().get("id", "")
         if i.isdigit():
             q("delete from devices where id=? and user_id=?", (int(i), u["id"]))   # 토큰도 함께 사라진다
+            bump(u["id"])
         h.redirect("/devices")
 
 
@@ -1437,6 +1557,9 @@ def r_confirm_post(h, token):
     a = q("select * from alerts where token=?", (token,), one=True)
     if a is not None and a["confirmed"] is None:
         q("update alerts set confirmed=? where id=?", (time.time(), a["id"]))
+        dev = q("select user_id from devices where id=?", (a["device_id"],), one=True)
+        if dev:
+            bump(dev["user_id"])
     if h.user():
         return h.redirect("/home")
     h.send(200, page_confirm(a, time.time(), done=a is not None))
@@ -1468,7 +1591,52 @@ def r_api_pair(h):
     q("insert into devices(user_id,name,token_hash,created) values(?,?,?,?)",
       (row["user_id"], name, sha(token), now))
     user = q("select * from users where id=?", (row["user_id"],), one=True)
+    bump(row["user_id"])
     h.json({"token": token, "config": public_config(config(user))})
+
+
+def r_api_home(h):
+    """홈 갱신(§5.1). 로그인이 풀렸으면 401 — 화면이 새로 고쳐 로그인으로 간다."""
+    u = h.user()
+    if u is None or u["verified"] is None:
+        return h.json({"error": "로그인이 필요합니다"}, 401)
+    h.send(200, home_payload(u), "application/json")
+
+
+def home_payload(u) -> str:
+    p = home_parts(u, time.time())
+    del p["live"]                                   # 상태 카드는 값(data)으로 — 다시 그리지 않는다
+    return json.dumps(p, ensure_ascii=False)
+
+
+def r_api_home_stream(h):
+    """홈 스트림(SSE, §5.1). 바뀌면 data, 조용하면 ping. 보낼 것이 직전과 같으면 보내지 않는다."""
+    u = h.user()
+    if u is None or u["verified"] is None:
+        return h.json({"error": "로그인이 필요합니다"}, 401)
+    uid, end, last = u["id"], time.time() + STREAM_LIFE_S, None
+    h.send_response(200)
+    for k, v in (("Content-Type", "text/event-stream; charset=utf-8"), ("Cache-Control", "no-store"),
+                 ("X-Accel-Buffering", "no"), ("Connection", "close")):
+        h.send_header(k, v)
+    h.end_headers()
+    h.close_connection = True
+    with CHANGED:
+        ver = VERSION.setdefault(uid, 0)
+    try:
+        while time.time() < end:
+            u = q("select * from users where id=?", (uid,), one=True)
+            if u is None:                           # 계정이 지워졌다
+                return
+            body = home_payload(u)
+            h.wfile.write(f"data: {body}\n\n".encode() if body != last else b"event: ping\ndata: \n\n")
+            h.wfile.flush()
+            last = body
+            with CHANGED:
+                CHANGED.wait_for(lambda: VERSION.get(uid, 0) != ver, timeout=STREAM_PING_S)
+                ver = VERSION.get(uid, 0)
+    except (BrokenPipeError, ConnectionResetError, OSError):
+        return                                      # 화면이 떠났다
 
 
 def r_api_state(h):
@@ -1498,6 +1666,7 @@ def r_api_state(h):
     user = q("select * from users where id=?", (dev["user_id"],), one=True)
     cfg = config(user)
     check_intrusion(dev, user, cfg, state, now)
+    bump(dev["user_id"])
     h.json({"config": public_config(cfg)})
 
 
@@ -1747,7 +1916,7 @@ ROUTES = [
     ("POST", r"/rules/toggle", r_rule_toggle), ("POST", r"/rules/del", r_rule_del), ("GET", r"/devices", r_devices),
     ("POST", r"/devices/code", r_code), ("POST", r"/devices/del", r_device_del),
     ("GET", r"/c/([\w-]+)", r_confirm), ("POST", r"/c/([\w-]+)", r_confirm_post),
-    ("POST", r"/api/pair", r_api_pair), ("POST", r"/api/state", r_api_state),
+    ("GET", r"/api/home", r_api_home), ("GET", r"/api/home/stream", r_api_home_stream), ("POST", r"/api/pair", r_api_pair), ("POST", r"/api/state", r_api_state),
     ("GET", r"/admin", r_admin), ("POST", r"/admin/login", r_admin_login),
     ("POST", r"/admin/logout", r_admin_logout), ("GET", r"/admin/u/(\d+)", r_admin_user),
     ("POST", r"/admin/u/(\d+)/delete", r_admin_user_delete), ("POST", r"/admin/d/(\d+)/delete", r_admin_device_delete),
@@ -2002,7 +2171,7 @@ body{min-height:100vh;background:radial-gradient(1200px 520px at 15% -10%,color-
 .sleep-on{border-color:color-mix(in srgb,#8b5cf6 45%,var(--line));background:linear-gradient(135deg,var(--sleep-soft),var(--canvas) 60%)}
 .rose-on{border-color:color-mix(in srgb,#e11d48 40%,var(--line));background:linear-gradient(135deg,var(--rose-soft),var(--canvas) 60%)}
 .hgrid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px;align-items:stretch}
-.urgent+.hgrid{margin-top:16px} .hgrid>.live{margin:0} .side{display:flex;flex-direction:column;gap:16px} .side>.card{margin:0} .side>.grow{flex:1}
+#h-urgent .urgent{margin-bottom:16px} .hgrid>.live{margin:0} .side{display:flex;flex-direction:column;gap:16px} .side>.card{margin:0} .side>.grow{flex:1}
 .wide-today{margin-top:16px} .wide-today .kpis{max-width:560px}
 .fg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px} .fg .full{grid-column:1/-1}
 .fg label{margin-top:14px} .fg label.mt0{margin-top:0}
@@ -2019,7 +2188,15 @@ body{min-height:100vh;background:radial-gradient(1200px 520px at 15% -10%,color-
 @media (max-width:1100px){.hgrid{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:767px){.fg{grid-template-columns:minmax(0,1fr)} .addrow{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:1100px){.live{grid-template-columns:1fr;justify-items:center;text-align:center} .live .lbl,.chips2{justify-content:center}}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+/* 홈 갱신 전환(시안 v10) */
+@property --c{syntax:'<color>';inherits:true;initial-value:#94a3b8}
+.live{transition:--c .7s ease,border-color .7s ease}
+.live .st{transition:opacity .2s ease,transform .2s ease} .live .st.swap{opacity:0;transform:translateY(6px)}
+.live .desc span{transition:opacity .2s ease} .live .desc span.fade{opacity:0}
+.board .dot,.board .link,.board text,.board .mark{transition:fill .6s ease,stroke .6s ease,opacity .6s ease}
+.board .dead .ping,.board .unknown .ping{display:none}
+.net{margin-left:8px;padding:2px 8px;border-radius:999px;background:var(--warn-soft);color:var(--warn-ink);font-size:12px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media (max-width:767px){
   .top{display:none} .tabs{display:flex}
   .mtitle{display:flex;align-items:center;justify-content:space-between;padding:calc(12px + env(safe-area-inset-top)) 20px 4px}
@@ -2047,7 +2224,9 @@ def main() -> int:
     init(a.db, a.base or f"http://{a.host}:{a.port}")
     threading.Thread(target=ticker, daemon=True).start()
     print(f"MeshSense cloud — http://{a.host}:{a.port}  (링크 주소 {BASE})")
-    ThreadingHTTPServer((a.host, a.port), H).serve_forever()
+    srv = ThreadingHTTPServer((a.host, a.port), H)
+    srv.daemon_threads = True                       # 열린 홈 스트림이 종료를 붙잡지 않게
+    srv.serve_forever()
     return 0
 
 

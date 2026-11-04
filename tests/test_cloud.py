@@ -110,6 +110,58 @@ class CloudFlow(unittest.TestCase):
     def test_login_required(self):
         self.assertTrue(self.web.open(self.url + "/home").geturl().endswith("/"))
 
+    def test_home_updates_in_place(self):
+        with self.assertRaises(urllib.error.HTTPError) as cm:                # 로그인 전엔 401 — 화면이 새로 고쳐 로그인으로
+            self.get("/api/home")
+        self.assertEqual(cm.exception.code, 401)
+        token = self.signup_and_pair()
+        page_ = self.get("/home")
+        self.assertIn('<noscript><meta http-equiv="refresh" content="15"></noscript>', page_)   # 스크립트 없을 때만
+        self.assertNotIn('<meta http-equiv="refresh" content="15"><title>', page_)
+        self.assertIn("/api/home", page_)
+        self.api("/api/state", {"state": "motion", "since": time.time() - 30, "led": True,
+                                "rx": {"101": True, "102": False, "103": True}}, token)
+        p = json.loads(self.get("/api/home"))
+        d = p["data"]
+        self.assertEqual((d["label"], d["orb"], d["gone"]), ("움직임", "motion", False))
+        self.assertEqual(d["rx"], {"101": True, "102": False, "103": True})
+        self.assertIn('data-id="102"', d["board"])
+        self.assertIn("조명 켜짐", d["chips"])
+        self.assertLess(d["seen"], 5)
+        for k in ("greet", "urgent", "away", "alerts", "today"):
+            self.assertIn(k, p)
+        self.assertNotIn("live", p)                                          # 상태 카드는 값으로만 — 다시 그리지 않는다
+
+    def test_home_stream_pushes_changes(self):
+        with self.assertRaises(urllib.error.HTTPError) as cm:                # 로그인 전엔 401
+            self.get("/api/home/stream")
+        self.assertEqual(cm.exception.code, 401)
+        token = self.signup_and_pair()
+        old, S.STREAM_PING_S = S.STREAM_PING_S, 0.3
+        try:
+            r = self.web.open(self.url + "/api/home/stream", timeout=5)
+            self.assertIn("text/event-stream", r.headers["Content-Type"])
+            def event():
+                lines = []
+                while (line := r.fp.readline().decode().rstrip("\n")) or not lines:
+                    if line:
+                        lines.append(line)
+                return lines
+            first = event()
+            self.assertTrue(first[0].startswith("data: "))                   # 열자마자 지금 상태
+            t = time.time()
+            self.api("/api/state", {"state": "motion", "since": time.time(), "led": True}, token)
+            while True:                                                     # 조용할 땐 ping, 바뀌면 바로 data
+                ev = event()
+                if ev[0].startswith("data: ") and json.loads(ev[0][6:])["data"].get("label") == "움직임":
+                    break
+                self.assertIn(ev[0], ("event: ping", "data: " + ev[0][6:]))
+                self.assertLess(time.time() - t, 3)
+            self.assertLess(time.time() - t, 1)                              # 신호가 오면 그때 — 기다리지 않는다
+            r.close()
+        finally:
+            S.STREAM_PING_S = old
+
     def test_bad_token_and_bad_body_are_rejected(self):
         token = self.signup_and_pair()
         self.assertEqual(self.api("/api/state", {"state": "static", "since": 1}, "nope")[0], 401)
