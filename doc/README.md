@@ -2,9 +2,11 @@
 
 이 저장소는 문서 주도 개발을 사용합니다. 현재 동작과 데이터 규격은 문서를 먼저 변경한 뒤 코드에 반영합니다.
 
-현재 학습한 모델을 확인하려면 [모델 학습 문서 안내](../model_train/docs/README.md)에서
-[쉬운 결과 설명](../model_train/docs/model-training/robust-three-class-report-easy.md)부터 읽습니다.
-최근 자료 구성과 결과는 [9월 16·17일 데이터 확인·최종 모델 평가](../model_train/docs/model-training/archive/20260916-17-model-evaluation.md)에 있습니다.
+현재 동작은 [실시간 상태 판단](realtime-inference.md) §2~4부터 읽습니다.
+기본 구성은 **진폭 15초 상태 모델 + 진폭 3초 움직임 모델 + 상태 기계**입니다.
+성능 근거는 [75세션 모델 구조 비교 결과](../model_train/docs/model-training/architecture-comparison-report.md),
+모델·실험별 안내는 [모델 학습 문서 안내](../model_train/docs/README.md)를 봅니다.
+30초 모델과 9/16·17 초기 평가는 이전 실험 기록입니다.
 
 ## 읽는 순서
 
@@ -16,9 +18,9 @@
 | 4 | [펌웨어](firmware.md) | **CURRENT** — TX/RX 동작과 상수 |
 | 5 | [바이너리·JSONL 데이터 규격](data-schema.md) | **CURRENT CONTRACT** — frame v4·`.csi` 저장소·JSONL 내보내기 |
 | 6 | [실시간 경로](realtime-uplink.md) | **CURRENT** — ESP-NOW 업링크 + USB 싱크 (무선 배치) |
-| 7 | [실시간 상태 판단](realtime-inference.md) | **CURRENT** — 배포된 30초 3분류 모델·0.3초 판단 간격·상태 기계·제어판 |
+| 7 | [실시간 상태 판단](realtime-inference.md) | **CURRENT** — 15초 상태 모델 + 3초 움직임 모델·0.3초 판단 간격·상태 기계·제어판 |
 | 7b | [제어판·CLI 흐름 설계](control-panel.md) | **CURRENT** — 탭 넷(수집·세션·학습·실시간), 보드·실험 정보·진단을 쓰이는 화면 안으로 (2026-10-18) |
-| 7c | [집 상태 서비스 계획](plans/2026-10-23-home-service.md) | **PLANNED** — 시연용 IoT 조명(싱크보드 LED) + 클라우드(EC2) 긴급 알림, 3일 일정 |
+| 7c | [집 상태 서비스 계획](plans/2026-10-23-home-service.md) | 구현 경과와 남은 계획 — 로컬 조명·상태 전송, 클라우드 알림 설계 |
 | 8 | [`seq`와 `tx_seq` 패턴](sequence-patterns.md) | **CURRENT** — 두 순번의 차이·이상 패턴·실데이터 집계 |
 | 9 | [공식 전처리 설계](../model_train/docs/preprocessing/design.md) | **CURRENT CONTRACT** — 기존 3초·192차원 기준 모델의 전처리 규칙 |
 | 10 | [후처리](postprocessing.md) | **CURRENT** — 수집률·시각화와 공식 3-RX 모델 pipeline 연결 |
@@ -27,7 +29,7 @@
 | 13 | [문서 주도 개발 규칙](documentation-policy.md) | **PROCESS CONTRACT** |
 | 14 | [ADR-0001](adr-poc-only.md) | **ACCEPTED** — PoC 단일 경로 결정 |
 | 15 | [수집 환경 정비 스프린트](sprint/2026-08-collection-hardening.md) | **HISTORICAL** — frame v4·세션/라벨 정비의 시도·막힌 지점·실측 |
-| 16 | [모델 학습 문서 안내](../model_train/docs/README.md) | **CURRENT** — 현재 30초 모델 설명과 이전 기록 구분 |
+| 16 | [모델 학습 문서 안내](../model_train/docs/README.md) | **CURRENT** — 현재 구성·비교 실험·이전 30초 모델 구분 |
 | 17 | [진폭·위상 입력 규격 결정](adr-csi-phase-experiment.md) | **ACCEPTED** — 이전 3초 비교 실험의 별도 입력 경로 |
 | 18 | [30초 3분류 입력 규격 결정](adr-robust-three-class-experiment.md) | **ACCEPTED** — 상대 진폭·긴 구간을 쓰는 후속 실험 |
 | 19 | [모델 실험·학습 작업 기록](sprint/2026-09-phase-classification.md) | **HISTORICAL** — 실험·검증·설명 문서의 작업 이력 |
