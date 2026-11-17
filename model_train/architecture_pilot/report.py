@@ -33,6 +33,56 @@ def benchmark():
         results[kind]=result
     P.write_json(OUT/'latency.json',results);return results
 
+def render_timeline():
+    """Redraw saved predictions only; leave training, scores and report text intact."""
+    live=load(OUT/'live/results.json')
+    artifacts=ROOT/'model_train/docs/model-training/assets/architecture'
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import ListedColormap
+    from model_train.pilot75.evaluate_live import TRUTH_ROWS,wall
+    from matplotlib.patches import Patch, Rectangle
+    first=np.load(OUT/'live/shared.npz');times=first['times'];truth=np.full(len(times),-1)
+    labels=['empty','static','motion'];colors=['#e5e7eb','#45b887','#4a8fdf','#f2a044']
+    for a,b,label,_ in TRUTH_ROWS:truth[(times>=wall(a))&(times<wall(b))]=labels.index(label)
+    data=[truth]
+    for k in live:
+        z=np.load(OUT/'live'/f'{k}.npz');np.testing.assert_array_equal(z['times'],times);data.append(np.array([labels.index(v) if v in labels else -1 for v in z['combined']]))
+    names={'shared':'Shared CNN', 'cnn':'1D-CNN', 'gru':'GRU', 'lstm':'LSTM',
+           'transformer':'Transformer', 'rf':'Random Forest', 'current_amp15':'Current amp15'}
+    fig,ax=plt.subplots(figsize=(14,6.8))
+    # Truth gets an extra gap; every model has its own separate strip.
+    positions=np.r_[0,np.arange(1,len(data))+.45]
+    duration=(times[-1]-times[0])/60
+    for y,row in zip(positions,data):
+        ax.imshow((np.asarray(row)+1)[None,:],aspect='auto',interpolation='nearest',
+                  cmap=ListedColormap(colors),vmin=0,vmax=3,
+                  extent=[0,duration,y+.32,y-.32],zorder=2)
+        ax.add_patch(Rectangle((0,y-.32),duration,.64,fill=False,
+                               edgecolor='#b4bdc8',linewidth=.6,zorder=4))
+    for start,end,_,_ in TRUTH_ROWS:
+        center=((wall(start)+wall(end))/2-times[0])/60
+        ax.text(center,positions[0],f'{start} – {end}',ha='center',va='center',
+                fontsize=12,fontweight='bold',color='#142331',zorder=5)
+    ax.axhline(.72,color='#8793a3',linewidth=.9)
+    ax.set_ylim(positions[-1]+.65,-.65);ax.set_xlim(0,duration)
+    ax.set_yticks(positions,['Ground truth',*[names[k] for k in live]])
+    ax.tick_params(axis='y',length=0,pad=12)
+    ax.set_xticks(np.arange(0,duration+.01,2))
+    ax.grid(axis='x',color='#718096',linestyle=':',alpha=.35,zorder=3)
+    ax.set_axisbelow(False)
+    ax.set_xlabel('Minutes from recording start',labelpad=10)
+    ax.set_title('October 13: final displayed states',fontsize=15,pad=30)
+    ax.text(0,1.025,'Ground truth bars show start and end times in KST (UTC+09:00).',
+            transform=ax.transAxes,color='#536174',fontsize=10)
+    for side in ('top','right','left'):ax.spines[side].set_visible(False)
+    ax.spines['bottom'].set_color('#b4bdc8')
+    ax.legend(handles=[Patch(color=c,label=l) for c,l in zip(colors,['Unlabelled / unavailable',*labels])],
+              loc='upper center',bbox_to_anchor=(.5,-.14),ncol=4,frameon=False)
+    fig.subplots_adjust(left=.13,right=.985,top=.87,bottom=.17)
+    fig.savefig(artifacts/'timeline.png',dpi=160,facecolor='white');plt.close(fig)
+
 def main():
     torch.set_num_threads(2)
     from threadpoolctl import threadpool_limits
@@ -58,24 +108,7 @@ def main():
     for d in [*P.DATES,'full']:
         histories[d]={k:[dict(result=load(OUT/d/k/f'seed{s}.json'),selection=load(OUT/d/k/f'seed{s}-selection.json') if k!='rf' else None) for s in range(3)] for k in NAMES}
     P.write_json(artifacts/'training.json',histories)
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    from matplotlib.colors import ListedColormap
-    from model_train.pilot75.evaluate_live import TRUTH_ROWS,wall
-    from matplotlib.patches import Patch
-    first=np.load(OUT/'live/shared.npz');times=first['times'];truth=np.full(len(times),-1)
-    labels=['empty','static','motion'];colors=['#e5e7eb','#45b887','#4a8fdf','#f2a044']
-    for a,b,label,_ in TRUTH_ROWS:truth[(times>=wall(a))&(times<wall(b))]=labels.index(label)
-    data=[truth]
-    for k in live:
-        z=np.load(OUT/'live'/f'{k}.npz');data.append(np.array([labels.index(v) if v in labels else -1 for v in z['combined']]))
-    fig,ax=plt.subplots(figsize=(14,5))
-    ax.imshow(np.array(data)+1,aspect='auto',interpolation='nearest',cmap=ListedColormap(colors),vmin=0,vmax=3,extent=[0,(times[-1]-times[0])/60,len(data)-.5,-.5])
-    ax.set_yticks(range(len(data)),['Truth',*live]);ax.set_xlabel('Minutes from recording start')
-    ax.set_title('October 13: final displayed states')
-    ax.legend(handles=[Patch(color=c,label=l) for c,l in zip(colors,['Unlabelled / unavailable',*labels])],loc='upper center',bbox_to_anchor=(.5,-.15),ncol=4)
-    fig.tight_layout();fig.savefig(artifacts/'timeline.png',dpi=140);plt.close(fig)
+    render_timeline()
     lines=['# 75세션 모델 구조 비교 결과','','> 상태: **SUPPORTING ANALYSIS** — 2026-11-02. 날짜별 평가와 10/13 기록 재생.','',
            '[설계](architecture-comparison-plan.md)의 진폭 15초 공통 입력·내부 검증 후 재학습 조건을 적용했다.',
            's12는 모든 학습에서 제외했다. 학습 창 15초, 날짜별 평가 창 3초, 실시간 재생 0.3초 간격이다.','',
@@ -131,4 +164,9 @@ def main():
         for p,h in row['files'].items():assert P.digest(ROOT/p)==h
     for p,h in identity['sources'].items():assert P.digest(ROOT/p)==h
     print('report complete',flush=True)
-if __name__=='__main__':main()
+if __name__=='__main__':
+    import argparse
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--timeline-only',action='store_true',help='Redraw the saved timeline without regenerating scores or report text')
+    args=parser.parse_args()
+    render_timeline() if args.timeline_only else main()
