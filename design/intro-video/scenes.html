@@ -1,0 +1,933 @@
+<!doctype html>
+<!-- 소개 영상 장면 원본. ?s=3 처럼 한 장면만 1920×1080 에 띄운다 (build.py 가 Chrome 으로 찍는다).
+     ?s=ch2 는 파트 표지, &no=07 은 왼쪽 위 장면 번호(영상 순서대로 build.py 가 매긴다).
+     아래쪽 200px 는 CapCut 자막 자리라 비워 둔다. -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MeshSense 소개 장면</title>
+<style>
+:root{--bg:#0b0b0c;--card:#161618;--line:#2a2a2e;--ink:#f4f4f5;--body:#d4d4d8;--muted:#a1a1aa;--dim:#71717a;
+ --brand:#2dd4bf;--e:#94a3b8;--s:#3b82f6;--m:#fb923c;--lamp:#f59e0b}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--ink);
+ font-family:"Noto Sans KR","Apple SD Gothic Neo",sans-serif;word-break:keep-all}
+.scene{display:none;position:absolute;inset:0;overflow:hidden}
+.scene.on{display:block}
+.step{position:absolute;left:96px;top:76px;font-size:30px;font-weight:500;color:var(--muted);letter-spacing:.02em}
+.step b{color:var(--brand);font-weight:800;margin-right:18px}
+.mark{position:absolute;right:96px;top:70px;width:52px;height:54px;color:var(--ink);opacity:.75}
+.card{background:var(--card);border:1px solid var(--line);border-radius:28px}
+.abs{position:absolute}
+.chip{display:inline-block;padding:10px 22px;border-radius:999px;border:1px solid var(--line);background:#1c1c20;
+ font-size:26px;color:var(--body)}
+.photo{border-radius:50%;object-fit:cover;border:4px solid var(--brand);box-shadow:0 0 0 10px rgba(45,212,191,.12)}
+.arrow{color:var(--dim);font-size:22px;text-align:center}
+.arrow svg{display:block;margin:0 auto 8px}
+.h{font-size:40px;font-weight:800}
+.sub{font-size:26px;color:var(--muted);margin-top:8px}
+.badge{display:inline-block;padding:4px 16px;border-radius:10px;font-size:24px;font-weight:700;margin-bottom:14px}
+.pill{display:flex;align-items:center;gap:18px;height:84px;padding:0 26px;border-radius:20px;font-size:34px;font-weight:800}
+.pill i{width:20px;height:20px;border-radius:50%;flex:none}
+.pill small{font-size:22px;font-weight:400;color:var(--muted);margin-left:auto}
+.tag{position:absolute;left:30px;bottom:28px;padding:4px 16px;border-radius:999px;font-size:22px}
+.li{display:flex;gap:18px;align-items:baseline;font-size:31px;color:var(--body);margin-bottom:28px;line-height:1.35}
+.li i{font-style:normal;font-weight:800;flex:none;width:30px}
+.note{position:absolute;left:96px;right:96px;height:72px;border-radius:20px;background:rgba(45,212,191,.1);
+ border:1px solid rgba(45,212,191,.35);display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--body)}
+.bub{border-radius:22px;background:rgba(244,244,245,.1);padding:18px 24px;font-size:25px;line-height:1.5;color:var(--ink)}
+.big .li{font-size:37px;margin-bottom:46px}
+.dim{font-size:21px;color:var(--dim)}
+.cell{display:flex;align-items:center;gap:14px;font-size:27px;color:var(--body)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+ <symbol id="logo" viewBox="0 0 478 499" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M373.886 321.902H436.266L467.457 415.473L415.473 488.25H82.7772L10 394.679L82.7772 280.315H165.951L217.935 217.935H321.902L373.886 321.902ZM373.886 321.902H301.109M113.967 93.1739L197.141 10H342.696L425.87 93.1739"/>
+  <path d="M150.356 129.562L207.538 72.3804H332.299L389.481 129.562M191.943 171.149L228.331 134.761H311.505L347.894 171.149"/>
+ </symbol>
+ <symbol id="arr" viewBox="0 0 120 24"><path d="M2 12H112M100 2l14 10-14 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+ <marker id="head" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse">
+  <path d="M1 1l10 5-10 5" fill="none" stroke="#71717a" stroke-width="2"/></marker>
+</svg>
+
+<!-- 1 · 제목 (끝 장면으로도 다시 쓴다) -->
+<section class="scene" id="s1" style="background:radial-gradient(900px 600px at 50% 46%,rgba(45,212,191,.16),transparent 70%)">
+ <svg width="1920" height="1080" class="abs" style="inset:0">
+  <g fill="none" stroke="#2dd4bf" stroke-width="2">
+   <circle cx="960" cy="400" r="260" opacity=".18"/><circle cx="960" cy="400" r="380" opacity=".11"/>
+   <circle cx="960" cy="400" r="500" opacity=".07"/><circle cx="960" cy="400" r="620" opacity=".04"/>
+  </g>
+ </svg>
+ <svg class="abs" style="left:860px;top:230px;width:200px;height:209px;color:#fff"><use href="#logo"/></svg>
+ <div class="abs" style="left:0;right:0;top:480px;text-align:center;font-size:136px;font-weight:800;letter-spacing:-.02em">MeshSense</div>
+ <div class="abs" style="left:0;right:0;top:680px;text-align:center;font-size:48px;color:var(--body)">카메라 없이, Wi-Fi 신호만으로 방 안을 읽습니다</div>
+ <div class="abs" style="left:0;right:0;top:780px;text-align:center;font-size:28px;color:var(--dim);letter-spacing:.06em">ESP32-S3 · Wi-Fi CSI · 실내 상태 인식</div>
+</section>
+
+<!-- 2 · 전파는 여러 길로 온다 -->
+<section class="scene" id="s2">
+ <div class="step"><b>01</b>Wi-Fi 전파는 여러 길로 온다</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <svg width="1920" height="1080" class="abs" style="inset:0">
+  <rect x="300" y="190" width="1320" height="650" rx="24" fill="#121214" stroke="#3f3f46" stroke-width="8"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+   <polyline points="530,470 960,198 1390,470" stroke="#2dd4bf" stroke-width="5" stroke-dasharray="14 12" opacity=".55"/>
+   <line x1="545" y1="515" x2="1375" y2="515" stroke="#2dd4bf" stroke-width="6"/>
+   <polyline points="535,545 960,658 1385,548" stroke="#fb923c" stroke-width="6"/>
+  </g>
+  <circle cx="985" cy="618" r="24" fill="#fb923c"/>
+  <rect x="958" y="648" width="54" height="92" rx="24" fill="#fb923c"/>
+  <g font-size="26" fill="#a1a1aa" font-family="Noto Sans KR">
+   <text x="960" y="500" text-anchor="middle">곧바로</text>
+   <text x="960" y="310" text-anchor="middle">벽에 반사</text>
+   <text x="1040" y="720" fill="#fb923c">사람에 반사</text>
+  </g>
+ </svg>
+ <img class="photo abs" src="assets/board.jpg" style="left:400px;top:445px;width:140px;height:140px">
+ <img class="photo abs" src="assets/board.jpg" style="left:1380px;top:445px;width:140px;height:140px">
+ <div class="abs h" style="left:370px;top:610px;width:200px;text-align:center;font-size:34px">송신</div>
+ <div class="abs h" style="left:1350px;top:610px;width:200px;text-align:center;font-size:34px">수신</div>
+</section>
+
+<!-- 3 · CSI 란 -->
+<section class="scene" id="s3">
+ <div class="step"><b>02</b>CSI — 주파수마다 얼마나 세게 왔나</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="card abs" style="left:96px;top:190px;width:640px;height:640px">
+  <div class="abs" style="left:44px;top:36px"><div class="h">보낼 때</div><div class="sub">약속된 신호 · 주파수 52개가 모두 같은 세기</div></div>
+  <svg id="comb" viewBox="0 0 552 300" class="abs" style="left:44px;top:200px;width:552px;height:300px"></svg>
+  <div class="abs" style="left:44px;bottom:36px;font-size:24px;color:var(--dim)">주파수 52개 →</div>
+ </div>
+ <div class="arrow abs" style="left:756px;top:470px;width:144px"><svg width="110" height="24"><use href="#arr"/></svg>방을 지나면</div>
+ <div class="card abs" style="left:920px;top:190px;width:904px;height:640px;border-color:rgba(45,212,191,.5)">
+  <div class="abs" style="left:44px;top:36px"><div class="h">받을 때 = <span style="color:var(--brand)">CSI</span></div>
+   <div class="sub">방과 회로를 지나며 주파수마다 다르게 약해지고 늦어진다</div></div>
+  <div class="abs" style="right:44px;top:50px;font-size:22px;color:var(--dim)">실측 한 장 · 빈 방 · 진폭</div>
+  <svg id="snap" viewBox="0 0 816 300" class="abs" style="left:44px;top:200px;width:816px;height:300px"></svg>
+  <div class="abs" style="left:44px;bottom:36px;font-size:24px;color:var(--dim)">주파수 52개 → · Wi-Fi 칩이 통신하려고 원래 재는 값을 ESP32-S3 가 꺼내 준다</div>
+ </div>
+</section>
+
+<!-- 11 · 진폭과 위상 (영상에서는 3 다음에 온다) -->
+<section class="scene" id="s11">
+ <div class="step"><b>03</b>진폭과 위상</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="card abs" style="left:96px;top:180px;width:820px;height:560px">
+  <div class="abs" style="left:44px;top:34px"><div class="h"><span style="color:var(--brand)">진폭</span> — 얼마나 세게</div>
+   <div class="sub">파도의 높이 · 막히고 흩어지면 작아진다</div></div>
+  <svg id="w-amp" viewBox="0 0 740 300" class="abs" style="left:40px;top:180px;width:740px;height:300px"></svg>
+  <div class="abs" style="left:44px;bottom:30px;font-size:22px;color:var(--dim)">점선 보낸 신호 · 실선 받은 신호</div>
+ </div>
+ <div class="card abs" style="left:1004px;top:180px;width:820px;height:560px">
+  <div class="abs" style="left:44px;top:34px"><div class="h"><span style="color:var(--brand)">위상</span> — 얼마나 밀려서</div>
+   <div class="sub">파도가 닿은 타이밍 · 길이 길어지면 밀린다</div></div>
+  <svg id="w-phase" viewBox="0 0 740 300" class="abs" style="left:40px;top:180px;width:740px;height:300px"></svg>
+  <div class="abs" style="left:44px;bottom:30px;font-size:22px;color:var(--dim)">점선 보낸 신호 · 실선 받은 신호</div>
+ </div>
+ <div class="abs" style="left:96px;right:96px;top:770px;height:76px;border-radius:20px;background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.35);
+  display:flex;align-items:center;justify-content:center;font-size:27px;color:var(--body)">
+  위상은 보드마다 시계가 달라 매번 틀어진다 · 실험에서도 진폭이 같거나 나았다 → <b style="color:var(--brand);margin-left:12px">실시간 모델은 진폭</b></div>
+</section>
+
+<!-- 4 · 사람이 움직이면 CSI 가 흔들린다 (실측) -->
+<section class="scene" id="s4">
+ <div class="step"><b>04</b>사람이 움직이면 CSI 가 흔들린다</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="card abs" style="left:96px;top:190px;width:820px;height:640px">
+  <div class="abs" style="left:44px;top:36px;font-size:44px;font-weight:800"><span style="color:var(--e)">●</span> 빈 방</div>
+  <svg id="c-empty" viewBox="0 0 740 400" class="abs" style="left:40px;top:130px;width:740px;height:400px"></svg>
+  <div class="abs" style="left:44px;bottom:36px;font-size:24px;color:var(--dim)">주파수 4개의 진폭 · 6초</div>
+ </div>
+ <div class="card abs" style="left:1004px;top:190px;width:820px;height:640px;border-color:rgba(251,146,60,.45)">
+  <div class="abs" style="left:44px;top:36px;font-size:44px;font-weight:800"><span style="color:var(--m)">●</span> 사람이 움직일 때</div>
+  <svg id="c-motion" viewBox="0 0 740 400" class="abs" style="left:40px;top:130px;width:740px;height:400px"></svg>
+  <div class="abs" style="left:44px;bottom:36px;font-size:24px;color:var(--dim)">주파수 4개의 진폭 · 6초</div>
+ </div>
+ <div class="abs" style="right:96px;top:846px;font-size:22px;color:var(--dim)">실측 · 2026-09-20 수집 · RX 103</div>
+</section>
+
+<!-- 5 · 실제 측정 장치 -->
+<section class="scene" id="s5">
+ <img src="assets/room.jpg" class="abs" style="inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.3) saturate(.6)">
+ <div class="abs" style="inset:0;background:linear-gradient(90deg,rgba(11,11,12,.75),rgba(11,11,12,.25) 60%,rgba(11,11,12,.6))"></div>
+ <div class="step"><b>05</b>실제 측정 장치</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <svg width="1920" height="1080" class="abs" style="inset:0">
+  <g fill="none" stroke="#2dd4bf" stroke-linecap="round">
+   <path d="M 700 330 A 220 220 0 0 1 700 690" stroke-width="6" opacity=".9"/>
+   <path d="M 790 260 A 320 320 0 0 1 790 760" stroke-width="6" opacity=".6"/>
+   <path d="M 880 190 A 420 420 0 0 1 880 830" stroke-width="6" opacity=".35"/>
+   <path d="M 970 130 A 520 520 0 0 1 970 890" stroke-width="6" opacity=".18"/>
+  </g>
+ </svg>
+ <img class="photo abs" src="assets/board.jpg" style="left:390px;top:400px;width:220px;height:220px">
+ <div class="abs" style="left:300px;top:650px;width:400px;text-align:center">
+  <div style="font-size:44px;font-weight:800">송신 보드</div>
+  <div style="font-size:28px;color:var(--body);margin-top:10px">ESP-NOW · 1초에 100번</div>
+ </div>
+ <div class="abs" style="left:1300px;top:170px;display:flex;flex-direction:column;gap:56px">
+  <div style="display:flex;align-items:center;gap:36px"><img class="photo" src="assets/board.jpg" style="width:150px;height:150px"><div><div class="h">RX 101</div><div class="sub">받을 때마다 CSI 기록</div></div></div>
+  <div style="display:flex;align-items:center;gap:36px"><img class="photo" src="assets/board.jpg" style="width:150px;height:150px"><div><div class="h">RX 102</div><div class="sub">받을 때마다 CSI 기록</div></div></div>
+  <div style="display:flex;align-items:center;gap:36px"><img class="photo" src="assets/board.jpg" style="width:150px;height:150px"><div><div class="h">RX 103</div><div class="sub">받을 때마다 CSI 기록</div></div></div>
+ </div>
+</section>
+
+<!-- 6 · 모아서 저장 -->
+<section class="scene" id="s6">
+ <div class="step"><b>06</b>모아서 원본 그대로 저장한다</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="abs" style="left:96px;right:96px;top:290px;display:flex;align-items:center;justify-content:space-between">
+  <div class="card" style="width:330px;height:340px;text-align:center">
+   <div style="display:flex;justify-content:center;gap:14px;margin-top:46px">
+    <img class="photo" src="assets/board.jpg" style="width:86px;height:86px;border-width:3px">
+    <img class="photo" src="assets/board.jpg" style="width:86px;height:86px;border-width:3px">
+    <img class="photo" src="assets/board.jpg" style="width:86px;height:86px;border-width:3px">
+   </div>
+   <div class="h" style="margin-top:40px">수신 보드 ×3</div>
+   <div class="sub">CSI 캡처</div>
+  </div>
+  <div class="arrow"><svg width="120" height="24"><use href="#arr"/></svg>ESP-NOW</div>
+  <div class="card" style="width:330px;height:340px;text-align:center">
+   <img class="photo" src="assets/board.jpg" style="width:120px;height:120px;border-color:#e4e4e7;margin-top:46px">
+   <div class="h" style="margin-top:30px">싱크 보드</div>
+   <div class="sub">무선으로 모아 전달</div>
+  </div>
+  <div class="arrow"><svg width="120" height="24"><use href="#arr"/></svg>USB</div>
+  <div class="card" style="width:330px;height:340px;text-align:center">
+   <svg viewBox="0 0 160 110" style="width:170px;margin-top:56px" fill="none" stroke="#f4f4f5" stroke-width="6" stroke-linejoin="round">
+    <rect x="26" y="8" width="108" height="72" rx="8"/><path d="M6 96h148l-10 10H16z" fill="#f4f4f5"/>
+   </svg>
+   <div class="h" style="margin-top:22px">Mac</div>
+   <div class="sub">CRC-32 손상 검사</div>
+  </div>
+  <div class="arrow"><svg width="120" height="24"><use href="#arr"/></svg>기록</div>
+  <div class="card" style="width:330px;height:340px;text-align:center;border-color:rgba(45,212,191,.5)">
+   <svg viewBox="0 0 100 120" style="width:96px;margin-top:50px" fill="none" stroke="#2dd4bf" stroke-width="6" stroke-linejoin="round">
+    <path d="M10 6h56l24 24v84H10z"/><path d="M66 6v24h24"/>
+   </svg>
+   <div class="h" style="margin-top:24px">.csi 원본</div>
+   <div class="sub">변환 없이 그대로</div>
+  </div>
+ </div>
+ <div class="abs" style="left:0;right:0;top:720px;text-align:center;display:flex;justify-content:center;gap:20px">
+  <span class="chip">1초에 100프레임 × 3대</span><span class="chip">tx_seq 로 3대 시각 맞춤</span><span class="chip">Mac 에는 USB 하나만</span>
+ </div>
+</section>
+
+<!-- 7 · 두 모델이 동시에 본다 -->
+<section class="scene" id="s7">
+ <div class="step"><b>08</b>두 모델이 동시에 본다</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="card abs" style="left:96px;top:170px;width:1728px;height:300px">
+  <div class="abs" style="left:44px;top:28px;font-size:30px;font-weight:700">들어오는 CSI <span style="font-weight:400;color:var(--muted);font-size:24px;margin-left:12px">수신 보드 3대 × 1초에 100번</span></div>
+  <div class="abs" style="right:44px;top:34px;font-size:24px;color:var(--dim)">지금 →</div>
+ </div>
+ <canvas id="strip" width="1640" height="96" class="abs" style="left:140px;top:250px;border-radius:12px"></canvas>
+ <svg width="1920" height="1080" class="abs" style="inset:0" fill="none" stroke-linecap="round">
+  <path d="M550 370v14H1778v-14" stroke="#a78bfa" stroke-width="5"/>
+  <path d="M1532 352v12H1778v-12" stroke="#f472b6" stroke-width="5"/>
+  <line x1="1164" y1="390" x2="850" y2="512" stroke="#71717a" stroke-width="3" marker-end="url(#head)"/>
+  <line x1="1655" y1="370" x2="1550" y2="512" stroke="#71717a" stroke-width="3" marker-end="url(#head)"/>
+ </svg>
+ <div class="abs" style="left:1190px;top:400px;font-size:26px;font-weight:700;color:#a78bfa">최근 15초</div>
+ <div class="abs" style="left:1680px;top:400px;font-size:26px;font-weight:700;color:#f472b6">최근 3초</div>
+ <div class="card abs" style="left:96px;top:520px;width:380px;height:300px;text-align:center">
+  <div style="font-size:88px;font-weight:800;margin-top:44px;color:var(--brand)">0.3초</div>
+  <div style="font-size:30px;margin-top:4px">마다 둘 다 다시 본다</div>
+  <div class="sub" style="font-size:24px">1초에 세 번 넘게</div>
+ </div>
+ <div class="card abs" style="left:530px;top:520px;width:640px;height:300px;border-color:rgba(167,139,250,.5)">
+  <div class="abs" style="left:40px;top:34px"><span class="h" style="color:#a78bfa">15초 모델</span><span style="font-size:30px;margin-left:20px">방은 어떤 상태인가?</span></div>
+  <div class="abs" style="left:40px;top:120px;display:flex;gap:14px"><span class="chip">빈 방</span><span class="chip">정지</span><span class="chip">움직임</span></div>
+  <div class="abs" style="left:40px;bottom:34px;font-size:24px;color:var(--muted)">가만히 있는 사람은 변화가 작아 길게 본다</div>
+ </div>
+ <div class="card abs" style="left:1224px;top:520px;width:600px;height:300px;border-color:rgba(244,114,182,.5)">
+  <div class="abs" style="left:40px;top:34px"><span class="h" style="color:#f472b6">3초 모델</span><span style="font-size:30px;margin-left:20px">지금 움직이나?</span></div>
+  <div class="abs" style="left:40px;top:120px;display:flex;gap:14px"><span class="chip">움직임</span><span class="chip">아님</span></div>
+  <div class="abs" style="left:40px;bottom:34px;font-size:24px;color:var(--muted)">짧게 봐서 빨리 반응한다</div>
+ </div>
+</section>
+
+<!-- 8 · 판단 순서 -->
+<section class="scene" id="s8">
+ <div class="step"><b>09</b>움직임은 먼저, 나머지는 15초로</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <svg width="1920" height="1080" class="abs" style="inset:0" stroke="#71717a" stroke-width="3" fill="none">
+  <line x1="566" y1="315" x2="690" y2="315" marker-end="url(#head)"/>
+  <line x1="328" y1="436" x2="328" y2="520" marker-end="url(#head)"/>
+  <line x1="1126" y1="315" x2="1230" y2="315" marker-end="url(#head)"/>
+  <line x1="566" y1="665" x2="1230" y2="665" marker-end="url(#head)"/>
+ </svg>
+ <div class="abs" style="left:600px;top:270px;font-size:24px;color:var(--ink);font-weight:700">예</div>
+ <div class="abs" style="left:346px;top:458px;font-size:24px;color:var(--muted);font-weight:700">아니오</div>
+ <div class="card abs" style="left:96px;top:200px;width:470px;height:236px;border-color:rgba(244,114,182,.5)">
+  <div class="abs" style="left:36px;top:30px"><span class="badge" style="background:rgba(244,114,182,.18);color:#f472b6">① 3초 모델</span>
+   <div style="font-size:36px;font-weight:800">움직임이 확실한가?</div><div class="sub" style="font-size:24px">90% 이상이 세 번 연속</div></div>
+ </div>
+ <div class="card abs" style="left:700px;top:200px;width:426px;height:236px">
+  <div class="pill abs" style="left:36px;right:36px;top:36px;background:rgba(251,146,60,.16);border:2px solid var(--m);color:var(--m)"><i style="background:var(--m)"></i>움직임</div>
+  <div class="abs" style="left:36px;top:150px;font-size:24px;color:var(--muted)">15초를 기다리지 않고 바로</div>
+ </div>
+ <div class="card abs" style="left:96px;top:530px;width:470px;height:270px;border-color:rgba(167,139,250,.5)">
+  <div class="abs" style="left:36px;top:30px"><span class="badge" style="background:rgba(167,139,250,.18);color:#a78bfa">② 15초 모델</span>
+   <div style="font-size:36px;font-weight:800">빈 방 · 정지 · 움직임</div><div class="sub" style="font-size:24px">그중 확률이 가장 높은 쪽</div></div>
+ </div>
+ <div class="card abs" style="left:1240px;top:200px;width:584px;height:600px;border-color:rgba(45,212,191,.5)">
+  <div class="abs" style="left:36px;top:30px;right:36px"><span class="badge" style="background:rgba(45,212,191,.16);color:var(--brand)">③ 상태 기계</span>
+   <div style="font-size:25px;color:var(--body);line-height:1.7">확신 60% 미만은 무시, 이전 상태 유지<br>움직임 1초, 빈 방·정지 5초 이어져야 바뀐다</div></div>
+  <div class="abs" style="left:36px;right:36px;bottom:36px;display:flex;flex-direction:column;gap:16px">
+   <div class="pill" style="background:rgba(148,163,184,.12);color:var(--e)"><i style="background:var(--e)"></i>빈 방<small>아무도 없어요</small></div>
+   <div class="pill" style="background:rgba(59,130,246,.14);color:#60a5fa"><i style="background:var(--s)"></i>정지<small>있고 가만히 있어요</small></div>
+   <div class="pill" style="background:rgba(251,146,60,.14);color:var(--m)"><i style="background:var(--m)"></i>움직임<small>움직이고 있어요</small></div>
+  </div>
+ </div>
+</section>
+
+<!-- 9 · 예시 — 집 상태 서비스 -->
+<section class="scene" id="s9">
+ <div class="step"><b>10</b>이 모델로 만들 수 있는 서비스</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="card abs" style="left:96px;top:200px;width:560px;height:620px;text-align:center">
+  <div class="abs" style="left:150px;top:60px;width:260px;height:260px;border-radius:50%;
+   background:radial-gradient(circle,rgba(245,158,11,.55),rgba(245,158,11,0) 70%)"></div>
+  <svg viewBox="0 0 120 160" class="abs" style="left:220px;top:90px;width:120px" fill="none" stroke-linecap="round" stroke-linejoin="round">
+   <path d="M60 8a44 44 0 0 0-26 79c6 5 10 12 10 20v6h32v-6c0-8 4-15 10-20A44 44 0 0 0 60 8z" fill="#fbbf24" stroke="#fde68a" stroke-width="5"/>
+   <path d="M44 128h32M48 144h24" stroke="#f4f4f5" stroke-width="7"/>
+  </svg>
+  <div class="abs" style="left:0;right:0;top:360px;font-size:48px;font-weight:800">조명 켜짐</div>
+  <div class="abs" style="left:0;right:0;top:440px;font-size:27px;color:var(--muted);line-height:1.6">집 안 Mac 이 바로 판단<br>싱크 보드 LED 를 켜고 끈다</div>
+ </div>
+ <div class="arrow abs" style="left:700px;top:430px;width:180px"><svg width="120" height="24"><use href="#arr"/></svg>상태 전송</div>
+ <div class="card abs" style="left:924px;top:330px;width:330px;height:360px;text-align:center">
+  <svg viewBox="0 0 160 100" style="width:170px;margin-top:56px" fill="none" stroke="#2dd4bf" stroke-width="7" stroke-linejoin="round">
+   <path d="M44 88h78a28 28 0 0 0 2-56 40 40 0 0 0-76-6 32 32 0 0 0-4 62z"/>
+  </svg>
+  <div class="h" style="margin-top:22px">클라우드</div>
+  <div class="sub">기록 · 알림 판단</div>
+ </div>
+ <div class="arrow abs" style="left:1270px;top:430px;width:140px"><svg width="100" height="24"><use href="#arr"/></svg>문자</div>
+ <div class="abs" style="left:1430px;top:150px;width:390px;height:720px;border-radius:56px;border:6px solid #3f3f46;background:#111114;overflow:hidden">
+  <div style="text-align:center;margin-top:70px;font-size:96px;font-weight:300;letter-spacing:-.02em">15:02</div>
+  <div style="text-align:center;font-size:24px;color:var(--muted)">11월 4일 수요일</div>
+  <div style="margin:60px 20px 0;padding:22px 24px;border-radius:26px;background:rgba(244,244,245,.12)">
+   <div style="display:flex;justify-content:space-between;font-size:20px;color:var(--muted)"><span>메시지</span><span>지금</span></div>
+   <div style="font-size:24px;line-height:1.5;margin-top:10px">[MeshSense] 60분째 움직임 없음 (15:02)<br>괜찮으면 눌러 주세요</div>
+  </div>
+  <div style="margin:18px 20px 0;padding:18px 24px;border-radius:26px;background:rgba(244,244,245,.07);font-size:22px;color:var(--muted);line-height:1.5">
+   확인이 없으면 등록된 지인에게도 보냅니다
+  </div>
+ </div>
+</section>
+
+<!-- 10 · 같은 판단으로 만들 수 있는 것들 -->
+<section class="scene" id="s10">
+ <div class="step"><b>11</b>같은 판단 위에 얹을 수 있는 것들</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="card abs" style="left:560px;top:180px;width:800px;height:120px;display:flex;align-items:center;justify-content:center;gap:40px;font-size:38px;font-weight:800;border-color:rgba(45,212,191,.5)">
+  <span style="color:var(--brand);font-size:28px;font-weight:700">방 상태</span>
+  <span style="color:var(--e)">● 빈 방</span><span style="color:#60a5fa">● 정지</span><span style="color:var(--m)">● 움직임</span>
+ </div>
+ <svg width="1920" height="1080" class="abs" style="inset:0" stroke="#3f3f46" stroke-width="3" fill="none">
+  <path d="M960 300v50M256 350H1664M256 350v54M608 350v54M960 350v54M1312 350v54M1664 350v54"/>
+ </svg>
+ <div id="ideas" class="abs" style="left:96px;right:96px;top:410px;display:flex;gap:32px"></div>
+</section>
+
+<!-- ════ v3 에서 더한 장면 ════ -->
+
+<!-- 파트 표지 — ?s=ch1..ch7, 내용은 아래 CH -->
+<section class="scene" id="sch" style="background:radial-gradient(900px 520px at 50% 48%,rgba(45,212,191,.13),transparent 70%)">
+ <svg class="mark"><use href="#logo"/></svg>
+ <div id="ch-part" class="abs" style="left:0;right:0;top:330px;text-align:center;font-size:32px;font-weight:800;color:var(--brand);letter-spacing:.24em"></div>
+ <div id="ch-title" class="abs" style="left:0;right:0;top:390px;text-align:center;font-size:104px;font-weight:800;letter-spacing:-.01em"></div>
+ <div id="ch-sub" class="abs" style="left:0;right:0;top:560px;text-align:center;font-size:40px;color:var(--body)"></div>
+ <div id="ch-dots" class="abs" style="left:0;right:0;top:700px;display:flex;justify-content:center;gap:14px"></div>
+</section>
+
+<!-- 12 · 왜 카메라 대신 Wi-Fi 인가 -->
+<section class="scene" id="s12">
+ <div class="step"><b>00</b>왜 카메라 대신 Wi-Fi 인가</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="card abs" style="left:96px;top:180px;width:820px;height:640px">
+  <svg viewBox="0 0 120 90" class="abs" style="left:48px;top:48px;width:110px" fill="none" stroke="#a1a1aa" stroke-width="7" stroke-linejoin="round">
+   <path d="M8 26h24l8-14h40l8 14h24v56H8z"/><circle cx="60" cy="52" r="18"/></svg>
+  <div class="abs" style="left:190px;top:66px;font-size:52px;font-weight:800">카메라</div>
+  <div class="abs big" style="left:48px;top:250px;right:40px">
+   <div class="li"><i style="color:#ef4444">✕</i>얼굴과 모습이 그대로 남는다</div>
+   <div class="li"><i style="color:#ef4444">✕</i>어두우면 보기 어렵다</div>
+   <div class="li"><i style="color:#ef4444">✕</i>영상이 유출되면 사생활이 드러난다</div>
+  </div>
+ </div>
+ <div class="card abs" style="left:1004px;top:180px;width:820px;height:640px;border-color:rgba(45,212,191,.5)">
+  <svg viewBox="0 0 120 90" class="abs" style="left:48px;top:48px;width:110px" fill="none" stroke="#2dd4bf" stroke-width="8" stroke-linecap="round">
+   <path d="M14 38a66 66 0 0 1 92 0M30 54a42 42 0 0 1 60 0M46 70a18 18 0 0 1 28 0"/></svg>
+  <div class="abs" style="left:190px;top:66px;font-size:52px;font-weight:800;color:var(--brand)">Wi-Fi 신호</div>
+  <div class="abs big" style="left:48px;top:250px;right:40px">
+   <div class="li"><i style="color:var(--brand)">✓</i>모습 대신 전파 측정값(CSI)만 남는다</div>
+   <div class="li"><i style="color:var(--brand)">✓</i>불을 꺼도 똑같이 잰다</div>
+   <div class="li"><i style="color:var(--brand)">✓</i>몸에 아무것도 차지 않아도 된다</div>
+  </div>
+ </div>
+</section>
+
+<!-- 13 · 무엇을 알아내나 -->
+<section class="scene" id="s13">
+ <div class="step"><b>00</b>무엇을 알아내나</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="abs" style="left:96px;right:96px;top:190px;display:flex;gap:24px">
+  <div class="card" style="flex:1;height:420px;text-align:center">
+   <div style="width:96px;height:96px;border-radius:50%;background:var(--e);margin:64px auto 0;box-shadow:0 0 40px rgba(148,163,184,.4)"></div>
+   <div style="font-size:60px;font-weight:800;margin-top:40px;color:var(--e)">빈 방</div>
+   <div class="sub" style="font-size:30px">방에 아무도 없어요</div></div>
+  <div class="card" style="flex:1;height:420px;text-align:center">
+   <div style="width:96px;height:96px;border-radius:50%;background:var(--s);margin:64px auto 0;box-shadow:0 0 40px rgba(59,130,246,.45)"></div>
+   <div style="font-size:60px;font-weight:800;margin-top:40px;color:#60a5fa">정지</div>
+   <div class="sub" style="font-size:30px">사람이 있고 가만히 있어요</div></div>
+  <div class="card" style="flex:1;height:420px;text-align:center">
+   <div style="width:96px;height:96px;border-radius:50%;background:var(--m);margin:64px auto 0;box-shadow:0 0 40px rgba(244,114,182,.5)"></div>
+   <div style="font-size:60px;font-weight:800;margin-top:40px;color:var(--m)">움직임</div>
+   <div class="sub" style="font-size:30px">사람이 움직이고 있어요</div></div>
+ </div>
+ <div class="abs" style="left:96px;right:96px;top:640px;display:flex;gap:24px">
+  <div class="card" style="flex:1;height:150px;display:flex;align-items:center;gap:26px;padding:0 40px">
+   <span style="font-size:34px;color:var(--dim);flex:none">⊘</span>
+   <div><div style="font-size:32px;font-weight:800">범위 밖</div><div class="sub" style="font-size:24px">사람 수 · 위치 · 여러 방 동시 감시</div></div></div>
+ </div>
+</section>
+
+<!-- 14 · 전체 지도 -->
+<section class="scene" id="s14">
+ <div class="step"><b>00</b>전체 지도</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <svg width="1920" height="1080" class="abs" style="inset:0"><line x1="219" y1="400" x2="1701" y2="400" stroke="#2a2a2e" stroke-width="6"/></svg>
+ <div id="map" class="abs" style="left:96px;right:96px;top:330px;display:flex"></div>
+</section>
+
+<!-- 15 · 세 상태 실측 비교 -->
+<section class="scene" id="s15">
+ <div class="step"><b>00</b>정지는 빈 방과 거의 같다</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div id="tri" class="abs" style="left:96px;right:96px;top:180px;display:flex;gap:24px"></div>
+ <div class="abs dim" style="right:96px;top:812px;text-align:right;line-height:1.6">흔들림 = 6초 동안 진폭의 표준편차 · 9/16·17 세션 15개 × RX 3대 평균<br>그래프는 그 평균에 가장 가까운 6초 · RX 103 · 주파수 4개</div>
+</section>
+
+<!-- 16 · 보드 다섯 대의 역할 -->
+<section class="scene" id="s16">
+ <div class="step"><b>00</b>보드 다섯 대, 역할은 셋</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="abs" style="left:96px;right:96px;top:180px;display:flex;gap:24px">
+  <div class="card" style="width:400px;height:470px;text-align:center">
+   <img class="photo" src="assets/board.jpg" style="width:150px;height:150px;margin-top:50px">
+   <div style="font-size:44px;font-weight:800;margin-top:30px">송신 TX <span style="color:var(--dim);font-size:32px">× 1</span></div>
+   <div class="sub" style="line-height:1.5">1초에 100번<br>짧은 신호를 쏜다</div>
+   <div class="chip" style="margin-top:22px;font-size:22px">주소 끝 00</div></div>
+  <div class="card" style="flex:1;height:470px;text-align:center">
+   <div style="display:flex;justify-content:center;gap:26px;margin-top:50px">
+    <img class="photo" src="assets/board.jpg" style="width:150px;height:150px"><img class="photo" src="assets/board.jpg" style="width:150px;height:150px"><img class="photo" src="assets/board.jpg" style="width:150px;height:150px"></div>
+   <div style="font-size:44px;font-weight:800;margin-top:30px">수신 RX <span style="color:var(--dim);font-size:32px">× 3</span></div>
+   <div class="sub" style="line-height:1.5">방 곳곳에서 받을 때마다 CSI 를 잰다<br>송신 보드 주소에서 온 신호만 기록</div>
+   <div class="chip" style="margin-top:22px;font-size:22px">주소 끝 = 보드 번호</div></div>
+  <div class="card" style="width:400px;height:470px;text-align:center">
+   <img class="photo" src="assets/board.jpg" style="width:150px;height:150px;margin-top:50px;border-color:#e4e4e7">
+   <div style="font-size:44px;font-weight:800;margin-top:30px">싱크 <span style="color:var(--dim);font-size:32px">× 1</span></div>
+   <div class="sub" style="line-height:1.5">수신 보드의 데이터를<br>무선으로 모아 USB 로</div>
+   <div class="chip" style="margin-top:22px;font-size:22px">주소 끝 ff</div></div>
+ </div>
+ <div class="abs" style="left:96px;right:96px;top:700px;display:flex;justify-content:center;gap:18px;flex-wrap:wrap">
+  <span class="chip">모두 ESP32-S3 · 채널 11 · ESP-NOW</span><span class="chip">역할마다 주소를 달리해 서로를 잘못 잡지 않는다</span>
+ </div>
+</section>
+
+<!-- 17 · 프레임 한 개 -->
+<section class="scene" id="s17">
+ <div class="step"><b>00</b>프레임 하나 = 172바이트</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <svg id="frame" width="1920" height="1080" class="abs" style="inset:0"></svg>
+ <div id="fcards" class="abs" style="left:96px;right:96px;top:520px;display:flex;gap:20px"></div>
+ <div class="abs dim" style="left:96px;top:800px;font-size:23px">Mac 은 이 프레임을 고치지 않고 받은 그대로 <span style="color:var(--body)">.csi</span> 파일에 이어 붙인다 — 계산은 모두 Mac 에서</div>
+</section>
+
+<!-- 18 · 학습도 실시간도 무선 -->
+<section class="scene" id="s18">
+ <div class="step"><b>00</b>학습도 실시간도 무선으로</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <svg id="paths" width="1920" height="1080" class="abs" style="inset:0"></svg>
+ <div id="why" class="abs" style="left:96px;right:96px;top:500px;display:flex;gap:24px"></div>
+ <div class="note" style="top:770px">싱크를 따로 두는 이유 — Mac 의 Wi-Fi 는 ESP-NOW 를 못 받고, 일반 Wi-Fi(UDP)로는 1초에 22번에서 막힌다</div>
+</section>
+
+<!-- 19 · tx_seq 로 줄 세우기 -->
+<section class="scene" id="s19">
+ <div class="step"><b>00</b>번호표로 세 대를 맞춘다</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <svg id="align" width="1920" height="1080" class="abs" style="inset:0"></svg>
+</section>
+
+<!-- 20 · 학습 데이터 — 세션 -->
+<section class="scene" id="s20">
+ <div class="step"><b>00</b>학습 데이터 — 5분짜리 세션</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="card abs" style="left:96px;top:180px;width:960px;height:560px">
+  <div class="abs" style="left:44px;top:34px"><div class="h">한 묶음 = 세 상태 × 5분</div><div class="sub">순서는 묶음마다 섞는다 · 날짜·보드 배치를 바꿔 가며</div></div>
+  <div id="blocks" class="abs" style="left:44px;right:44px;top:190px"></div>
+ </div>
+ <div class="card abs" style="left:1084px;top:180px;width:740px;height:560px">
+  <div class="abs" style="left:40px;top:34px;right:40px">
+   <div class="h" style="margin-bottom:28px">세 상태를 찍는 법</div>
+   <div class="cell" style="margin-bottom:26px"><i style="width:22px;height:22px;border-radius:50%;background:var(--e);flex:none"></i><b style="width:110px">빈 방</b>모두 방 밖으로 나간다</div>
+   <div class="cell" style="margin-bottom:26px;align-items:flex-start"><i style="width:22px;height:22px;border-radius:50%;background:var(--s);flex:none;margin-top:8px"></i><b style="width:110px;flex:none">정지</b><span>정한 자리에 서거나 앉아<br>숨 쉬는 것 말고는 가만히</span></div>
+   <div class="cell" style="margin-bottom:34px;align-items:flex-start"><i style="width:22px;height:22px;border-radius:50%;background:var(--m);flex:none;margin-top:8px"></i><b style="width:110px;flex:none">움직임</b><span>방 안을 자유롭게 걷는다<br>경로는 정하지 않는다</span></div>
+   <div class="chip" style="font-size:24px">실시간 모델 학습 · 74세션 · 약 6시간</div>
+  </div>
+ </div>
+ <div class="note" style="top:770px;background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.4)">한 상태를 몰아 찍으면 모델이 상태가 아니라 '그 시간대의 신호'를 외운다 → 섞어서 찍는다</div>
+</section>
+
+<!-- 22 · 다른 날로 시험하기 -->
+<section class="scene" id="s22">
+ <div class="step"><b>00</b>학습에 안 쓴 날로 시험한다</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div id="evals" class="abs" style="left:96px;right:96px;top:250px"></div>
+ <div class="abs dim" style="left:96px;top:780px;line-height:1.6">세션 정답 = 5분을 한 덩어리로 맞혔나 · 창 정답 = 15초(3초) 조각마다 맞혔나<br>
+  실제로 쓰는 15초 모델은 74세션 전부로 다시 학습했다 — 위 숫자는 같은 방식으로 날짜를 갈라 만든 모델의 성적</div>
+</section>
+
+<!-- 23 · 왜 3초 모델이 필요한가 -->
+<section class="scene" id="s23">
+ <div class="step"><b>00</b>왜 3초 모델이 먼저 보나</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <svg id="gate" width="1920" height="1080" class="abs" style="inset:0"></svg>
+</section>
+
+<!-- 24 · 상태 기계 -->
+<section class="scene" id="s24">
+ <div class="step"><b>00</b>상태 기계 — 흔들림을 거른다</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <svg id="sm" width="1920" height="1080" class="abs" style="inset:0"></svg>
+</section>
+
+<!-- 25 · 반응 속도와 정확도 -->
+<section class="scene" id="s25">
+ <div class="step"><b>00</b>얼마나 빨리, 얼마나 맞나</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="card abs" style="left:96px;top:180px;width:520px;height:580px;text-align:center">
+  <div style="font-size:120px;font-weight:800;color:var(--brand);margin-top:56px;letter-spacing:-.02em">81.7%</div>
+  <div style="font-size:30px;margin-top:6px;line-height:1.5">화면의 상태가<br>정답과 같았던 시간</div>
+  <div style="display:inline-block;margin-top:24px;padding:8px 22px;border-radius:999px;border:2px solid #52525b;font-size:24px;font-weight:700">모델 정확도가 아님</div>
+  <div class="dim" style="margin-top:28px;line-height:1.6">바뀐 뒤 확정될 때까지는 이전 상태를<br>유지하므로, 그 시간도 틀린 것으로 센다<br>녹화를 이어 붙인 9분 대본 평균</div>
+ </div>
+ <svg id="lat" width="1920" height="1080" class="abs" style="inset:0"></svg>
+</section>
+
+<!-- 26 · 신호가 끊기면 -->
+<section class="scene" id="s26">
+ <div class="step"><b>00</b>신호가 끊기면 멈춘다</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="abs" style="left:150px;top:220px;display:flex;flex-direction:column;gap:40px">
+  <div style="display:flex;align-items:center;gap:30px"><img class="photo" src="assets/board.jpg" style="width:130px;height:130px"><div class="h">RX 101 <span style="color:var(--brand);font-size:30px">● 수신 중</span></div></div>
+  <div style="display:flex;align-items:center;gap:30px;opacity:.55"><div style="position:relative"><img class="photo" src="assets/board.jpg" style="width:130px;height:130px;border-color:#ef4444;filter:grayscale(1)">
+   <span style="position:absolute;left:0;top:0;width:138px;height:138px;display:flex;align-items:center;justify-content:center;font-size:90px;color:#ef4444;font-weight:800">✕</span></div>
+   <div class="h">RX 102 <span style="color:#ef4444;font-size:30px">● 3초째 없음</span></div></div>
+  <div style="display:flex;align-items:center;gap:30px"><img class="photo" src="assets/board.jpg" style="width:130px;height:130px"><div class="h">RX 103 <span style="color:var(--brand);font-size:30px">● 수신 중</span></div></div>
+ </div>
+ <div class="card abs" style="left:1000px;top:200px;width:824px;height:300px;border-color:rgba(239,68,68,.5)">
+  <div class="abs" style="left:44px;top:40px;display:flex;align-items:center;gap:18px"><span style="width:24px;height:24px;border-radius:50%;background:#ef4444"></span><span style="font-size:48px;font-weight:800">판단 정지</span></div>
+  <div class="abs" style="left:44px;top:126px;font-size:30px;color:var(--body)">RX 2/3대 · RX102 끊김</div>
+  <div class="abs" style="left:44px;top:190px;font-size:26px;color:var(--muted)">마지막 판단 · <b style="color:#60a5fa">정지 상태</b> · 15:02</div>
+ </div>
+ <div class="abs" style="left:1000px;top:540px;width:824px">
+  <div class="li"><i style="color:var(--brand)">·</i>조명은 그대로 둔다</div>
+  <div class="li"><i style="color:var(--brand)">·</i>클라우드에도 '판단 정지'로 보낸다</div>
+  <div class="li"><i style="color:var(--dim)">·</i><span style="color:var(--muted)">두 대만으로 판단하는 모델은 다음 과제</span></div>
+ </div>
+</section>
+
+<!-- 27 · 집과 클라우드 -->
+<section class="scene" id="s27">
+ <div class="step"><b>00</b>집 안과 클라우드가 나눠 맡는다</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <svg id="arch" width="1920" height="1080" class="abs" style="inset:0"></svg>
+</section>
+
+<!-- 28 · 조명 규칙 -->
+<section class="scene" id="s28">
+ <div class="step"><b>00</b>조명 규칙</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div id="light" class="card abs" style="left:96px;top:180px;width:1728px;height:590px"></div>
+ <div class="abs dim" style="right:96px;top:800px">규칙과 시간은 사용자가 설정에서 정한다 — 화면의 값은 예시로 정한 기본값</div>
+</section>
+
+<!-- 29 · 알림 세 가지 -->
+<section class="scene" id="s29">
+ <div class="step"><b>00</b>알림 세 가지</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div class="abs" style="left:96px;right:96px;top:180px;display:flex;gap:24px">
+  <div class="card" style="flex:1.25;height:560px;position:relative;padding:36px 36px 0">
+   <div style="font-size:38px;font-weight:800">안부 확인</div>
+   <div class="sub" style="font-size:25px;line-height:1.5">깨어 있는 시간에 '정지'가 60분 이어지면</div>
+   <div class="dim" style="margin:22px 0 10px">① 먼저 본인에게</div>
+   <div class="bub">[MeshSense] 60분째 움직임 없음 (15:02)<br>괜찮으면 눌러 주세요 ▸ 링크</div>
+   <div class="dim" style="margin:22px 0 10px">② 5분 안에 누르지 않으면 지인에게</div>
+   <div class="bub">[MeshSense] ○○님 방: 60분째 움직임 없음.<br>본인 확인이 없어요. 연락해 주세요</div>
+  </div>
+  <div class="card" style="flex:1;height:560px;position:relative;padding:36px 36px 0">
+   <div style="font-size:38px;font-weight:800">외출 중 움직임</div>
+   <div class="sub" style="font-size:25px;line-height:1.5">외출 모드를 켠 뒤 움직임이 잡히면</div>
+   <div class="dim" style="margin:22px 0 10px">처음엔 바로, 그 뒤엔 30분에 한 통까지</div>
+   <div class="bub">[MeshSense] 외출 중인데 방에서<br>움직임이 잡혔습니다 (14:02)</div>
+  </div>
+  <div class="card" style="flex:1;height:560px;position:relative;padding:36px 36px 0">
+   <div style="font-size:38px;font-weight:800">집 기기 끊김</div>
+   <div class="sub" style="font-size:25px;line-height:1.5">집에서 오는 상태가 3분간 없으면</div>
+   <div class="dim" style="margin:22px 0 10px">정전·인터넷 끊김도 밖에서 안다</div>
+   <div class="bub">[MeshSense] 집 기기 신호가<br>3분째 없습니다 (03:12)</div>
+  </div>
+ </div>
+ <div class="abs dim" style="right:96px;top:800px">안부 확인 시간 · 외출 알림 간격은 사용자가 정한다 (화면 값은 예시) · 지인은 문자 동의 후 등록 · 하루 최대 40통</div>
+</section>
+
+<!-- 30 · 한계 -->
+<section class="scene" id="s30">
+ <div class="step"><b>00</b>한계와 다음 단계</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div id="limits" class="abs" style="left:96px;right:96px;top:300px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px"></div>
+</section>
+
+<!-- 31 · 다음 단계 -->
+<section class="scene" id="s31">
+ <div class="step"><b>00</b>다음 단계</div>
+ <svg class="mark"><use href="#logo"/></svg>
+ <div id="next" class="abs" style="left:96px;right:96px;top:190px;display:flex;gap:24px"></div>
+ <div class="note" style="top:720px;font-size:28px">조건 다양성이 세션 수를 이긴다 — 같은 조건을 더 찍는 것보다 방·배치·사람을 바꿔 찍는 쪽이 낫다</div>
+</section>
+
+<!-- ════ v4 에서 더한 장면 ════ -->
+<!-- 32·33 · 여는 장면 — 같은 방이 빈 방(불 꺼짐) → 움직임(불 켜짐) 으로. 34 · 맺는 장면 -->
+<section class="scene" id="s32"></section>
+<section class="scene" id="s33"></section>
+<section class="scene" id="s34"></section>
+
+<script src="assets/csi_lines.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const Q = new URLSearchParams(location.search), n = Q.get("s") || "1";
+const sec = $(n.startsWith("ch") ? "sch" : "s" + n);
+sec.classList.add("on");
+const stepB = sec.querySelector(".step b");
+if (stepB && Q.has("no")) { stepB.textContent = Q.get("no"); if (!Q.get("no")) stepB.style.display = "none"; }
+
+function lines(id, series, colors, W = 740, H = 400) {   // 카드끼리 같은 y 축(0~28)을 쓴다 — 흔들림 크기를 그대로 비교
+  const svg = $(id);
+  svg.innerHTML = series.map((ys, k) => {
+    const pts = ys.map((v, i) => `${(i / (ys.length - 1) * W).toFixed(1)},${(H - v / 28 * H).toFixed(1)}`).join(" ");
+    return `<polyline points="${pts}" fill="none" stroke="${colors[k]}" stroke-width="3" stroke-linejoin="round" opacity=".9"/>`;
+  }).join("");
+}
+lines("c-empty", CSI.empty, ["#e2e8f0", "#94a3b8", "#cbd5e1", "#64748b"]);
+lines("c-motion", CSI.motion, ["#fed7aa", "#fb923c", "#fdba74", "#f97316"]);
+
+function bars(id, ys, W, color) {               // 주파수 52개 막대, y 축 0~20
+  const H = 300, w = W / ys.length;
+  document.getElementById(id).innerHTML = ys.map((v, i) =>
+    `<rect x="${(i * w + w * .18).toFixed(1)}" y="${(H - v / 20 * H).toFixed(1)}" width="${(w * .64).toFixed(1)}" height="${(v / 20 * H).toFixed(1)}" rx="2" fill="${color}"/>`).join("");
+}
+bars("comb", CSI.snap.map(() => 15), 552, "#52525b");
+bars("snap", [...CSI.snap.slice(26), ...CSI.snap.slice(0, 26)], 816, "#2dd4bf");   // 원래 번호 [1..26, 38..63] → 주파수 순서 [-26..-1, +1..+26]
+
+function wave(A, shift) {                       // 파장 240, 가운데 y=150
+  let d = "";
+  for (let x = 0; x <= 740; x += 4) d += `${x ? "L" : "M"}${x} ${(150 - A * Math.sin(2 * Math.PI * (x - shift) / 240)).toFixed(1)}`;
+  return d;
+}
+const REF = `<path d="${wave(110, 0)}" fill="none" stroke="#71717a" stroke-width="4" stroke-dasharray="10 9"/>`;
+document.getElementById("w-amp").innerHTML = REF +
+  `<path d="${wave(50, 0)}" fill="none" stroke="#2dd4bf" stroke-width="6"/>
+   <path d="M300 46V94M291 56l9-12 9 12M291 84l9 12 9-12" fill="none" stroke="#f4f4f5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+document.getElementById("w-phase").innerHTML = REF +
+  `<path d="${wave(110, 70)}" fill="none" stroke="#2dd4bf" stroke-width="6"/>
+   <path d="M302 18H366M355 9l11 9-11 9" fill="none" stroke="#f4f4f5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+const cv = document.getElementById("strip"), g = cv.getContext("2d");   // 실측 움직임 20초를 띠로
+const rows = CSI.strip, cw = cv.width / rows[0].length, rh = cv.height / rows.length;
+rows.forEach((r, j) => r.forEach((v, i) => {
+  const t = Math.min(1, Math.max(0, (v - 6) / 20)), [a, b, u] = t < .5 ? [[15, 59, 56], [45, 212, 191], t * 2] : [[45, 212, 191], [251, 146, 60], t * 2 - 1];
+  g.fillStyle = `rgb(${a.map((x, k) => Math.round(x + (b[k] - x) * u))})`;
+  g.fillRect(i * cw, j * rh, cw + .6, rh + .6);
+}));
+
+const ICON = {                                   // 80×80 선 그림
+  lamp: '<path d="M40 10a22 22 0 0 0-13 40c3 3 5 6 5 10v3h16v-3c0-4 2-7 5-10A22 22 0 0 0 40 10zM33 70h14"/>',
+  msg: '<path d="M12 18h56v36H34l-12 10V54H12z"/><path d="M24 32h32M24 42h20"/>',
+  door: '<path d="M22 70V12h36v58M14 70h52"/><circle cx="50" cy="42" r="3"/>',
+  temp: '<path d="M34 50V16a6 6 0 0 1 12 0v34a12 12 0 1 1-12 0z"/><path d="M40 30v28"/>',
+  chart: '<path d="M14 66h52M22 66V42M36 66V26M50 66V48M64 66V18"/>',
+};
+document.getElementById("ideas").innerHTML = [
+  ["lamp", "조명 자동", "들어오면 켜고<br>나가면 끈다", 1],
+  ["msg", "안부 확인", "오래 움직임이 없으면<br>본인·지인에게 문자", 1],
+  ["door", "외출 중 감지", "비어야 할 집에서<br>움직임이 잡히면 알림", 1],
+  ["temp", "냉난방 절약", "빈 방이면<br>에어컨·히터를 끈다", 0],
+  ["chart", "공간 사용 현황", "회의실·강의실이<br>지금 쓰이는지", 0],
+].map(([ic, t, d, made]) => `<div class="card" style="flex:1;height:400px;position:relative${made ? ";border-color:rgba(45,212,191,.45)" : ""}">
+  <svg viewBox="0 0 80 80" style="position:absolute;left:30px;top:34px;width:80px" fill="none" stroke="${made ? "#2dd4bf" : "#a1a1aa"}"
+   stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${ICON[ic]}</svg>
+  <div style="position:absolute;left:30px;top:146px;font-size:34px;font-weight:800">${t}</div>
+  <div style="position:absolute;left:30px;top:204px;font-size:24px;color:var(--muted);line-height:1.6">${d}</div>
+  <span class="tag" style="${made ? "background:rgba(45,212,191,.14);color:var(--brand)" : "border:1px solid var(--line);color:var(--dim)"}">${made ? "만든 것" : "아이디어"}</span></div>`).join("");
+
+// ════ v3 장면 ════
+const K = {e: "#94a3b8", s: "#3b82f6", s2: "#60a5fa", m: "#fb923c", brand: "#2dd4bf", ink: "#f4f4f5", body: "#d4d4d8",
+  muted: "#a1a1aa", dim: "#71717a", card: "#161618", line: "#2a2a2e", lamp: "#f59e0b", red: "#ef4444", gray: "#52525b", v: "#a78bfa", p: "#f472b6", warn: "#f87171"};
+const T = (x, y, s, o = {}) => `<text x="${x}" y="${y}" font-family="Noto Sans KR" font-size="${o.size || 24}" font-weight="${o.w || 400}"
+  fill="${o.c || K.muted}" text-anchor="${o.a || "start"}" dominant-baseline="middle">${s}</text>`;
+const R = (x, y, w, h, o = {}) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${o.r ?? 8}" fill="${o.f || "none"}"
+  stroke="${o.s || "none"}" stroke-width="${o.sw || 2}" ${o.dash ? `stroke-dasharray="${o.dash}"` : ""} opacity="${o.op ?? 1}"/>`;
+const L = (x1, y1, x2, y2, o = {}) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${o.s || K.dim}" stroke-width="${o.sw || 3}"
+  stroke-linecap="round" ${o.dash ? `stroke-dasharray="${o.dash}"` : ""} ${o.head ? 'marker-end="url(#head)"' : ""}/>`;
+const PHOTO = (x, y, d, ring = K.brand) => `<img class="photo" src="assets/board.jpg" style="position:absolute;left:${x - d / 2}px;top:${y - d / 2}px;width:${d}px;height:${d}px;border-color:${ring}">`;
+const MAC = (cx, cy, s = 1) => `<g transform="translate(${cx - 80 * s},${cy - 55 * s}) scale(${s})" fill="none" stroke="#f4f4f5" stroke-width="6" stroke-linejoin="round">
+  <rect x="26" y="8" width="108" height="72" rx="8"/><path d="M6 96h148l-10 10H16z" fill="#f4f4f5"/></g>`;
+
+// 파트 표지
+const CH = [["신호의 원리", "Wi-Fi 신호에 사람이 어떻게 묻어나나"], ["장치와 수집", "보드 다섯 대가 신호를 모으는 방법"],
+  ["학습 데이터", "무엇을 어떻게 찍었나"], ["모델 안을 들여다보기", "신호가 판단이 되기까지"],
+  ["실시간 판단과 성능", "두 모델, 상태 기계, 그리고 성적"], ["서비스", "이 모델로 만든 집 상태 서비스"], ["한계와 다음 단계", "확인한 것과 남은 과제"]];
+const SHORT = ["원리", "장치·수집", "학습 데이터", "모델 안", "판단·성능", "서비스", "한계·다음"];
+if (n.startsWith("ch")) {
+  const k = +n.slice(2);
+  $("ch-part").textContent = `PART ${k}`; $("ch-title").textContent = CH[k - 1][0]; $("ch-sub").textContent = CH[k - 1][1];
+  $("ch-dots").innerHTML = SHORT.map((s, i) => `<span class="chip" style="font-size:22px;${i === k - 1 ? "background:rgba(45,212,191,.18);border-color:#2dd4bf;color:#2dd4bf;font-weight:700" : i < k - 1 ? "" : "color:#71717a"}">${i + 1} ${s}</span>`).join("");
+}
+
+// 14 · 전체 지도
+const MAPD = ["사람이 신호에<br>묻어나는 원리", "보드 다섯 대가<br>모으는 방법", "5분 세션을<br>섞어 찍기", "공유 CNN 과<br>DNN",
+  "두 모델 · 상태 기계<br>· 성적", "조명과 알림", "확인한 것과<br>남은 과제"];
+$("map").innerHTML = SHORT.map((s, i) => `<div style="flex:1;text-align:center">
+  <div style="width:140px;height:140px;border-radius:50%;margin:0 auto;background:#161618;border:4px solid #3f3f46;display:flex;align-items:center;justify-content:center;font-size:56px;font-weight:800;color:#2dd4bf">${i + 1}</div>
+  <div style="font-size:31px;font-weight:800;margin-top:30px">${s}</div>
+  <div style="font-size:22px;color:#a1a1aa;margin-top:12px;line-height:1.55">${MAPD[i]}</div></div>`).join("");
+
+// 15 · 세 상태 실측 — 숫자는 세션 15개 × RX 3대 평균, 그래프는 그 평균에 가장 가까운 6초 (csi_lines.js 의 CSI.tri)
+const TRI = [["empty", "빈 방", K.e, ["#e2e8f0", "#94a3b8", "#cbd5e1", "#64748b"]], ["static", "정지", K.s2, ["#bfdbfe", "#3b82f6", "#93c5fd", "#2563eb"]],
+  ["motion", "움직임", K.m, ["#fed7aa", "#fb923c", "#fdba74", "#f97316"]]];
+$("tri").innerHTML = TRI.map(([k, name, c]) => `<div class="card" style="flex:1;height:600px;position:relative${k === "motion" ? ";border-color:rgba(251,146,60,.45)" : ""}">
+  <div style="position:absolute;left:36px;top:30px;font-size:42px;font-weight:800"><span style="color:${c}">●</span> ${name}</div>
+  <svg id="t-${k}" viewBox="0 0 480 330" style="position:absolute;left:36px;top:120px;width:480px;height:330px"></svg>
+  <div style="position:absolute;left:36px;bottom:30px;font-size:24px;color:#a1a1aa">흔들림 <b style="font-size:46px;color:${c};margin-left:12px">${CSI.tri.shake[k].toFixed(2)}</b></div></div>`).join("");
+TRI.forEach(([k, , , cols]) => lines(`t-${k}`, CSI.tri[k], cols, 480, 330));
+
+// 17 · 프레임 172바이트
+{
+  const B = 1728 / 172, X0 = 96, Y = 300, H = 84;
+  const parts = [[3, "#d4d4d8"], [5, "#3f3f46"], [4, "#71717a"], [8, "#71717a"], [8, "#3f3f46"], [4, K.brand], [8, "#3f3f46"], [4, K.warn]];
+  let x = X0, s = "";
+  parts.forEach(([b, f]) => { s += R(x, Y, b * B - 3, H, {f, r: 6}); x += b * B; });
+  for (let k = 0; k < 128; k++) s += R(x + k * B, Y, B - 2, H, {f: "#2dd4bf", r: 2, op: k % 2 ? .45 : .85});
+  s += L(X0, 262, X0 + 44 * B - 3, 262, {s: K.body, sw: 3}) + L(X0, 262, X0, 276, {s: K.body}) + L(X0 + 44 * B - 3, 262, X0 + 44 * B - 3, 276, {s: K.body});
+  s += L(X0 + 44 * B, 262, X0 + 172 * B, 262, {s: K.brand, sw: 3}) + L(X0 + 44 * B, 262, X0 + 44 * B, 276, {s: K.brand}) + L(X0 + 172 * B, 262, X0 + 172 * B, 276, {s: K.brand});
+  s += T(X0, 228, "헤더 44바이트", {size: 28, w: 800, c: K.ink}) + T(X0 + 44 * B + 20, 228, "CSI 128바이트 = 주파수 64개 × (I, Q)", {size: 28, w: 800, c: K.brand});
+  s += T(X0, Y + H + 34, "그 밖의 헤더 — 프레임 종류 · 길이 · 신호 세기(RSSI) · 채널 · 증폭값 · 부팅 번호 · RX 번호", {size: 21, c: K.dim});
+  $("frame").innerHTML = s;
+  $("fcards").innerHTML = [["#d4d4d8", "매직 · 버전", "프레임 시작 표시 0x4353<br>형식 번호 4"],
+    ["#71717a", "seq · 시각", "보드마다 제각각<br>정렬엔 쓰지 않는다"],
+    [K.brand, "tx_seq", "송신 보드가 붙인 번호표<br>세 대를 맞추는 기준"],
+    [K.warn, "CRC-32", "깨진 프레임을<br>걸러 내는 검사값"],
+    ["#2dd4bf", "CSI", "주파수 64개 × I·Q<br>그중 쓸 수 있는 건 52개"]].map(([c, t, d]) =>
+    `<div class="card" style="flex:1;height:240px;padding:30px 26px 0"><div style="display:flex;align-items:center;gap:14px;font-size:32px;font-weight:800">
+     <i style="width:24px;height:24px;border-radius:6px;background:${c}"></i>${t}</div><div style="font-size:22px;color:#a1a1aa;line-height:1.6;margin-top:16px">${d}</div></div>`).join("");
+}
+
+// 18 · 학습도 실시간도 무선 — 같은 길로 모아 두 곳에 쓴다
+{
+  let s = R(96, 180, 1728, 290, {f: K.card, s: K.line, r: 28});
+  [190, 290, 390].forEach(x => { s += L(x + 30, 300, 610, 325, {s: K.brand, sw: 3, dash: "10 10"}); });
+  s += T(290, 420, "수신 보드 ×3 · 전원만", {size: 22, c: K.body, a: "middle"}) + T(535, 278, "ESP-NOW (무선)", {size: 22, c: K.brand, a: "middle"});
+  s += T(670, 420, "싱크", {size: 24, w: 800, c: K.ink, a: "middle"}) + L(730, 325, 850, 325, {s: K.body, sw: 3}) + T(790, 300, "USB", {size: 22, c: K.body, a: "middle"});
+  s += MAC(940, 325, .75) + T(940, 420, "Mac", {size: 24, w: 800, c: K.ink, a: "middle"});
+  s += L(1030, 300, 1170, 255, {s: K.brand, sw: 3, head: true}) + L(1030, 350, 1170, 395, {s: K.brand, sw: 3, head: true});
+  s += R(1180, 210, 600, 96, {f: "rgba(45,212,191,.08)", s: "rgba(45,212,191,.5)", r: 16}) + T(1210, 245, "학습용 세션으로 저장", {size: 28, w: 800, c: K.ink}) + T(1210, 282, "5분 세션마다 라벨 — 빈 방 · 정지 · 움직임", {size: 21});
+  s += R(1180, 346, 600, 96, {f: "rgba(45,212,191,.08)", s: "rgba(45,212,191,.5)", r: 16}) + T(1210, 381, "실시간 판단", {size: 28, w: 800, c: K.ink}) + T(1210, 418, "같은 데이터를 따라 읽으며 0.3초마다", {size: 21});
+  $("paths").innerHTML = s;
+  $("s18").insertAdjacentHTML("beforeend", [190, 290, 390].map(x => PHOTO(x, 300, 76)).join("") + PHOTO(670, 325, 100, "#e4e4e7"));
+  $("why").innerHTML = [["보드를 어디든", "선에 묶이지 않아<br>방 곳곳 원하는 자리에 둘 수 있다"],
+    ["집에서도 따라 하기 쉽게", "보드는 전원만 꽂으면 된다<br>노트북에 줄줄이 연결하지 않는다"],
+    ["수신률도 단서 후보", "사람이 가리면 수신률이 떨어질 수 있다<br>무선이라 이 값도 함께 남는다"]].map(([t, d], i) =>
+    `<div class="card" style="flex:1;height:240px;padding:30px 34px;box-sizing:border-box"><div style="display:flex;align-items:center;gap:16px"><span style="width:46px;height:46px;border-radius:50%;background:rgba(45,212,191,.16);color:#2dd4bf;font-size:24px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">${i + 1}</span>
+     <b style="font-size:31px">${t}</b></div><div style="font-size:24px;color:#a1a1aa;line-height:1.6;margin-top:18px">${d}</div></div>`).join("");
+}
+
+// 19 · tx_seq 로 줄 세우기
+{
+  const rows = [[101, [0, 1, 2, 3, 4, 5, 6, 7], 0], [102, [0, 1, 2, 4, 5, 6, 7], 26], [103, [0, 1, 2, 3, 4, 6, 7], -14]];
+  let s = T(96, 220, "도착한 그대로 — 보드마다 시계와 번호가 다르다", {size: 27, w: 800, c: K.ink}) + T(1010, 220, "tx_seq 격자 — 같은 번호끼리 한 열", {size: 27, w: 800, c: K.brand});
+  rows.forEach(([rx, have, off], r) => {
+    const y = 300 + r * 140;
+    s += T(96, y + 32, `RX ${rx}`, {size: 26, w: 800, c: K.ink});
+    have.forEach((k, j) => { const x = 230 + j * 68 + off; s += R(x, y, 60, 64, {f: "#1f2a29", s: K.brand, sw: 2}) + T(x + 30, y + 32, 1500 + k, {size: 17, c: K.body, a: "middle"}); });
+    for (let k = 0; k < 8; k++) {
+      const x = 1010 + k * 100, miss = !have.includes(k);
+      s += miss ? R(x, y, 88, 64, {f: "rgba(113,113,122,.18)", s: K.dim, dash: "6 6"}) + T(x + 44, y + 32, "메움", {size: 19, c: K.muted, a: "middle"})
+                : R(x, y, 88, 64, {f: "#1f2a29", s: K.brand}) + T(x + 44, y + 32, 1500 + k, {size: 19, c: K.body, a: "middle"});
+    }
+  });
+  s += L(850, 440, 960, 440, {s: K.brand, sw: 4, head: true}) + T(905, 410, "맞춤", {size: 22, c: K.brand, a: "middle"});
+  s += R(1006, 290, 96, 368, {s: "rgba(244,244,245,.6)", sw: 2, r: 10}) + T(1054, 690, "같은 순간", {size: 20, c: K.body, a: "middle"});
+  $("align").innerHTML = s;
+  $("s19").insertAdjacentHTML("beforeend", `<div class="abs" style="left:96px;right:96px;top:740px;display:flex;flex-wrap:wrap;justify-content:center;gap:18px">
+    <span class="chip">빈 칸이 5개 이하면 앞뒤 값을 직선으로 이어 메운다 (선형 보간)</span><span class="chip">더 길게 비면 그 구간은 쓰지 않는다</span><span class="chip">번호가 거꾸로 가면 송신 보드가 다시 켜진 것</span></div>`);
+}
+
+// 20 · 묶음
+$("blocks").innerHTML = [["묶음 1", ["static", "empty", "motion"]], ["묶음 2", ["motion", "static", "empty"]], ["묶음 3", ["empty", "motion", "static"]]].map(([b, order]) =>
+  `<div style="display:flex;align-items:center;gap:16px;margin-bottom:24px"><div style="width:110px;font-size:24px;color:#a1a1aa">${b}</div>${order.map(k => {
+    const [name, c] = {empty: ["빈 방", "148,163,184"], static: ["정지", "59,130,246"], motion: ["움직임", "251,146,60"]}[k];
+    return `<div style="width:220px;height:84px;border-radius:16px;background:rgba(${c},.16);border:2px solid rgb(${c});display:flex;align-items:center;justify-content:space-between;padding:0 22px;box-sizing:border-box">
+      <b style="font-size:28px;color:rgb(${c})">${name}</b><span style="font-size:22px;color:#a1a1aa">5분</span></div>`; }).join("")}</div>`).join("") +
+  `<div style="font-size:23px;color:#71717a;margin-top:10px">… 날짜와 보드 배치를 바꿔 가며 되풀이</div>`;
+
+// 22 · 다른 날로 시험
+$("evals").innerHTML = [["15초 모델<br><small>빈 방·정지·움직임</small>", K.v, "9/16·17 · 15세션", "9/19·20 · 59세션", "59/59", "94.8%", false],
+  ["3초 모델<br><small>움직임 / 아님 2가지</small>", K.p, "9/16·17·19 · 45세션", "9/20 · 30세션", "30/30", "96.6%", false]].map(([name, c, tr, te, ss, w, weak]) =>
+  `<div class="card" style="height:170px;margin-bottom:20px;display:flex;align-items:center;gap:26px;padding:0 36px;box-sizing:border-box">
+    <div style="width:210px;font-size:32px;font-weight:800;color:${c};line-height:1.3">${name.replace("<small>", "<small style='display:block;font-size:19px;font-weight:400;color:#a1a1aa'>")}</div>
+    <div style="width:330px;padding:18px 24px;border-radius:16px;border:2px solid #2dd4bf;box-sizing:border-box"><div style="font-size:20px;color:#2dd4bf">학습</div><div style="font-size:27px;font-weight:700">${tr}</div></div>
+    <svg width="60" height="24"><use href="#arr" style="color:#71717a"/></svg>
+    <div style="width:330px;padding:18px 24px;border-radius:16px;border:2px dashed #a1a1aa;box-sizing:border-box"><div style="font-size:20px;color:#a1a1aa">시험 (학습에 안 씀)</div><div style="font-size:27px;font-weight:700">${te}</div></div>
+    <div style="margin-left:auto;text-align:right"><div style="font-size:22px;color:#a1a1aa">세션 정답 · 창 정답</div>
+     <div style="font-size:50px;font-weight:800;color:${weak ? K.warn : K.ink}">${ss} <span style="font-size:34px;color:${weak ? K.warn : K.body}">· ${w}</span></div></div></div>`).join("");
+
+// 23 · 왜 3초 모델이 먼저 보나
+{
+  const x0 = 200, x1 = 1720, xm = x0 + (x1 - x0) * .8;
+  let s = T(x0, 236, "지난 15초 동안의 신호", {size: 27, w: 800, c: K.ink}) + T(x1, 236, "지금", {size: 24, c: K.body, a: "end"});
+  for (let i = 0; i < 76; i++) { const x = x0 + i * 20; s += R(x, 290, 17, 80, {f: x < xm ? "rgba(59,130,246,.55)" : K.m, r: 3}); }
+  s += L(xm - 2, 270, xm - 2, 392, {s: K.ink, sw: 3}) + T(xm - 12, 262, "걷기 시작", {size: 22, c: K.ink, a: "end"});
+  s += L(x0, 412, x1, 412, {s: K.v, sw: 5}) + L(x0, 400, x0, 412, {s: K.v, sw: 5}) + L(x1, 400, x1, 412, {s: K.v, sw: 5}) + T((x0 + x1) / 2, 440, "15초 창", {size: 24, w: 700, c: K.v, a: "middle"});
+  s += L(xm, 278, x1, 278, {s: K.p, sw: 5}) + L(xm, 278, xm, 290, {s: K.p, sw: 5}) + L(x1, 278, x1, 290, {s: K.p, sw: 5});
+  s += R(x0, 490, 720, 270, {f: K.card, s: "rgba(167,139,250,.5)", r: 24}) + R(1000, 490, 720, 270, {f: K.card, s: "rgba(244,114,182,.5)", r: 24});
+  s += T(x0 + 36, 540, "15초 모델", {size: 34, w: 800, c: K.v}) + T(x0 + 36, 595, "창의 5분의 1 만 움직임 → 평균에 묻힌다", {size: 25, c: K.body});
+  s += T(x0 + 36, 680, "아직 '정지'", {size: 52, w: 800, c: K.s2});
+  s += T(1036, 540, "3초 모델", {size: 34, w: 800, c: K.p}) + T(1036, 595, "창 전체가 움직임 → 바로 보인다", {size: 25, c: K.body});
+  s += T(1036, 680, "'움직임'", {size: 52, w: 800, c: K.m});
+  s += T(x0, 800, "그래서 3초 모델이 90% 이상을 세 번 연속 내면 15초 모델을 기다리지 않는다 · 개념도", {size: 22, c: K.dim});
+  $("gate").innerHTML = s;
+}
+
+// 24 · 상태 기계 (예시) — realtime/state.py 그대로: 확신 미달은 무시, 후보가 유지 시간을 채워야 바뀐다.
+// 한 번 정해진 상태는 '판단 중'으로 돌아가지 않는다 — 확인하는 동안 화면은 이전 상태를 유지한다.
+{
+  const seq = Array.from({length: 66}, (_, i) => i < 18 ? "s" : i < 35 ? "m" : i < 39 ? "d" : "s");
+  Object.assign(seq, {6: "e", 12: "d", 26: "s", 50: "e"});
+  const shown = i => i < 21 ? "s" : i < 56 ? "m" : "s";
+  const C2 = {e: K.e, s: K.s, m: K.m, d: K.gray}, x0 = 330, st = 22, X = i => x0 + i * st;
+  let s = T(96, 284, "0.3초마다 나온 판단", {size: 25, w: 700, c: K.ink}) + T(96, 405, "안에서 확인 중", {size: 25, w: 700, c: K.muted})
+        + T(96, 518, "화면에 보이는 상태", {size: 25, w: 700, c: K.ink});
+  seq.forEach((c, i) => { s += R(X(i), 250, st - 5, 68, {f: C2[c], r: 3}); });
+  [[18, 21, K.m], [39, 56, K.s]].forEach(([a, b, c]) => {      // 유지 시간을 채우는 후보
+    s += R(X(a), 386, (b - a) * st - 5, 38, {f: "none", s: c, sw: 3, dash: "8 6", r: 8}); });
+  s += T(X(18) + 8, 452, "움직임 1초", {size: 20, c: K.m}) + T(X(39) + 8, 452, "정지 5초 채우는 중 — 안에서는 판단 중", {size: 20, c: K.s2});
+  let a = 0;
+  for (let i = 1; i <= 66; i++) if (i === 66 || shown(i) !== shown(a)) { s += R(X(a), 480, (i - a) * st - 5, 76, {f: C2[shown(a)], r: 10}); a = i; }
+  [[X(0), "정지"], [X(21), "움직임"], [X(56), "정지"]].forEach(([x, t]) => { s += T(x + 14, 518, t, {size: 22, w: 800, c: "#0b0b0c"}); });
+  [[X(6), "한 번 튀는 판단은 무시"], [X(21), "움직임은 1초 이어지면 바로 바뀐다"], [X(39), "멈춰도 정지가 5초 이어질 때까지 화면은 '움직임' 유지"]].forEach(([x, t], k) => {
+    s += L(x, 562, x, 612 + k * 50, {s: K.muted, sw: 2}) + T(x + 12, 612 + k * 50, t, {size: 24, c: K.body}); });
+  s += T(96, 790, "확신 60% 미만은 무시하고 이전 상태 유지 · '판단 중'은 켠 직후 첫 판단 전에만 보인다 · 빈 방↔정지 직접 전환은 5초 · 예시", {size: 22, c: K.dim});
+  [["빈 방", K.e], ["정지", K.s], ["움직임", K.m], ["확신 낮음", K.gray]].forEach(([t, c], k) => { const x = 1260 + k * 140; s += `<circle cx="${x}" cy="210" r="9" fill="${c}"/>` + T(x + 18, 211, t, {size: 21, c: K.body}); });
+  $("sm").innerHTML = s;
+}
+
+// 25 · 전환 지연 (합성 대본 실측, 날짜 4개)
+{
+  const ax = v => 1000 + v * 19;
+  let s = R(680, 180, 1144, 580, {f: K.card, s: K.line, r: 28}) + T(720, 232, "상태가 바뀌는 데 걸린 시간", {size: 30, w: 800, c: K.ink});
+  [0, 10, 20, 30, 40].forEach(v => { s += L(ax(v), 290, ax(v), 660, {s: "#26262b", sw: 2}) + T(ax(v), 688, `${v}초`, {size: 20, c: K.dim, a: "middle"}); });
+  [["빈 방 → 움직임", [6.3, 6.6, 7.8, 9.9], K.m], ["정지 → 움직임", [4.5, 5.4, 8.4, 9.9], K.m],
+   ["움직임 → 정지", [10.2, 12.0, 15.3, 17.7], K.s], ["움직임 → 빈 방", [20.1, 25.8, 29.1, 36.6], K.e]].forEach(([t, v, c], k) => {
+    const y = 330 + k * 92;
+    s += T(720, y, t, {size: 26, w: 700, c: K.body}) + R(ax(v[0]), y - 12, ax(v[3]) - ax(v[0]), 24, {f: c, r: 12, op: .35});
+    v.forEach(x => { s += `<circle cx="${ax(x)}" cy="${y}" r="8" fill="${c}"/>`; });
+    s += T(ax(v[3]) + 22, y, `${Math.round(v[0])}~${Math.round(v[3])}초`, {size: 23, w: 700, c}); });
+  s += T(720, 724, "움직임은 빨리 · 빈 방은 잘못 알리지 않도록 일부러 천천히", {size: 22, c: K.muted});
+  $("lat").innerHTML = s;
+}
+
+// 27 · 집과 클라우드
+{
+  let s = R(96, 180, 720, 580, {s: "#3f3f46", sw: 3, dash: "12 10", r: 28}) + T(132, 226, "집 안", {size: 32, w: 800, c: K.ink});
+  s += R(140, 290, 300, 170, {f: K.card, s: K.line, r: 20}) + T(290, 352, "Mac", {size: 38, w: 800, c: K.ink, a: "middle"}) + T(290, 402, "판단 · 조명 결정", {size: 23, a: "middle"});
+  s += `<circle cx="640" cy="590" r="95" fill="url(#glow)"/><circle cx="640" cy="590" r="46" fill="#fbbf24"/>` + T(640, 690, "싱크 보드 LED = 집의 불", {size: 23, c: K.body, a: "middle"});
+  s += L(330, 466, 584, 572, {s: K.lamp, sw: 3, head: true}) + T(430, 545, "켜기 · 끄기", {size: 21, c: K.lamp, a: "end"});
+  s += T(132, 735, "인터넷이 끊겨도 조명은 동작한다", {size: 25, w: 700, c: K.brand});
+  s += R(930, 300, 440, 300, {f: K.card, s: "rgba(45,212,191,.5)", r: 24});
+  s += `<path transform="translate(1085,330) scale(.8)" d="M44 88h78a28 28 0 0 0 2-56 40 40 0 0 0-76-6 32 32 0 0 0-4 62z" fill="none" stroke="#2dd4bf" stroke-width="8" stroke-linejoin="round"/>`;
+  s += T(1150, 460, "클라우드 (EC2)", {size: 32, w: 800, c: K.ink, a: "middle"}) + T(1150, 510, "기록 · 알림 판단 · 문자 발송", {size: 22, a: "middle"});
+  s += T(930, 660, "집이 통째로 꺼져도", {size: 25, w: 700, c: K.brand}) + T(930, 698, "밖에서 알아챈다", {size: 25, w: 700, c: K.brand});
+  s += R(1500, 250, 270, 480, {f: "#111114", s: "#3f3f46", sw: 6, r: 44}) + T(1635, 420, "웹 화면", {size: 28, w: 800, c: K.ink, a: "middle"}) + T(1635, 470, "현재 상태 · 기록", {size: 20, a: "middle"});
+  s += T(1635, 560, "문자", {size: 28, w: 800, c: K.ink, a: "middle"}) + T(1635, 608, "알림 · 확인 링크", {size: 20, a: "middle"});
+  s += L(445, 335, 925, 335, {s: K.brand, sw: 3, head: true}) + T(685, 305, "상태 · 바뀔 때 + 60초마다", {size: 21, c: K.brand, a: "middle"});
+  s += L(925, 420, 450, 420, {s: K.muted, sw: 3, head: true}) + T(685, 450, "설정 (수면 시간 등)", {size: 21, c: K.muted, a: "middle"});
+  s += L(1375, 450, 1495, 450, {s: K.brand, sw: 3, head: true});
+  $("arch").innerHTML = `<defs><radialGradient id="glow"><stop offset="0" stop-color="#f59e0b" stop-opacity=".6"/><stop offset="1" stop-color="#f59e0b" stop-opacity="0"/></radialGradient></defs>` + s;
+}
+
+// 28 · 조명 규칙
+{
+  const ON = `<svg viewBox="0 0 40 52" width="34"><path d="M20 2a16 16 0 0 0-9 29c2 2 3 4 3 7v3h12v-3c0-3 1-5 3-7A16 16 0 0 0 20 2z" fill="#fbbf24"/><path d="M14 46h12" stroke="#f4f4f5" stroke-width="4" stroke-linecap="round"/></svg>`;
+  const OFF = ON.replace('fill="#fbbf24"', 'fill="none" stroke="#52525b" stroke-width="3"');
+  const SAME = `<span style="width:34px;text-align:center;color:#71717a;font-size:30px">—</span>`;
+  const row = (st, c, a, b, last) => `<div style="display:contents"><div class="cell" style="padding:0 40px;border-top:1px solid #2a2a2e"><i style="width:22px;height:22px;border-radius:50%;background:${c};flex:none"></i><b style="font-size:30px">${st}</b></div>
+    <div class="cell" style="border-top:1px solid #2a2a2e">${a}</div><div class="cell" style="border-top:1px solid #2a2a2e">${b}</div></div>`;
+  $("light").innerHTML = `<div style="display:grid;grid-template-columns:330px 1fr 1fr;grid-auto-rows:118px;height:100%">
+    <div></div><div class="cell" style="font-size:28px;font-weight:800;color:#f4f4f5">깨어 있는 시간</div><div class="cell" style="font-size:28px;font-weight:800;color:#a78bfa">수면 시간 <span style="font-size:22px;color:#a1a1aa;font-weight:400">기본 00:00–07:00</span></div>
+    ${row("움직임", K.m, ON + "켠다", ON + "<span>5초 넘게 이어질 때만 켠다<br><small style='color:#a1a1aa;font-size:21px'>뒤척임엔 켜지 않는다</small></span>")}
+    ${row("정지", K.s, ON + "켠다", OFF + "10분 이어지면 끈다")}
+    ${row("빈 방", K.e, OFF + "끈다", OFF + "끈다")}
+    ${row("판단 중 · 판단 정지", K.gray, SAME + "그대로 둔다", SAME + "그대로 둔다")}</div>`;
+}
+
+// 30 · 한계 / 31 · 다음 단계
+$("limits").innerHTML = [["공간은 두 곳", "오래 빌려 시험할 수 있던 곳은<br>자취방과 향설 2층 활동실뿐<br>더 다양한 공간에선 아직"],
+  ["하루 넘게는 아직", "자취방에서 1~2시간은<br>연속으로 돌려 봤지만<br>24시간 넘게는 못 해 봤다"],
+  ["다양한 자세", "누운 자세는 시연에서 인식했지만<br>학습 데이터엔 없던 자세<br>다른 정지 자세도 학습 전"]].map(([t, d], i) =>
+  `<div class="card" style="height:280px;padding:40px 40px;box-sizing:border-box"><div style="display:flex;align-items:center;gap:18px"><span style="width:52px;height:52px;border-radius:50%;background:rgba(161,161,170,.16);color:#d4d4d8;font-size:28px;font-weight:800;display:flex;align-items:center;justify-content:center">${i + 1}</span>
+   <b style="font-size:36px">${t}</b></div><div style="font-size:26px;color:#a1a1aa;line-height:1.6;margin-top:22px">${d}</div></div>`).join("");
+$("next").innerHTML = [["더 다양한 조건", "다른 공간 · 다양한 자세 · 다른 사람으로 데이터를 모은다"],
+  ["오래 돌려 보기", "하루 넘게 켜 두고<br>시간당 잘못된 알림을 잰다"],
+  ["두 대로도 판단", "보드 하나가 끊겨도 멈추지 않도록 두 대용 모델을 학습한다"]].map(([t, d], i) =>
+  `<div class="card" style="flex:1;height:480px;padding:48px 44px;box-sizing:border-box;border-color:rgba(45,212,191,.4)"><div style="font-size:84px;font-weight:800;color:#2dd4bf">${i + 1}</div>
+   <div style="font-size:40px;font-weight:800;margin-top:20px">${t}</div><div style="font-size:27px;color:#a1a1aa;line-height:1.6;margin-top:22px">${d}</div></div>`).join("");
+
+// ════ v4 장면 ════
+// 32·33 · 같은 방, 빈 방 → 움직임. 오른쪽 카드는 집 상태 서비스 화면을 줄여 그린 것(설명용)
+const BULB = on => `<svg viewBox="0 0 120 160" width="78">${on ? '<circle cx="60" cy="56" r="58" fill="rgba(245,158,11,.25)"/>' : ""}
+  <path d="M60 8a44 44 0 0 0-26 79c6 5 10 12 10 20v6h32v-6c0-8 4-15 10-20A44 44 0 0 0 60 8z" fill="${on ? "#fbbf24" : "none"}" stroke="${on ? "#fde68a" : "#52525b"}" stroke-width="5"/>
+  <path d="M44 128h32M48 144h24" stroke="${on ? "#f4f4f5" : "#52525b"}" stroke-width="7" stroke-linecap="round"/></svg>`;
+function room(id, name, c, desc, on, lampNote) {
+  $(id).innerHTML = `<img src="assets/room.jpg" class="abs" style="inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(${on ? .62 : .28}) saturate(.75)">
+    <div class="abs" style="inset:0;background:linear-gradient(90deg,rgba(11,11,12,.1),rgba(11,11,12,.72))"></div>
+    ${on ? '<div class="abs" style="inset:0;background:radial-gradient(900px 520px at 45% 15%,rgba(251,191,36,.2),transparent 70%)"></div>' : ""}
+    <div class="card abs" style="left:1240px;top:190px;width:584px;height:560px;background:rgba(22,22,24,.88)">
+     <div class="abs" style="left:44px;top:40px;font-size:26px;color:#a1a1aa">지금 이 방</div>
+     <div class="abs" style="left:44px;top:92px;display:flex;align-items:center;gap:22px"><span style="width:34px;height:34px;border-radius:50%;background:${c};box-shadow:0 0 30px ${c}"></span><span style="font-size:76px;font-weight:800;color:${c}">${name}</span></div>
+     <div class="abs" style="left:44px;top:204px;font-size:28px;color:#d4d4d8">${desc}</div>
+     <div class="abs" style="left:44px;right:44px;top:282px;height:1px;background:#2a2a2e"></div>
+     <div class="abs" style="left:44px;top:316px;display:flex;align-items:center;gap:24px">${BULB(on)}<div><div style="font-size:40px;font-weight:800">${on ? "조명 켜짐" : "조명 꺼짐"}</div><div style="font-size:24px;color:#a1a1aa;margin-top:6px">${lampNote}</div></div></div>
+     <div class="abs" style="left:44px;bottom:38px;font-size:22px;color:#71717a">카메라 없음 · Wi-Fi 신호로 판단</div>
+    </div><svg class="mark"><use href="#logo"/></svg>`;
+}
+room("s32", "빈 방", K.e, "방에 아무도 없어요", false, "아무도 없어 꺼 두었어요");
+room("s33", "움직임", K.m, "사람이 움직이고 있어요", true, "사람이 들어와 켰어요");
+
+// 34 · 맺는 장면
+$("s34").innerHTML = `<img src="assets/room.jpg" class="abs" style="inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.22) saturate(.6)">
+  <div class="abs" style="inset:0;background:radial-gradient(900px 600px at 50% 42%,rgba(45,212,191,.14),transparent 70%)"></div>
+  <svg class="abs" style="left:885px;top:170px;width:150px;height:157px;color:#fff"><use href="#logo"/></svg>
+  <div class="abs" style="left:0;right:0;top:360px;text-align:center;font-size:118px;font-weight:800;letter-spacing:-.02em">MeshSense</div>
+  <div class="abs" style="left:0;right:0;top:530px;text-align:center;font-size:44px;color:#d4d4d8">카메라 없이, Wi-Fi 신호만으로</div>
+  <div class="abs" style="left:0;right:0;top:620px;display:flex;justify-content:center;gap:22px">
+   ${[["빈 방", K.e], ["정지", K.s2], ["움직임", K.m]].map(([n, c]) => `<span class="chip" style="font-size:30px;padding:12px 30px;color:${c};font-weight:700">● ${n}</span>`).join("")}</div>
+  <div class="abs" style="left:0;right:0;top:770px;text-align:center;font-size:28px;color:#71717a;letter-spacing:.04em">소프트웨어과 졸업 작품</div>`;
+</script>
+</body>
+</html>

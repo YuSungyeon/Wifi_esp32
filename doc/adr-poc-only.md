@@ -50,6 +50,18 @@ Registry와 session metadata는 ESP-NOW/USB CLI에서도 사용하므로 유지�
 - 기존 UDP data와 새 USB data를 같은 공식 pipeline에서 지원하지 않는다.
 - 현재 model preprocessing은 아직 experimental이며 별도 완성이 필요하다.
 
+## 이후 변경 (2026-11-18 덧붙임)
+
+이 ADR 본문은 2026-07-22 결정 당시 기록이다. 이후 다음이 바뀌었으나 "SoftAP/UDP 경로를 쓰지 않는다"는
+결정 자체는 유지된다.
+
+- **저장 형식**: Mac JSONL → `.csi`(raw I/Q, frame v4). JSONL은 `export_jsonl.py`의 파생물이다
+  (2026-08-25~, [sprint/2026-08-collection-hardening.md](sprint/2026-08-collection-hardening.md)).
+- **RX→Mac 전달**: USB 직결에 더해 ESP-NOW 업링크 + USB 싱크 경로를 추가했다(2026-09-02~,
+  [realtime-uplink.md](realtime-uplink.md)). 위 "RX마다 Mac과 USB 연결이 필요하다" 제약은 이 경로로 풀렸다.
+- **전처리**: "아직 experimental" 이던 3-RX 전처리는 이후 CURRENT CONTRACT가 되었다
+  ([model_train/docs/preprocessing/design.md](../model_train/docs/preprocessing/design.md)).
+
 ## Compliance
 
 이 결정 이후 새 문서와 코드에서 SoftAP/UDP 경로를 현재 기능으로 다시 언급하지 않는다. 필요하면 새 ADR로 이 결정을 supersede한다.

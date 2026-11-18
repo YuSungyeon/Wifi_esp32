@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JSONL에서 마지막 RX 부팅 이후의 CSI 수집률을 계산한다."""
+"""세션(`.csi`, `.csi` 가 없으면 구 JSONL)에서 마지막 RX 부팅 이후의 CSI 수집률을 계산하고 품질을 판정한다."""
 
 from __future__ import annotations
 

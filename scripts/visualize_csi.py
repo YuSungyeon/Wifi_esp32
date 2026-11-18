@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-JSONL 세션 디렉터리 → RX별 CSI 워터폴을 한 PNG에 device_id 서브플롯으로 저장.
+세션 디렉터리 → RX별 CSI 워터폴을 한 PNG에 device_id 서브플롯으로 저장.
 
-  python scripts/visualize_csi.py --session-dir session_1
-  python scripts/visualize_csi.py --session-dir mac_collector_output/raw/20260521/session_1
+`.csi` 세션을 읽고, `.csi` 가 없는 구 세션(`session_<id>/device_*.jsonl`)은 JSONL 로 폴백한다.
+
+  python scripts/visualize_csi.py --session-dir mac_collector_output/raw/20260916/205009_motion_s31
+  python scripts/visualize_csi.py --session-id 31        # raw/*/*_s31 중 최신
 """
 
 from __future__ import annotations
@@ -17,8 +19,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-
-from session_meta import read_session_id
 
 F_S = 100  # Hz — 펌웨어/RX 전송 주기와 동일
 MAX_DISPLAY_ROWS = 4000  # PNG 가독성·용량용 시간축 다운샘플 상한
@@ -233,7 +233,7 @@ def find_latest_session_dir(output_base: Path, session_id: int) -> Optional[Path
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="CSI JSONL → 워터폴 PNG (RX별 서브플롯 1장)")
+    parser = argparse.ArgumentParser(description="CSI 세션(.csi, 구 JSONL) → 워터폴 PNG (RX별 서브플롯 1장)")
     parser.add_argument(
         "--session-dir",
         type=Path,
@@ -243,19 +243,13 @@ def main() -> int:
         "--output-dir",
         type=Path,
         default=Path("mac_collector_output"),
-        help="--session-id 사용 시 raw/*/session_<id> 검색 기준",
+        help="--session-id 사용 시 raw/*/*_s<id> (구 raw/*/session_<id>) 검색 기준",
     )
     parser.add_argument(
         "--session-id",
         type=int,
         default=None,
-        help="output-dir 아래 최신 session_<id> 폴더 자동 선택",
-    )
-    parser.add_argument(
-        "--session-meta",
-        type=Path,
-        default=None,
-        help="session_id 추출용 yaml (--session-id 미지정 시)",
+        help="output-dir 아래 이 session_id 의 최신 세션 폴더 자동 선택",
     )
     parser.add_argument(
         "--out-name",
@@ -273,14 +267,13 @@ def main() -> int:
 
     if args.session_dir:
         session_dir = args.session_dir.resolve()
+    elif args.session_id is None:
+        parser.error("--session-dir 또는 --session-id 가 필요합니다")
     else:
         session_id = args.session_id
-        if session_id is None:
-            meta = args.session_meta or (Path(__file__).resolve().parent.parent / "mac_collector" / "session_meta.yaml")
-            session_id = read_session_id(meta)
         found = find_latest_session_dir(args.output_dir.resolve(), session_id)
         if found is None:
-            print(f"error: session_{session_id} 폴더 없음 under {args.output_dir}", file=sys.stderr)
+            print(f"error: session_id {session_id} 세션 폴더 없음 under {args.output_dir}", file=sys.stderr)
             return 1
         session_dir = found
         print(f"[viz] session_dir={session_dir}")

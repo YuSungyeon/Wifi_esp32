@@ -60,3 +60,15 @@
 - **재발 방지**: `tests/test_realtime.py::test_every_row_is_the_same_width_on_screen` 이 화면
   모든 줄의 **표시 폭**이 같은지 본다(상태별로). 글자 수(`len`)로 재면 이 버그를 못 잡는다.
 
+
+## 2026-10-27 — 인증 메일 실패가 "Connection unexpectedly closed" 로만 보임
+
+- **증상**: 클라우드(EC2)에서 가입하면 "메일을 보내지 못했어요". 서버 로그는 `인증 메일 실패: error: Connection
+  unexpectedly closed` 뿐이었다.
+- **원인**: `smtplib.SMTP.login()` 은 `AUTH PLAIN` 이 거절되면 `AUTH LOGIN` 으로 **다시 시도한다**. Gmail 은 첫
+  시도에 **535 BadCredentials**(아이디·앱 비밀번호가 틀림)를 돌려준 뒤, 두 번째 시도에서 **말없이 연결을 끊는다**.
+  마지막 예외만 남아 진짜 이유가 가려졌다. 맥에서 일부러 틀린 비밀번호로 재현했다(`set_debuglevel(1)`).
+  EC2 네트워크 문제가 아니다 — 맥에서도 똑같이 끊겼다.
+- **해결**: `smtp.auth("PLAIN", smtp.auth_plain)` 하나로 고정하고 `SMTPAuthenticationError` 를
+  `Gmail 로그인 거절(535) — SMTP_USER 나 앱 비밀번호가 맞지 않습니다` 로 남긴다. 다른 예외는 종류 이름까지 남긴다.
+- **재발 방지**: 외부 서비스 로그인 실패는 **첫 거절 이유**가 남게 한다. 라이브러리의 자동 재시도가 원인을 덮을 수 있다.

@@ -143,7 +143,7 @@ def state():
     arrow(ax,45,71.5,50,65,'확률 통과')
     box(ax,57,59,67,12,'현재 상태와 같은 후보 → 상태 유지\n다른 후보 → 유지 시간 확인\n확인 중 후보가 바뀌면 시간 초기화',ORANGE)
     arrow(ax,57,53,50,47)
-    for x,label in [(18,'motion 후보\n1초'),(50,'그 외 empty / static\n전환: 5초'),(82,'empty ↔ static\n직접 전환: 10초')]:
+    for x,label in [(18,'motion 후보\n1초'),(50,'그 외 empty / static\n전환: 5초'),(82,'empty ↔ static\n직접 전환: 5초')]:
         box(ax,x,40,28,12,label,ORANGE,size=14)
         arrow(ax,50,48,x,46)
         arrow(ax,x,34,50,27)

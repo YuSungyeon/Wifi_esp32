@@ -1,0 +1,5 @@
+# /etc/caddy/Caddyfile — 두 이름 모두 HTTPS 인증서를 자동으로 받는다 (계획 §4.4)
+# 시연까지는 화면(meshsense.cloud)과 API(api.meshsense.cloud)를 같은 서버가 낸다.
+meshsense.cloud, api.meshsense.cloud {
+	reverse_proxy 127.0.0.1:8000
+}

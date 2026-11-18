@@ -1,0 +1,368 @@
+<!doctype html>
+<!-- 모션그래픽 원본: 신호가 판단이 되기까지 (TX → RX → 싱크 → 수집기 → 창 → 공유 CNN → 요약 → DNN).
+     render(t) 가 t초의 한 장면을 그린다 — build.py 가 프레임마다 불러 찍는다.
+     ?beats=4,3.5,... 로 구간 길이를 받는다 (build.py SCENES 의 "m" 줄). ?t=5 는 그 순간 한 장, ?play 는 반복 재생.
+     입력 띠·51줄은 실측(assets/model_input.js)이고, CNN 안쪽 값과 출력 막대는 설명용 그림이다. -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MeshSense 모션</title>
+<style>html,body{margin:0;background:#0b0b0c}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script src="assets/csi_lines.js"></script>
+<script src="assets/model_input.js"></script>
+<script>
+const W = 1920, H = 1080, FONT = '"Noto Sans KR"';
+const C = {bg: "#0b0b0c", card: "#161618", line: "#2a2a2e", ink: "#f4f4f5", body: "#d4d4d8", muted: "#a1a1aa",
+  dim: "#71717a", brand: "#2dd4bf", e: "#94a3b8", s: "#3b82f6", m: "#fb923c", lamp: "#f59e0b"};
+const g = document.getElementById("c").getContext("2d");
+const Q = new URLSearchParams(location.search);
+const BEATS = (Q.get("beats") || "4,3.5,3,4.5,2.5,3.5").split(",").map(Number);
+const T0 = BEATS.reduce((a, b) => [...a, a.at(-1) + b], [0]);
+const TOTAL = T0.at(-1);
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const seg = (x, a, b) => clamp((x - a) / (b - a));
+const ease = x => x < .5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2;
+const lerp = (a, b, u) => a + (b - a) * u;
+const local = (t, i) => (t - T0[i]) / BEATS[i];        // i 번째 구간 안의 진행도 (밖이면 0 미만·1 초과)
+const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+const std = a => { const m = mean(a); return Math.sqrt(mean(a.map(v => (v - m) ** 2))); };
+const max = a => Math.max(...a);
+
+function rand(seed) {                                  // mulberry32 — 프레임마다 같은 값이 나와야 한다
+  return () => {
+    seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function cmap(t) {
+  t = clamp(t);
+  const [a, b, u] = t < .5 ? [[15, 59, 56], [45, 212, 191], t * 2] : [[45, 212, 191], [251, 146, 60], t * 2 - 1];
+  return `rgb(${a.map((x, k) => Math.round(x + (b[k] - x) * u))})`;
+}
+function text(s, x, y, o = {}) {
+  g.save(); g.globalAlpha *= o.alpha ?? 1;
+  g.font = `${o.weight || 400} ${o.size || 26}px ${FONT}`; g.fillStyle = o.color || C.muted;
+  g.textAlign = o.align || "left"; g.textBaseline = "middle"; g.fillText(s, x, y); g.restore();
+}
+function box(x, y, w, h, r, fill, stroke, lw = 2) {
+  g.beginPath(); g.roundRect(x, y, w, h, r);
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); }
+}
+function line(x1, y1, x2, y2, color, lw = 2, dash = []) {
+  g.save(); g.setLineDash(dash); g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2);
+  g.strokeStyle = color; g.lineWidth = lw; g.stroke(); g.restore();
+}
+function arrow(x1, y1, x2, y2, color, lw = 3) {
+  line(x1, y1, x2, y2, color, lw);
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  g.beginPath(); g.moveTo(x2 - 14 * Math.cos(a - .5), y2 - 14 * Math.sin(a - .5)); g.lineTo(x2, y2);
+  g.lineTo(x2 - 14 * Math.cos(a + .5), y2 - 14 * Math.sin(a + .5)); g.strokeStyle = color; g.lineWidth = lw; g.stroke();
+}
+const IMG = new Image();
+function board(x, y, r, ring, flash = 0) {
+  g.save(); g.beginPath(); g.arc(x, y, r, 0, 7);
+  g.save(); g.clip(); g.drawImage(IMG, x - r, y - r, 2 * r, 2 * r); g.restore();
+  g.lineWidth = 4; g.strokeStyle = ring; g.stroke();
+  if (flash > .01) { g.globalAlpha *= flash; g.lineWidth = 8; g.beginPath(); g.arc(x, y, r + 12, 0, 7); g.stroke(); }
+  g.restore();
+}
+
+// ── 공유 CNN 그림용 계산 ────────────────────────────────────────────────────────
+// 구조는 SharedEncoder(model_train/robust/shared_temporal.py) 그대로다: 합성곱 5칸×8 → 풀링 → 5칸×16 → 풀링
+// → 3칸×16 → 시간 축 평균·표준편차 32개 → 51줄의 평균·표준편차·최댓값 96개. 가중치는 학습값이 아니라
+// 고정 예시라 무늬만 그럴듯하다 (torch 없이 화면을 그리려는 것).
+const K1 = [[.2, .2, .2, .2, .2], [-1, -.5, 0, .5, 1], [1, .5, 0, -.5, -1], [-.5, 1, -.5, 0, 0],
+  [0, 0, -.5, 1, -.5], [1, -1, 1, -1, 1], [.5, 1, 0, -1, -.5], [-.3, .6, .4, .6, -.3]];
+const R0 = rand(7);
+const W2 = Array.from({length: 16}, () => K1.map(() => R0() * 2 - 1));
+const W3 = Array.from({length: 16}, () => W2.map(() => R0() * 2 - 1));
+const conv = (xs, k) => xs.map((_, i) => k.reduce((s, w, j) => s + w * (xs[i + j - (k.length >> 1)] ?? 0), 0));
+const relu = xs => xs.map(v => Math.max(0, v));
+const pool = xs => Array.from({length: xs.length >> 1}, (_, i) => (xs[2 * i] + xs[2 * i + 1]) / 2);
+const mix = (chs, w) => chs[0].map((_, i) => w.reduce((s, wj, j) => s + wj * chs[j][i], 0));
+function cnn(xs) {
+  const l1 = K1.map(k => relu(conv(xs, k)));
+  const l2 = W2.map(w => relu(conv(mix(l1.map(pool), w), [.25, .5, .25])));
+  const l3 = W3.map(w => relu(conv(mix(l2.map(pool), w), [.25, .5, .25])));
+  return {l1, l2, l3, sum: [...l3.map(mean), ...l3.map(std)]};
+}
+const ROW = 35;                                      // 가장 크게 흔들리는 줄 — RX 103 의 두 번째 주파수
+const NETS = MI.x.map(cnn);
+const SUM = NETS.map(n => n.sum);                    // 51 × 32
+const V96 = [mean, std, max].flatMap(f => SUM[0].map((_, j) => f(SUM.map(r => r[j]))));
+const NET = NETS[ROW];
+const L1MAX = NET.l1.map(max), L2MAX = max(NET.l2.flat()), L3MAX = max(NET.l3.flat());
+const COLMAX = SUM[0].map((_, j) => max(SUM.map(r => r[j])));
+const SEGMAX = [0, 1, 2].map(k => max(V96.slice(k * 32, k * 32 + 32)));
+const R1 = rand(11), ACT = Array.from({length: 32}, () => .25 + .75 * R1());
+const PROB = [.06, .1, .84];                         // 설명용 출력
+const BUF = MI.buf, BMIN = Math.min(...BUF.flat()), BMAX = max(BUF.flat());
+
+// ── 1막: 수집 (구간 0·1) ──────────────────────────────────────────────────────
+const TX = [240, 540], RX = [[720, 320], [720, 540], [720, 760]], SK = [1110, 540];
+const CARD = [1340, 320, 480, 470], ROWS = [446, 532, 618], BX0 = 1440, BW = 350, RH = 72;
+const P = .5;                                        // 그림용 펄스 간격 (실제는 0.01초)
+const ZS = 1.45, ZF = [1580, 545], ZC = [960, 485];  // 위 머리말과 아래 자막 상자 사이에 들어오게   // 수집기로 다가갔을 때의 배율·초점
+
+function fill(t) {
+  return t < T0[1] ? .08 * seg(local(t, 0), .15, 1) : lerp(.08, 1, seg(local(t, 1), .15, .8));
+}
+function stage1(t, alpha) {
+  const u1 = local(t, 0), u2 = local(t, 1), z = ease(seg(u2, 0, .35));
+  const s = lerp(1, ZS, z), fx = lerp(960, ZF[0], z), fy = lerp(540, ZF[1], z), cy = lerp(540, ZC[1], z);
+  const show = seg(u1, 0, .15), live = 1 - seg(u2, 0, .3), f = fill(t);
+  g.save(); g.globalAlpha = alpha; g.setTransform(s, 0, 0, s, 960 - fx * s, cy - fy * s);
+
+  for (let k = Math.floor(t / P); k >= 0 && t - k * P < 1.1; k--) {        // 송신 펄스
+    const a = t - k * P;
+    g.beginPath(); g.arc(TX[0], TX[1], 80 + a * 700, -.55, .55);
+    g.strokeStyle = `rgba(45,212,191,${(1 - a / 1.1) * .7 * show * live})`; g.lineWidth = 5; g.stroke();
+  }
+  board(TX[0], TX[1], 72, C.brand, show * Math.exp(-(t % P) * 10));
+  text("송신 TX", TX[0], TX[1] + 104, {size: 30, weight: 800, color: C.ink, align: "center", alpha: show});
+  text("ESP-NOW · 1초에 100번", TX[0], TX[1] + 142, {size: 21, align: "center", alpha: show});
+  text("CSI 추출", 856, 226, {size: 23, weight: 700, color: C.brand, align: "center", alpha: show});
+
+  RX.forEach(([x, y], i) => {
+    const ah = (Math.hypot(x - TX[0], y - TX[1]) - 80) / 700, k = Math.floor((t - ah) / P);
+    line(x + 220, y, SK[0] - 64, SK[1], `rgba(161,161,170,${.3 * show})`, 2, [8, 8]);
+    board(x, y, 56, C.brand, k >= 0 ? show * Math.exp(-(t - k * P - ah) * 7) : 0);
+    text(`RX ${101 + i}`, x, y + 82, {size: 23, weight: 700, color: C.ink, align: "center", alpha: show});
+    if (k >= 0) {                                  // 받을 때마다 CSI 막대가 조금씩 바뀐다
+      const rr = rand(k * 3 + i + 1);
+      g.fillStyle = `rgba(45,212,191,${show})`;
+      for (let j = 0; j < 17; j++) { const h = CSI.snap[j * 3] * (.7 + .6 * rr()) * 3; g.fillRect(x + 76 + j * 8, y + 30 - h, 5, h); }
+    }
+    for (let kk = k; kk >= 0 && kk > k - 3; kk--) {   // 프레임 하나가 싱크를 거쳐 수집기 줄 끝으로
+      const p = (t - kk * P - ah - .05) / .7;
+      if (p < 0 || p > 1) continue;
+      const [ax, ay, bx, by] = p < .5 ? [x + 220, y, SK[0] - 64, SK[1]] : [SK[0] + 64, SK[1], BX0 + f * BW, ROWS[i] + RH / 2];
+      const q = ease(p < .5 ? p * 2 : p * 2 - 1);
+      box(lerp(ax, bx, q) - 13, lerp(ay, by, q) - 8, 26, 16, 4, `rgba(45,212,191,${show * live})`);
+    }
+  });
+
+  board(SK[0], SK[1], 62, "#e4e4e7");          // 주황은 움직임 상태 색이라 싱크엔 쓰지 않는다
+  text("싱크", SK[0], SK[1] + 90, {size: 28, weight: 800, color: C.ink, align: "center", alpha: show});
+  text("모아서 USB로", SK[0], SK[1] + 126, {size: 21, align: "center", alpha: show});
+  line(SK[0] + 64, SK[1], CARD[0], SK[1], `rgba(161,161,170,${.5 * show})`, 3);
+  text("USB", (SK[0] + 64 + CARD[0]) / 2, SK[1] + 26, {size: 20, color: C.dim, align: "center", alpha: show});
+
+  g.globalAlpha = alpha * show;
+  box(...CARD, 24, C.card, C.line);
+  text("Mac · 수집기", CARD[0] + 30, CARD[1] + 40, {size: 28, weight: 800, color: C.ink});
+  text("tx_seq 순서로 3대를 맞춰 쌓는다", CARD[0] + 30, CARD[1] + 76, {size: 19});
+  text(`${(f * 15).toFixed(1)}초 / 15초`, CARD[0] + CARD[2] - 30, CARD[1] + 40, {size: 22, weight: 700, color: C.body, align: "right"});
+  ROWS.forEach((y, i) => {
+    text(`${101 + i}`, BX0 - 34, y + RH / 2, {size: 20, align: "center"});
+    box(BX0, y, BW, RH, 6, "#1c1c20");
+    const n = Math.floor(f * 300);
+    for (let c = 0; c < n; c++) { g.fillStyle = cmap((BUF[i][c] - BMIN) / (BMAX - BMIN)); g.fillRect(BX0 + c * BW / 300, y, BW / 300 + .6, RH); }
+    if (f < 1) line(BX0 + f * BW, y - 4, BX0 + f * BW, y + RH + 4, "rgba(244,244,245,.8)", 2);
+  });
+  const wc = seg(u2, .8, .9);
+  if (wc > 0) {
+    g.globalAlpha = alpha * wc;
+    const yb = ROWS[2] + RH + 16;
+    line(BX0, yb, BX0 + BW, yb, C.brand, 3); line(BX0, yb - 8, BX0, yb, C.brand, 3); line(BX0 + BW, yb - 8, BX0 + BW, yb, C.brand, 3);
+    text("창 완성 · 1,500 프레임 × 3대", BX0, yb + 28, {size: 22, weight: 800, color: C.brand});
+    text("이후 0.3초(30프레임)마다 밀며 새 창", BX0, yb + 58, {size: 18, alpha: seg(u2, .88, .98)});
+  }
+  g.restore();
+}
+
+// ── 2막: 전처리와 공유 CNN (구간 2·3) ───────────────────────────────────────────
+const HX = 170, HY = 220, HW = 440, RHT = 12, NC = 150;
+const BX = 700, BY = 230, BWD = 800, BH = 46, CW = BWD / NC;
+const LY = [320, 470, 630];
+
+function stage2(t, alpha) {
+  const u3 = local(t, 2), u4 = local(t, 3), m = ease(seg(u3, 0, .4));
+  g.save(); g.globalAlpha = alpha;
+  // 수집기 버퍼 자리에서 펼쳐져 51줄로 자리 잡는다
+  const src = [ZC[0] + (BX0 - ZF[0]) * ZS, ZC[1] + (ROWS[0] - ZF[1]) * ZS, BW * ZS, (ROWS[2] + RH - ROWS[0]) * ZS];
+  const [x, y, w, h] = [lerp(src[0], HX, m), lerp(src[1], HY, m), lerp(src[2], HW, m), lerp(src[3], 51 * RHT, m)];
+  for (let r = 0; r < 51; r++) for (let c = 0; c < NC; c++) {
+    g.fillStyle = cmap((MI.x[r][c] + 2) / 6);
+    g.fillRect(x + c * w / NC, y + r * h / 51, w / NC + .5, h / 51 + .5 - m);
+  }
+  const lab = seg(u3, .35, .6);
+  text("모델 입력 · 51줄 × 150칸", HX, 188, {size: 26, weight: 800, color: C.ink, alpha: lab});
+  [0, 1, 2].forEach(k => text(`RX ${101 + k}`, HX - 14, HY + (k * 17 + 8.5) * RHT, {size: 18, align: "right", alpha: lab}));
+  if (lab > 0) [17, 34].forEach(r => line(HX, HY + r * RHT, HX + HW, HY + r * RHT, C.bg, 3));
+
+  const out = 1 - seg(u4, 0, .15);
+  [["주파수 64개 → 51개 → 3개마다 1개 = 17개", "× RX 3대 = 51줄 · 늘 0인 칸(DC·가드)과 1번을 빼면 51개"],
+   ["창 평균으로 나눈 상대 진폭, 10프레임씩 평균", "1,500 프레임 → 150칸 — 크기가 아니라 변화만 남긴다"]].forEach(([s, sub], i) => {
+    const a = seg(u3, .35 + .25 * i, .55 + .25 * i) * out, y = 360 + i * 200;
+    g.save(); g.globalAlpha = alpha * a;
+    g.beginPath(); g.arc(760, y, 24, 0, 7); g.fillStyle = "rgba(45,212,191,.16)"; g.fill();
+    text(`${i + 1}`, 760, y, {size: 24, weight: 800, color: C.brand, align: "center"});
+    text(s, 806, y, {size: 34, weight: 500, color: C.body});
+    if (sub) text(sub, 806, y + 46, {size: 22});
+    g.restore();
+  });
+
+  const b = seg(u4, 0, .15);
+  if (b > 0) {
+    g.save(); g.globalAlpha = alpha * b;
+    box(HX - 4, HY + ROW * RHT - 3, HW + 8, RHT + 6, 3, null, C.brand, 3);
+    line(HX + HW + 4, HY + ROW * RHT + RHT / 2, BX, BY + BH / 2, "rgba(45,212,191,.6)", 2);
+    const q = seg(u4, .15, .95) * 51;               // 같은 CNN 이 51줄을 하나씩 지나간다
+    g.fillStyle = C.brand;
+    for (let r = 0; r < q; r++) { g.beginPath(); g.arc(HX + HW + 16, HY + r * RHT + RHT / 2, 3.5, 0, 7); g.fill(); }
+
+    text("한 줄 확대 · RX 103 · 15초 150칸", BX, 202, {size: 22});
+    for (let c = 0; c < NC; c++) { g.fillStyle = cmap((MI.x[ROW][c] + 2) / 6); g.fillRect(BX + c * CW, BY, CW + .5, BH); }
+    for (let k = 2; k > 0; k--) box(BX + 12 * k, LY[0] - 12 * k, BWD, 438, 10, null, `rgba(113,113,122,${.35 / k})`, 2);
+    const kp = seg(u4, .15, .55) * (NC - 5), kx = BX + kp * CW;
+    [[8, 14, NET.l1, c => kp + 3 > c, (ch, v) => v / L1MAX[ch]],
+     [16, 8, NET.l2, c => c < seg(u4, .55, .7) * 75, (ch, v) => v / L2MAX],
+     [16, 8, NET.l3, c => c < seg(u4, .7, .82) * 37, (ch, v) => v / L3MAX]].forEach(([n, rh, L, on, norm], li) => {
+      g.fillStyle = "#1c1c20"; g.fillRect(BX, LY[li], L[0].length * CW, n * rh);
+      L.forEach((row, ch) => row.forEach((v, c) => {
+        if (!on(c)) return;
+        g.fillStyle = cmap(norm(ch, v)); g.fillRect(BX + c * CW, LY[li] + ch * rh, CW + .5, rh + .3);
+      }));
+    });
+    if (u4 < .6) {
+      box(kx - 3, BY - 8, 5 * CW + 6, BH + 16, 5, null, C.ink, 3);
+      line(kx + 2.5 * CW, BY + BH + 8, kx + 2.5 * CW, LY[0], "rgba(244,244,245,.5)", 2);
+    }
+    const lx = 1550;
+    text("입력 1줄", lx, BY + BH / 2, {size: 25, weight: 800, color: C.ink});
+    [["합성곱 ① · 필터 8개", "5칸씩 훑으며 무늬를 찾는다", .1],
+     ["풀링 ½ → 합성곱 ② · 16개", "길이는 절반, 무늬는 더 많이", .55],
+     ["풀링 ½ → 합성곱 ③ · 16개", "16채널 × 37칸", .7]].forEach(([a, s, at], i) => {
+      text(a, lx, LY[i] + 30, {size: 23, weight: 800, color: C.ink, alpha: seg(u4, at, at + .08)});
+      text(s, lx, LY[i] + 62, {size: 19, alpha: seg(u4, at, at + .08)});
+    });
+    text("51줄 모두 같은 CNN", lx, 800, {size: 23, weight: 800, color: C.brand, alpha: seg(u4, .3, .45)});
+    text("(가중치 공유)", lx, 832, {size: 19, color: C.brand, alpha: seg(u4, .3, .45)});
+    const e = seg(u4, .85, .95);
+    if (e > 0) {
+      g.globalAlpha = alpha * b * e;
+      arrow(BX + 37 * CW + 12, LY[2] + 64, BX + 37 * CW + 92, LY[2] + 64, C.brand);
+      text("시간 축 평균·표준편차", BX + 37 * CW + 104, LY[2] + 64, {size: 21, weight: 700, color: C.brand});
+    }
+    g.restore();
+  }
+  g.restore();
+}
+
+// ── 3막: 요약과 DNN (구간 4·5) ──────────────────────────────────────────────────
+const SX = 170, SY = 220, SCW = 8, VX = 560, VCH = 612 / 96, HNX = 1040, OX = 1380, OY = [380, 540, 700];
+
+function stage3(t, alpha) {
+  const u5 = local(t, 4), u6 = local(t, 5);
+  g.save(); g.globalAlpha = alpha;
+  text("줄마다 32개", SX, 188, {size: 26, weight: 800, color: C.ink});
+  [0, 1, 2].forEach(k => text(`RX ${101 + k}`, SX - 14, SY + (k * 17 + 8.5) * RHT, {size: 18, align: "right"}));
+  const rr = seg(u5, .1, .5) * 51;
+  for (let r = 0; r < 51; r++) {
+    g.fillStyle = "#1c1c20"; g.fillRect(SX, SY + r * RHT, 32 * SCW, RHT - 1);
+    if (r < rr) SUM[r].forEach((v, j) => { g.fillStyle = cmap(v / COLMAX[j]); g.fillRect(SX + j * SCW, SY + r * RHT, SCW - .5, RHT - 1); });
+  }
+  text("시간 축 평균 16 · 표준편차 16", SX, SY + 51 * RHT + 22, {size: 19});
+
+  const vr = seg(u5, .5, .9) * 96;
+  text("→", 488, 188, {size: 30, weight: 800, color: C.dim, alpha: seg(u5, .45, .55)});
+  text("96개", VX - 4, 188, {size: 26, weight: 800, color: C.ink, alpha: seg(u5, .45, .55)});
+  for (let i = 0; i < 96; i++) {
+    g.fillStyle = i < vr ? cmap(V96[i] / SEGMAX[i >> 5]) : "#1c1c20";
+    g.fillRect(VX, SY + i * VCH, 32, VCH - .8);
+  }
+  ["평균", "표준편차", "최댓값"].forEach((s, k) => {
+    const a = seg(u5, .5 + .13 * k, .62 + .13 * k), y0 = SY + k * 32 * VCH, col = C.muted;            // 파랑·주황은 상태 색이라 여기엔 쓰지 않는다
+    g.save(); g.globalAlpha = alpha * a;
+    line(VX - 12, y0 + 4, VX - 12, y0 + 32 * VCH - 4, col, 4);
+    text(s, VX - 24, y0 + 16 * VCH, {size: 21, weight: 700, color: col, align: "right"});
+    g.restore();
+  });
+  text("51줄을 하나로", VX + 16, SY + 612 + 22, {size: 19, align: "center", alpha: seg(u5, .5, .6)});
+
+  const e1 = seg(u6, 0, .3), on = seg(u6, .25, .42), e2 = seg(u6, .4, .55), o = seg(u6, .5, .62), bar = ease(seg(u6, .6, .85));
+  const hy = j => SY + 16 + j * 18.7;
+  text("DNN · 96 → 32 → 3", HNX, 188, {size: 26, weight: 800, color: C.ink, align: "center", alpha: e1});
+  if (e1 > 0) {
+    g.beginPath();
+    for (let i = 0; i < 96; i++) for (let j = 0; j < 32; j++) { g.moveTo(VX + 32, SY + (i + .5) * VCH); g.lineTo(HNX, hy(j)); }
+    g.strokeStyle = `rgba(45,212,191,${.08 * e1})`; g.lineWidth = 1; g.stroke();
+  }
+  for (let j = 0; j < 32; j++) {
+    for (let c = 0; c < 3 && e2 > 0; c++) line(HNX, hy(j), OX, OY[c], `rgba(${["148,163,184", "59,130,246", "251,146,60"][c]},${.3 * e2 * ACT[j]})`, 1.5);
+    g.beginPath(); g.arc(HNX, hy(j), 6.5, 0, 7);
+    g.fillStyle = `rgba(45,212,191,${ACT[j] * on})`; g.fill();
+    g.strokeStyle = `rgba(113,113,122,${e1})`; g.lineWidth = 1.5; g.stroke();
+  }
+  ["빈 방", "정지", "움직임"].forEach((s, c) => {
+    const col = [C.e, C.s, C.m][c], y = OY[c], win = c === 2 ? seg(u6, .85, .95) : 0;
+    g.save(); g.globalAlpha = alpha * o;
+    if (win > 0) { g.shadowColor = C.m; g.shadowBlur = 30 * win; }
+    g.beginPath(); g.arc(OX, y, 24, 0, 7); g.fillStyle = col; g.fill();
+    g.shadowBlur = 0;
+    text(s, OX + 46, y - 16, {size: 30, weight: 800, color: c === 2 && win > 0 ? C.m : C.ink});
+    box(OX + 46, y + 14, 330, 12, 6, "#26262b");
+    box(OX + 46, y + 14, Math.max(12, 330 * PROB[c] * bar), 12, 6, col);
+    g.restore();
+  });
+  text("예시 출력", OX + 46, OY[0] - 64, {size: 19, color: C.dim, alpha: o});
+  text("3초 모델도 같은 구조 · 마지막 층만 2칸 (움직임 / 아님)", OX - 30, 806, {size: 20, alpha: seg(u6, .7, .85)});
+  g.restore();
+}
+
+// ── 공통 머리 ─────────────────────────────────────────────────────────────────
+const LOGO = ["M373.886 321.902H436.266L467.457 415.473L415.473 488.25H82.7772L10 394.679L82.7772 280.315H165.951L217.935 217.935H321.902L373.886 321.902ZM373.886 321.902H301.109M113.967 93.1739L197.141 10H342.696L425.87 93.1739",
+  "M150.356 129.562L207.538 72.3804H332.299L389.481 129.562M191.943 171.149L228.331 134.761H311.505L347.894 171.149"].map(d => new Path2D(d));
+const STEPS = ["수집", "쌓기", "전처리", "공유 CNN", "요약", "DNN 분류"];
+
+function header(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
+  const no = Q.get("no") || "07";
+  g.font = `800 30px ${FONT}`;
+  text(no, 96, 98, {size: 30, weight: 800, color: C.brand});
+  text("신호가 판단이 되기까지", 96 + g.measureText(no).width + 18, 98, {size: 30, weight: 500, color: C.muted});
+  g.save(); g.translate(W - 96 - 52, 70); g.scale(52 / 478, 52 / 478);
+  g.globalAlpha = .75; g.strokeStyle = C.ink; g.lineWidth = 22; g.lineCap = g.lineJoin = "round"; LOGO.forEach(p => g.stroke(p));
+  g.restore();
+  const cur = T0.findLastIndex(x => x <= t);
+  let x = 1690;
+  for (let i = STEPS.length - 1; i >= 0; i--) {
+    const w = i === cur ? 800 : 500;
+    g.font = `${w} 22px ${FONT}`; x -= g.measureText(STEPS[i]).width;
+    text(STEPS[i], x, 98, {size: 22, weight: w, color: i === cur ? C.brand : i < cur ? C.body : C.dim});
+    x -= 34;
+  }
+}
+
+function render(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.fillStyle = C.bg; g.fillRect(0, 0, W, H);
+  const a1 = 1 - seg(t, T0[2], T0[2] + .5);
+  const a2 = seg(t, T0[2] + .15, T0[2] + .6) * (1 - seg(t, T0[4], T0[4] + .4));
+  const a3 = seg(t, T0[4] + .2, T0[4] + .6);
+  if (a1 > 0) stage1(t, a1);
+  if (a2 > 0) stage2(t, a2);
+  if (a3 > 0) stage3(t, a3);
+  header(t);
+}
+
+window.TOTAL = TOTAL;
+window.render = render;
+window.ready = Promise.all([new Promise(r => { IMG.onload = r; IMG.src = "assets/board.jpg"; }),
+  ...[400, 500, 700, 800].map(w => document.fonts.load(`${w} 30px ${FONT}`))]).then(() => true);
+ready.then(() => {
+  if (!Q.has("play")) return render(+Q.get("t") || 0);
+  const s0 = performance.now();
+  const loop = () => { render((performance.now() - s0) / 1000 % TOTAL); requestAnimationFrame(loop); };
+  loop();
+});
+</script>
+</body>
+</html>

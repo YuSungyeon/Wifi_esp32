@@ -90,3 +90,11 @@ mac_collector/sms_log.jsonl
 mac_collector/home_service.json
 cloud/*.db
 cloud/secret
+
+# 소개 영상 결과물 (PNG·mp4, 약 46MB). v5 는 design/intro-video/build.py 로 다시 만들고,
+# v1~v4 고정본은 이 폴더에만 있다 — 지우면 되살릴 수 없다.
+design/intro-video/out/
+
+# Claude Code 이 컴퓨터 전용 설정 (권한 목록·미리보기 서버 경로)
+.claude/settings.local.json
+.claude/launch.json

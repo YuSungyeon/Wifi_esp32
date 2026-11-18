@@ -1,5 +1,8 @@
 # 제어판 탭 4개 구현 계획
 
+> 상태: **HISTORICAL** — 2026-10-18 구현 완료. 현재 동작은 [control-panel.md](../control-panel.md)가 정본이다
+> (이후 2026-10-25 연동 탭 추가). 아래 "지금"은 구현 전 상태를 가리킨다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 제어판 탭을 7개에서 4개(수집·세션·학습·실시간)로 줄이고, 보드·실험 정보·진단을 각각 쓰이는 화면 안으로 옮긴다.

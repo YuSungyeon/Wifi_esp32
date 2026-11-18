@@ -2,7 +2,7 @@
 
 ## Project
 
-MeshSense는 ESP32-S3 기반 Wi-Fi CSI 실내 행동 인식 프로젝트다. 현재 지원하는 수집 방식은 ESP-NOW/USB 한 가지뿐이다.
+MeshSense는 ESP32-S3 기반 Wi-Fi CSI 실내 행동 인식 프로젝트다. CSI 자극은 ESP-NOW 하나뿐이고, RX→Mac 전달은 USB 직결 또는 ESP-NOW 업링크 + USB 싱크(`doc/realtime-uplink.md`) 두 가지다. 둘 다 같은 binary frame v4·같은 reader를 쓴다.
 
 사용자 문서의 시작점은 `doc/README.md`다. 코드 변경 전 `doc/documentation-policy.md`를 따르고, 동작·계약 변경은 문서를 먼저 수정한다.
 
@@ -16,6 +16,7 @@ esp32s3_csi_send_poc (TX)
 esp32s3_csi_recv_poc (RX × N)
   promiscuous CSI, LLTF only
   callback → 64KiB ring buffer → USB-Serial-JTAG
+  (업링크 모드: → ESP-NOW → esp32s3_csi_sink → USB-Serial-JTAG)
        │
        ▼
 scripts/csi_serial_reader.py (RX별 process)
@@ -51,6 +52,7 @@ SoftAP/UDP production firmware, UDP collector, `flash_rx.py`, `flash_tx.py`, `me
 | `model_train/amp60/` | 고른 세션으로 진폭 모델 학습 (담당자 구조를 import, 공식 산출물 아님) |
 | `realtime/` | **실시간 상태 판단** — `.csi` tail, 배포 모델 추론, 상태 기계, CLI 화면 |
 | `realtime/home.py` | 집 상태 서비스 로컬 쪽 — 수면 시간 규칙, 클라우드 연동(`CLOUD_URL` 상수), 엔진 안 상태 전송 |
+| `cloud/server.py` | 집 상태 서비스 클라우드(EC2) — 기록·알림 판단·SMS 발송·반응형 웹앱. SOLAPI 키는 환경 변수 |
 | `scripts/check_separability.py` | 3-class 분리 가능성 진단 (세션 단위 LOSO) |
 | `mac_collector/device_registry.csv` | RX USB MAC ↔ device ID |
 | `mac_collector/tx_registry.csv` | TX USB MAC ↔ TX node ID |
@@ -99,7 +101,7 @@ cd esp32s3_csi_recv_poc && idf.py build
 | 항목 | 값 |
 |---|---|
 | Wi-Fi topology | STA-only, association 없음 |
-| 역할별 MAC | TX `1a:..:00` (CSI 필터 기준) / RX `1a:..:<id>` / SINK `1a:..:ff` |
+| 역할별 MAC | TX `1a:..:00` (CSI 필터 기준) / RX `1a:..:<id>`(업링크 모드, USB 모드는 TX와 같은 값) / SINK `1a:..:ff` |
 | channel / bandwidth | 11 / HT20 |
 | ESP-NOW rate | MCS0 LGI |
 | TX frequency | 100Hz (`usleep(10ms)`) |

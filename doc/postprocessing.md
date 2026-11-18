@@ -4,30 +4,38 @@
 
 ## 1. 입력 계약
 
-입력은 [JSONL record schema v1](data-schema.md)을 따른다.
+수집 정본은 `.csi` 세션이고, JSONL은 `export_jsonl.py`가 만드는 파생물이다([CSI 저장 데이터 규격](data-schema.md)).
 
 ```text
-mac_collector_output/raw/YYYYMMDD/session_<id>/
-├── device_<id>.jsonl
+mac_collector_output/raw/YYYYMMDD/<HHMMSS>_<label>_s<id>/      ← measure_csi_hz·visualize_csi·ablation
+├── device_<id>.csi
+├── session.json
 └── session_meta_snapshot.yaml
+
+mac_collector_output/jsonl/raw/YYYYMMDD/session_<id>/          ← preprocess_3rx·visualize_tx_seq_overlap
+└── device_<id>.jsonl
 ```
 
-CSI 값은 raw signed I/Q에서 계산한 amplitude다. firmware에서 normalization이나 outlier clipping을 하지 않는다.
+2026-08-25 이전 세션(`raw/YYYYMMDD/session_<id>/device_<id>.jsonl`)은 구 레이아웃이며, `measure_csi_hz`·
+`visualize_csi`는 `.csi`가 없을 때 이 JSONL로 폴백한다.
+
+CSI 값은 raw signed I/Q에서 host가 계산한 amplitude다. firmware에서 normalization이나 outlier clipping을 하지 않는다.
 
 ## 2. CURRENT: 수집률 측정
 
 ```bash
 python3 scripts/measure_csi_hz.py \
-  mac_collector_output/raw/YYYYMMDD/session_<id>
+  mac_collector_output/raw/YYYYMMDD/<HHMMSS>_<label>_s<id>
 ```
 
 RX callback에서 기록한 `timestamp_us`만 사용한다. Mac 수신 시각은 계산에
 사용하지 않는다. `--gap-ms`로 큰 RX 수신 간격의 기준을 바꿀 수 있으며
 기본값은 200ms다.
 
-`seq`와 `timestamp_us`가 함께 작아지는 재부팅 경계를 만나면 그전 데이터는
-버린다. 따라서 각 장치에서 **마지막 재부팅 이후 데이터만 계산**한다. 결과는
-장치별 한 행의 표로 출력한다.
+재부팅 경계(`.csi`는 `boot_id` 변화, 구 JSONL은 `seq`와 `timestamp_us`의 동시 감소)를
+만나면 그전 데이터는 버린다. 따라서 각 장치에서 **마지막 재부팅 이후 데이터만 계산**한다.
+결과는 장치별 한 행의 표로 출력하고, `.csi`이면 `tx_back`·`tx_cov`·`rssi_med`·cross-RX 공통
+`tx_seq`와 [수집 프로토콜](collection-protocol.md) §7의 품질 판정(불합격이면 종료 코드 5)을 덧붙인다.
 
 - `RESETS`: 파일에서 발견한 재부팅 횟수
 - `RECORDS`: 마지막 재부팅 이후 저장된 record 수
@@ -36,7 +44,7 @@ RX callback에서 기록한 `timestamp_us`만 사용한다. Mac 수신 시각은
 - `DT_MS`, `GAPS`: 일반 수신 간격과 긴 공백 수
 - `SEQ_GAP`, `DUP`, `ANOM`: 누락·중복·순서 이상
 
-`RX_HZ`는 JSONL에 실제 남은 record만 나타낸다. `RX_SEQ_HZ`와 `SEQ_GAP`은
+`RX_HZ`는 파일에 실제 남은 record만 나타낸다. `RX_SEQ_HZ`와 `SEQ_GAP`은
 사라진 record를 간접 추정하지만, 누락 CSI를 복구하거나 손실 원인을 구분하지는
 않는다.
 
@@ -44,13 +52,14 @@ RX callback에서 기록한 `timestamp_us`만 사용한다. Mac 수신 시각은
 
 ```bash
 .venv/bin/python scripts/visualize_csi.py \
-  --session-dir mac_collector_output/raw/YYYYMMDD/session_<id>
+  --session-dir mac_collector_output/raw/YYYYMMDD/<HHMMSS>_<label>_s<id>
 ```
 
 동작:
 
-1. `device_*.jsonl`을 device별로 로드한다.
-2. 각 RX의 `received_at_unix_us`를 정렬한다.
+1. `device_*.csi`를 device별로 로드하고 유효 톤 52개의 amplitude를 계산한다
+   (`.csi`가 없는 구 세션은 `device_*.jsonl`).
+2. 각 RX의 시간축은 `.csi`이면 RX `timestamp_us`, 구 JSONL이면 `received_at_unix_us`다.
 3. RX별로 독립적인 100Hz grid에 선형 보간한다.
 4. 긴 session은 표시용 최대 4,000 row로 downsample한다.
 5. device별 subplot을 한 `csi_waterfall.png`에 저장한다.
@@ -60,6 +69,10 @@ RX callback에서 기록한 `timestamp_us`만 사용한다. Mac 수신 시각은
 ## 4. CURRENT: RX별 `tx_seq` 범위 시각화
 
 ### 4.1 목적과 범위
+
+> 입력은 JSONL뿐이다. `.csi` 세션은 `export_jsonl.py`로 내보낸
+> `mac_collector_output/jsonl/raw/<YYYYMMDD>/session_<id>/`를 넣는다. 아래 예시의
+> `raw/20260616/session_1`은 이 도구를 만든 2026-06 당시의 구 레이아웃 세션이다.
 
 한 session의 RX 101·102·103이 기록한 `tx_seq` 범위를 한 그림에서 비교하고,
 각 RX가 어디서 시작하고 끝나는지와 범위 안의 실제 누락을 확인한다. 이 도구는
@@ -195,7 +208,7 @@ RX별로 다음 값을 한눈에 출력한다.
 | RX별 `MAX_GAP` | 가장 긴 연속 누락 길이 |
 | `RX_RESETS`, `TX_RESETS` | 파일 순서에서 발견한 경계 진단값 |
 
-실제 `20260616/session_1` 검증 결과:
+실제 `20260616/session_1` 검증 결과 (HISTORICAL — 백로그 비우기 도입 전 frame v2 데이터):
 
 ```text
 RX   START   END     SPAN   OBSERVED  MISSING  RATIO   MAX_GAP
@@ -322,8 +335,8 @@ python scripts/ablation.py --split-by subject --out mac_collector_output/ablatio
 `--split-by session|date|placement|subject` — `session` 은 세션 단위 LOSO, 나머지는
 **조건 단위**([collection-protocol.md](collection-protocol.md) §6)라 학습에 안 쓴 조건으로
 평가하므로 일반화 주장의 근거가 된다. 조건은 세션의 `session_meta_snapshot.yaml`
-(`date`, `condition.placement_id`, `condition.subject_id`)에서 읽는다 — 제어판 '실험 정보'
-탭에서 기록해야 한다.
+(`date`, `condition.placement_id`, `condition.subject_id`)에서 읽는다 — 제어판 수집 탭의
+`▸ 이번 실험 설정`에서 기록해야 한다.
 
 `amp52+phase` 는 raw I/Q 를 보존한 덕분에 **재수집 없이** 가능한 위상 ablation 이다.
 위상 특징은 인접 서브캐리어 위상차(CFO 상쇄)의 시간축 변동으로, 조악한 베이스라인용이다 —

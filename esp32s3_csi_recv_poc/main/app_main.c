@@ -5,12 +5,13 @@
  */
 /* MeshSense RX — esp-csi csi_recv 예제 기반.
  *
- * CSI 콜백 → ring buffer → USB-Serial-JTAG 바이너리 프레임(v3) 스트리밍.
- * 호스트 파서는 scripts/csi_store.py (프레임 규격 SSOT는 doc/pipeline/usb-collection.md).
+ * CSI 콜백 → ring buffer → USB-Serial-JTAG 바이너리 프레임(v4) 스트리밍.
+ * CSI_UPLINK_ENABLED=1 이면 USB 대신 ESP-NOW 로 싱크(esp32s3_csi_sink)에 업링크한다.
+ * 호스트 파서는 scripts/csi_store.py (프레임 규격 SSOT는 doc/data-schema.md).
  *
  * 이 파일의 불변식 3가지:
  *  1. CSI 콜백 안에서 동기 I/O 금지 — ets_printf 계열을 넣으면 WiFi driver task가
- *     백프레셔로 막혀 즉시 ~50Hz로 붕괴한다 (doc/overview/csi-rate-troubleshooting.md 결론부).
+ *     백프레셔로 막혀 즉시 ~50Hz로 붕괴한다 (doc/troubleshooting/01-csi-rate.md).
  *  2. 진폭 계산·정규화를 보드에서 하지 않는다 — raw I/Q를 그대로 보내고 호스트가 처리한다.
  *     (AP 파이프라인이 온디바이스 z-score로 시간축 진폭 변동을 지워버린 전례가 있다.)
  *  3. HT20 + htltf_en=false 로 LLTF 64 SC(raw 128B) 고정.
@@ -44,7 +45,7 @@ static volatile uint32_t g_uart_send_count = 0;  /* USB로 완전히 나간 프�
 static volatile uint32_t g_ringbuf_drop = 0;     /* ring buffer full 로 버린 프레임 */
 static volatile uint32_t g_uart_partial = 0;     /* 부분 write 후 재전송한 횟수 */
 
-/* === 바이너리 CSI 프레임 스트리밍 (v3) === */
+/* === 바이너리 CSI 프레임 스트리밍 (v4) === */
 #define CSI_FRAME_MAGIC          0x4353  /* 'CS' */
 #define CSI_FRAME_VERSION        4       /* v4: gain_comp(f32) 추가, 헤더 44B */
 #define CSI_FRAME_TYPE_CSI       0

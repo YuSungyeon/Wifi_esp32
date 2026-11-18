@@ -58,7 +58,10 @@ v2 는 magic 2바이트와 `raw_len` 상한만 검사했다. raw CSI 바이트 �
 |---:|---:|---|
 | 0 | 6 | eFuse base MAC (`esp_efuse_mac_get_default`) |
 | 6 | 10 | 펌웨어 식별 문자열 |
-| 16 | 4×4 | `csi_cb`, `uart_sent`, `ringbuf_drop`, `uart_partial` (u32) |
+| 16 | 4×4 | USB 모드: `csi_cb`, `uart_sent`, `ringbuf_drop`, `uart_partial` / 업링크 모드: `csi_cb`, `uplink_ok`, `ringbuf_drop`, `uplink_fail` (u32) |
+
+host는 두 모드를 같은 이름으로 받는다 — `fw_csi_cb`, `fw_sent`, `fw_ringbuf_drop`, `fw_send_fail`
+(`scripts/csi_store.py`).
 
 ### SINK_STATUS frame (`frame_type=2`)
 
@@ -115,13 +118,19 @@ session_meta 와 같은 이유로 수집 시점에 그대로 복사해 둔다.
 { "schema": 1, "pipeline": "usb", "frame_version": 4,
   "session_id": 22, "label": "static",
   "started_at_unix_us": 1787670006419848, "ended_at_unix_us": 1787670069912877,
+  "provenance": {"git_commit": "…", "git_branch": "…", "git_dirty": false},
   "devices": [ {"device_id": 103, "board_name": "RX103", "sta_mac": "E8:F6:0A:8A:D7:E8",
-                "port": "/dev/cu.usbmodem1101", "boot_id": 17010, "frames": 6003,
-                "span_s": 59.541, "crc_fail": 0, "invalid": 0, "resync": 0, "seq_gap": 0,
+                "port": "/dev/cu.usbmodem1101", "rx_id": 0, "firmware": "meshsense",
+                "boot_id": 17010, "frames": 6003, "elapsed_s": 60.1, "span_s": 59.541,
+                "crc_fail": 0, "invalid": 0, "resync": 0, "seq_gap": 0,
                 "boot_changes": 0, "tx_back": 0, "first_tx_seq": 62268, "last_tx_seq": 68281,
-                "fw_csi_cb": 5921, "fw_uart_sent": 6311, "fw_ringbuf_drop": 0,
-                "fw_uart_partial": 0, "exit_code": 0} ] }
+                "fw_csi_cb": 5921, "fw_sent": 6311, "fw_ringbuf_drop": 0,
+                "fw_send_fail": 0, "exit_code": 0} ] }
 ```
+
+싱크를 거친 세션은 device마다 `sink_mac`, `sink_recv`, `sink_sent`, `sink_drop`, `sink_usb_timeout`,
+`sink_foreign`, `sink_usb_rx`, `sink_led_cmds`가 붙는다(SINK_STATUS의 세션 구간 델타).
+2026-09-10까지의 매니페스트에는 `fw_uart_sent`·`fw_uart_partial` 이름이 남아 있을 수 있다.
 
 `provenance` 는 수집에 쓰인 코드의 신원이다 (`git_commit`, `git_branch`, `git_dirty`).
 "이 데이터는 어느 코드로 찍었나"를 사후에 재구성할 방법이 없어 수집 시점에 남긴다.
@@ -150,10 +159,10 @@ python scripts/export_jsonl.py --print-labels
 | `record_schema_version` | int | 현재 `1` |
 | `transport` | string | `usb_serial_jtag` |
 | `csi_representation` | string | `raw_iq_amplitude` |
-| `received_at_unix_us` | int | Mac 수신 시각 |
+| `received_at_unix_us` | int | 세션 시작 시각(`started_at_unix_us`) + RX `timestamp_us` 경과 — `.csi`에는 Mac 수신 시각이 없어 내보낼 때 복원한다 |
 | `source_ip` | string | `usb-serial` |
 | `source_port` | int | `0` |
-| `session_id` | int | reader CLI 인자/YAML run ID |
+| `session_id` | int | 세션 `session.json`의 `session_id` (자동 순번) |
 | `firmware_session_id` | int | 항상 `0` |
 | `device_id` | int | RX registry의 논리 ID |
 | `seq` | int | RX별 sequence |

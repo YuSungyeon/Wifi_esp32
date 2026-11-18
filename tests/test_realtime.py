@@ -40,6 +40,18 @@ class StateMachineTest(unittest.TestCase):
         self.assertEqual(self.sm.state, "motion")
         self.assertLessEqual(ev.t, 1.5)
 
+    def test_default_direct_switch_hold_is_five_seconds(self):
+        sm = StateMachine()
+        sm.update(Reading(t=0.0, probs=(0.9, 0.05, 0.05), n_rx=3))
+        sm.update(Reading(t=5.0, probs=(0.9, 0.05, 0.05), n_rx=3))
+        self.assertEqual(sm.state, "empty")
+
+        sm.update(Reading(t=6.0, probs=(0.05, 0.9, 0.05), n_rx=3))
+        sm.update(Reading(t=10.9, probs=(0.05, 0.9, 0.05), n_rx=3))
+        self.assertEqual(sm.state, "empty")
+        sm.update(Reading(t=11.0, probs=(0.05, 0.9, 0.05), n_rx=3))
+        self.assertEqual(sm.state, "static")
+
     def test_rest_states_need_a_longer_hold_than_motion(self):
         feed(self.sm, 0.0, 30, (0.9, 0.05, 0.05))       # 9초 — 15초 미만
         self.assertEqual(self.sm.state, "deciding")
