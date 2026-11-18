@@ -2,7 +2,7 @@
 """정답 구간이 있는 세션(합성 `demo_truth.json`)을 재생해 **시간 기준 정확도**와 전환 지연을 잰다.
 
     python realtime/evaluate_transitions.py --session mac_collector_output/demo/<이름> \
-        [--model …] [--conf 0.7] [--rest-hold 15] [--motion-hold 1] [--direct 60]
+        [--model …] [--conf 0.7] [--rest-hold 15] [--motion-hold 1] [--direct 5]
 
 정확도 = 화면에 보인 상태가 정답과 같은 시간 / 전체 시간. `deciding` 은 틀린 것으로 센다
 (사람이 화면에서 보는 기준). 창이 차기 전 구간도 전체에 넣고, 창 이후만 따로 보인다.
@@ -81,7 +81,7 @@ def main() -> int:
     ap.add_argument("--conf", type=float, default=0.6)
     ap.add_argument("--rest-hold", type=float, default=5.0)
     ap.add_argument("--motion-hold", type=float, default=1.0)
-    ap.add_argument("--direct", type=float, default=10.0)
+    ap.add_argument("--direct", type=float, default=5.0)
     ap.add_argument("--gate", type=float, nargs=2, default=(0.9, 3), metavar=("THR", "N"),
                     help="1단계 게이트: p_motion ≥ THR 가 N 번 연속이면 motion 후보. 끄려면 --no-gate")
     ap.add_argument("--no-gate", action="store_true")

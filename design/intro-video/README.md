@@ -136,7 +136,7 @@ CapCut 안에서 붙인 것: 장면 사이 `叠化`(디졸브) 0.4초(모션그�
 | 5분 세션, 세 상태 한 묶음·순서 섞기 | `doc/collection-protocol.md` §1~§4 |
 | 주파수 64 → 51 → 17, 51줄, 공유 CNN, 96개, DNN 96→32→3 | `model_train/robust/shared_temporal.py`, `realtime/stream.py` `AMP_TONES` |
 | 15초 창은 요약해서 늦게 반응 → 3초 모델이 먼저 (90% × 3) | `doc/realtime-inference.md` §2 "1단계…게이트로", `realtime/engine.py` `_motion_now()` |
-| 확신 60% · 움직임 1초 · 빈 방/정지 5초 · 직접 전환 10초, 확인 동안 화면은 이전 상태 | `doc/realtime-inference.md` §4, `realtime/state.py` `update()` |
+| 확신 60% · 움직임 1초 · 빈 방/정지 5초 · 직접 전환 5초, 확인 동안 화면은 이전 상태 | `doc/realtime-inference.md` §4, `realtime/state.py` `update()` |
 | 날짜를 갈라 시험: 59/59 · 94.8%, 3초 모델(2가지) 30/30 · 96.6% (다른 날·배치 12/15 · 77.3% 는 v5 에서 화면에서 뺐다) | `doc/realtime-inference.md` §2 표 |
 | RX 하나라도 3초 끊기면 판단 정지 | `doc/realtime-inference.md` §8 "신호 저하 시 동작" |
 | 조명은 로컬, 알림은 클라우드, 상태 변경 + 60초, 수면·알림 시간은 사용자 설정(화면 값은 기본값 예시) — 집 기기 끊김 3분만 고정 | `doc/plans/2026-10-23-home-service.md` §1~§3.8, `realtime/home.py` `DEFAULT`, `cloud/server.py` `OFFLINE_S` |

@@ -8,7 +8,7 @@
    교차 검증에서 틀린 판단은 대부분 동점에 가까웠다. 틀린 답보다 "모르겠다"가 낫다.
 2. **유지 시간** — 새 후보가 일정 시간 이어져야 상태를 바꾼다. 움직임은 짧게(빨리 반응),
    빈 방↔정지는 길게(오탐 억제). 사람이 들어오고 나가려면 반드시 움직여야 하므로
-   움직임을 거치지 않는 빈 방↔정지 전환은 특히 더 오래 요구한다.
+   움직임을 거치지 않는 빈 방↔정지 전환에도 별도 유지 시간을 적용한다.
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ class Event:
 class StateMachine:
     def __init__(self, conf: float = 0.6, required_rx: int = 3,
                  motion_hold_s: float = 1.0, rest_hold_s: float = 5.0,
-                 direct_switch_s: float = 10.0) -> None:
+                 direct_switch_s: float = 5.0) -> None:
         # 모델이 쓰는 RX 가 하나라도 없으면 멈춘다 — 배포 모델은 3대로만 학습·평가됐다
         # (doc/realtime-inference.md §5 ⑤, 2026-10-28). 2-RX 모델이 생기면 이 값을 내린다.
         self.conf, self.required_rx = conf, required_rx
@@ -71,7 +71,7 @@ class StateMachine:
     def _hold_for(self, candidate: str) -> float:
         if candidate == "motion":
             return self.motion_hold_s
-        # 움직임을 거치지 않은 빈 방↔정지 전환은 물리적으로 드물다 — 더 오래 본다
+        # 움직임을 거치지 않은 빈 방↔정지 전환은 별도 유지 시간으로 확인한다
         if self.state in ("empty", "static") and candidate in ("empty", "static"):
             return self.direct_switch_s
         return self.rest_hold_s
