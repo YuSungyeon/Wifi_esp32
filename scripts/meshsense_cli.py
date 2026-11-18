@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-MeshSense 터미널 CLI — 보드 플래시·수집을 메뉴로 실행.
+MeshSense 터미널 CLI — 보드 플래시·수집·세션·학습·실시간을 메뉴로 실행.
 
-수집 경로는 ESP-NOW/USB 하나뿐이다 (doc/adr-poc-only.md).
+CSI 수집 경로는 하나다 (doc/architecture.md). 이 메뉴의 플래시는 USB 모드 RX 를 만든다 —
+업링크 모드 RX·싱크는 doc/realtime-uplink.md 의 idf.py 명령으로 플래시한다.
 터미널이 익숙하지 않다면 `python scripts/meshsense_gui.py` 제어판을 쓴다.
 
   python scripts/meshsense_cli.py
-  python scripts/meshsense_cli.py --quick   # 안내 문구 없이 메뉴만
+  python scripts/meshsense_cli.py --quick   # 시작 배너 없이 메뉴만
 """
 
 from __future__ import annotations
@@ -18,15 +19,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import List, Literal, NamedTuple, Optional, Sequence, Tuple
+from typing import List, Literal, Optional, Sequence, Tuple
 
-
-class _PreflightRow(NamedTuple):
-    name: str
-    ok: bool
-    detail: str
-    action: str = ""
-    required: bool = True
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
@@ -40,7 +34,7 @@ VENV_DIR = REPO_ROOT / ".venv"
 VENV_PYTHON = VENV_DIR / "bin" / "python"
 VIZ_REQUIREMENTS = REPO_ROOT / "requirements-viz.txt"
 
-# USB 수집 파이프라인 (esp-csi 베이스) — doc/pipeline/usb-collection.md 참고
+# 펌웨어 프로젝트와 수집 도구 — doc/architecture.md
 SEND_POC_PROJECT = REPO_ROOT / "esp32s3_csi_send_poc"
 RECV_POC_PROJECT = REPO_ROOT / "esp32s3_csi_recv_poc"
 SERIAL_READER_SCRIPT = SCRIPT_DIR / "csi_serial_reader.py"
@@ -57,7 +51,7 @@ from csi_session import (  # noqa: E402
 )
 import block_order  # noqa: E402
 from csi_store import LABELS  # noqa: E402
-from session_meta import read_label_target, read_session_id  # noqa: E402
+from session_meta import read_label_target  # noqa: E402
 from train_sessions import (  # noqa: E402
     EXCLUDED_SESSIONS, available_eval_dates, check_selection, group_by_date, list_sessions,
 )
@@ -136,15 +130,6 @@ def _viz_venv_numpy_ok(py: Path) -> bool:
     return proc.returncode == 0
 
 
-def _viz_venv_status() -> Tuple[bool, str]:
-    py = _postprocess_venv_python()
-    if py is None:
-        return False, ".venv 없음"
-    if _viz_venv_numpy_ok(py):
-        return True, "numpy·matplotlib OK"
-    return False, ".venv 있음, 패키지 미설치"
-
-
 def _viz_venv_bootstrap_hint() -> str:
     req = "requirements-viz.txt" if VIZ_REQUIREMENTS.is_file() else "numpy matplotlib"
     return (
@@ -217,53 +202,6 @@ def _run_python(
     except KeyboardInterrupt:
         print("\n[중단] 실행 취소 (Ctrl+C)")
         return 130
-
-
-def _registry_row(label: str, path: Path, *, load_fn) -> _PreflightRow:
-    if not path.is_file():
-        return _PreflightRow(
-            label,
-            False,
-            "파일 없음",
-            f"보드 관리에서 등록하거나 {path.name} 생성",
-        )
-    try:
-        n = len(load_fn(path))
-        return _PreflightRow(label, True, f"{n}대 등록됨")
-    except (FileNotFoundError, ValueError) as exc:
-        return _PreflightRow(
-            label,
-            False,
-            f"CSV 오류 ({exc})",
-            "python scripts/device_registry.py verify (RX) 등 검증",
-        )
-
-
-def _print_preflight_report(rows: Sequence[_PreflightRow]) -> bool:
-    required = [r for r in rows if r.required]
-    passed = sum(1 for r in required if r.ok)
-    total = len(required)
-
-    print("\n--- 사전 점검 ---\n")
-    for row in rows:
-        if not row.required:
-            tag = "참고"
-        else:
-            tag = "통과" if row.ok else "필요"
-        print(f"  [{tag}] {row.name}")
-        if row.detail:
-            print(f"         {row.detail}")
-        if not row.ok and row.action:
-            print(f"         → {row.action}")
-
-    print()
-    if passed == total:
-        print(f"  결과: {passed}/{total} 필수 항목 통과 — 플래시·수집기 실행 가능")
-    else:
-        missing = [r.name for r in required if not r.ok]
-        print(f"  결과: {passed}/{total} 필수 항목 통과")
-        print(f"  조치: {', '.join(missing)}")
-    return passed == total
 
 
 def _port_busy_hint(port: str) -> str:
@@ -351,47 +289,6 @@ def _resolve_board_kind(mac: str) -> Optional[BoardKind]:
         idx = _choose("플래시 대상", [f"TX — {tx_rec.board_name}", f"RX — {rx_rec.board_name}"])
         return "tx" if idx == 0 else "rx"
     return None
-
-
-def _flash_board(*, kind: Optional[BoardKind] = None) -> bool:
-    """USB MAC → CSV registry 조회 후 TX/RX 펌웨어 플래시. 성공 시 True."""
-    print("\n--- 보드 플래시 ---")
-    print("  USB 보드 1대 연결 권장. MAC으로 tx_registry / device_registry 를 조회합니다.")
-    port = _pick_port()
-    if not port:
-        print("취소되었습니다.")
-        return False
-
-    try:
-        mac = _read_usb_mac(port)
-    except RuntimeError as exc:
-        print(f"\n[실패] MAC 읽기: {exc}")
-        return False
-
-    print(f"  {_describe_board(mac)}")
-    resolved = kind or _resolve_board_kind(mac)
-    if resolved is None:
-        print("\n[안내] registry에 없습니다. 보드 관리 메뉴 → 등록 후 다시 플래시하세요.")
-        if _ask_yes_no("지금 보드 관리(등록)로 이동할까요?", default_no=False):
-            _menu_board_management()
-        return False
-
-    flash_script = SCRIPT_DIR / ("flash_tx.py" if resolved == "tx" else "flash_rx.py")
-    label = "TX/AP" if resolved == "tx" else "RX CSI"
-    print(f"\n  → {label} 펌웨어 플래시 ({flash_script.name})")
-    extra: List[str] = ["-p", port, "-y"]
-    if _ask_yes_no("플래시 후 시리얼 모니터를 열까요?", default_no=True):
-        extra.append("--monitor")
-    if _ask_yes_no("빌드 캐시를 지우고 fullclean 할까요? (느림, 문제 있을 때만)", default_no=True):
-        extra.append("--clean")
-
-    rc = _run_python(flash_script, extra)
-    if rc != 0:
-        print(f"\n[실패] 종료 코드 {rc}")
-        print("  보드 관리 메뉴에서 registry·설정을 확인하세요.")
-        return False
-    print("\n[완료] 플래시 성공")
-    return True
 
 
 def _print_board_table(kind: BoardKind, records: Sequence[object]) -> None:
@@ -531,7 +428,7 @@ def _board_add_interactive() -> None:
             notes=notes,
         )
     if rc == 0:
-        print("  등록 후 메인 메뉴 [2] 플래시 로 펌웨어를 올릴 수 있습니다.")
+        print("  등록 후 메뉴 [1] 보드 플래시 로 펌웨어를 올릴 수 있습니다.")
 
 
 def _board_remove_interactive() -> None:
@@ -622,19 +519,18 @@ def _board_verify_all() -> None:
 
 
 def _flash_poc_board(*, kind: Optional[BoardKind] = None) -> bool:
-    """esp-csi PoC 펌웨어(esp32s3_csi_send_poc / esp32s3_csi_recv_poc) 플래시.
+    """TX/RX 펌웨어(esp32s3_csi_send_poc / esp32s3_csi_recv_poc) 플래시.
 
-    기존 device_registry / tx_registry 의 MAC 매핑은 그대로 쓰지만, 플래시 대상
-    프로젝트만 PoC 디렉터리로 교체한다. (flash_rx.py / flash_tx.py 는 production
-    펌웨어 전용이라 우회.)
+    esptool 로 읽은 MAC 을 tx_registry / device_registry 에서 찾아 TX·RX 를 가른다
+    (플래시 경로에서는 esptool 사용이 정상이다). RX 는 USB 모드로 빌드된다.
     """
     from idf_env import run_in_idf_shell  # noqa: WPS433
 
-    print("\n--- [PoC] 보드 플래시 (esp-csi 베이스) ---")
+    print("\n--- 보드 플래시 ---")
     print("  대상: " + (f"{kind.upper()} 전용" if kind else "MAC 자동 매칭"))
     for p in (SEND_POC_PROJECT, RECV_POC_PROJECT):
         if not (p / "CMakeLists.txt").is_file():
-            print(f"[중단] PoC 프로젝트 없음: {p}")
+            print(f"[중단] 펌웨어 프로젝트 없음: {p}")
             return False
 
     port = _pick_port()
@@ -666,7 +562,7 @@ def _flash_poc_board(*, kind: Optional[BoardKind] = None) -> bool:
 
     # monitor 옵션:
     # - TX: ESP_LOG로 부팅·송신 상태 확인용으로 유용 (기본 yes)
-    # - RX: PoC 펌웨어가 USB-Serial-JTAG로 바이너리 프레임을 흘리므로 monitor에서는 깨진 글자만 보임.
+    # - RX: USB 모드 펌웨어가 USB-Serial-JTAG로 바이너리 프레임을 흘리므로 monitor에서는 깨진 글자만 보임.
     #       reader가 같은 포트를 점유해야 하므로 monitor는 닫아둬야 함. (기본 no, 경고 포함)
     if resolved == "tx":
         do_monitor = _ask_yes_no("플래시 후 시리얼 모니터를 열까요? (TX 부팅 로그 확인용)", default_no=False)
@@ -691,9 +587,9 @@ def _flash_poc_board(*, kind: Optional[BoardKind] = None) -> bool:
     if rc.returncode != 0:
         print(f"\n[실패] 종료 코드 {rc.returncode}")
         return False
-    print("\n[완료] PoC 플래시 성공")
+    print("\n[완료] 플래시 성공")
     if resolved == "rx":
-        print("  → USB 수집 파이프라인 메뉴의 '수집 (USB 시리얼)'로 데이터 받기")
+        print("  → 메뉴의 '수집 (라벨·시간 입력)'로 데이터 받기")
     else:
         print("  → TX는 USB 연결만 유지하면 100Hz로 ESP-NOW 송신 시작")
         print("    monitor 띄워두면 부팅 후 'csi_send: wifi_channel: 11, send_frequency: 100' 확인 가능")
@@ -899,7 +795,7 @@ def _collect_poc_interactive() -> bool:
 
     if collected == 0:
         print("\n[경고] 수집된 RX 보드가 없습니다.")
-        print("  ① RX 보드에 최신 PoC 펌웨어가 플래시되었는지 (IDENT 프레임 v3 필요)")
+        print("  ① RX 보드에 현재 펌웨어가 플래시되었는지 (IDENT 프레임을 보내는 frame v4)")
         print("  ② mac_collector/device_registry.csv 에 보드 MAC 이 등록되어 있는지 확인")
         return False
 
@@ -1044,7 +940,7 @@ def _menu_train() -> None:
 def _usb_menu_items() -> List[str]:
     """메뉴 항목. 분기와 어긋나지 않게 한 곳에 둔다 — 번호 메뉴의 고전적 실수다."""
     return [
-        "보드 플래시 (PoC, MAC 자동 매칭)",
+        "보드 플래시 (MAC 자동 매칭)",
         "수집 (라벨·시간 입력)",
         "블록 순서 뽑기 (클래스 순서 무작위)",
         "세션 보기 (날짜별 · 품질 원인)",
@@ -1052,7 +948,7 @@ def _usb_menu_items() -> List[str]:
         "실시간 (모델·세션 고르기)",
         "세션 메타 편집 (브라우저 폼)",
         "보드 관리 (registry 등록·검증)",
-        "파이프라인 선택으로 돌아가기",
+        "종료",
     ]
 
 
@@ -1103,9 +999,9 @@ def _menu_realtime() -> None:
 
 
 def _menu_usb_pipeline() -> None:
-    """USB 수집 파이프라인 — esp-csi 베이스 PoC (USB 시리얼 100Hz, 모델 학습 데이터)."""
+    """메인 메뉴. 마지막 항목(종료)을 고르면 CLI 가 끝난다."""
     while True:
-        print("\n--- USB 수집 파이프라인 (모델 학습 데이터 · esp-csi PoC) ---")
+        print("\n--- MeshSense 메뉴 ---")
         st = block_order.load()
         if st["order"]:
             cells = " → ".join(f"{l}{' ✓' if l in st['done'] else ''}" for l in st["order"])
@@ -1218,12 +1114,12 @@ def _main_menu(quick: bool) -> None:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="MeshSense 터미널 가이드 — 플래시·수집기 실행·전체 실험 순서",
+        description="MeshSense 터미널 메뉴 — 플래시·수집·세션·학습·실시간",
     )
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="전체 가이드 없이 메인 메뉴만 표시",
+        help="시작 배너 없이 메뉴만 표시",
     )
     return parser.parse_args()
 

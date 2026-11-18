@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""esp32s3_csi_recv_poc 바이너리 CSI 프레임(v3)을 USB 시리얼로 읽어 세션에 저장.
+"""esp32s3_csi_recv_poc 바이너리 CSI 프레임(v4)을 USB 시리얼로 읽어 세션에 저장.
 
 프레임을 **변환 없이 그대로** `<session_dir>/device_<id>.csi` 에 이어붙인다. 저장 단계에
 변환이 없으므로 변환 버그가 낄 자리가 없고, 위상(raw I/Q)이 보존된다. 진폭 계산과

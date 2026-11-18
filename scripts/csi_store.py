@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """MeshSense CSI 프레임 저장소 — 프레임 규격·검증·진폭 계산의 Python 단일 소스.
 
-수집기(csi_serial_reader)·진단(measure_csi_hz)·시각화(visualize_csi)·후처리
-(model_train/model/Preprocessing)가 모두 이 모듈을 통해 데이터를 읽는다.
+수집기(csi_serial_reader)·진단(measure_csi_hz)·시각화(visualize_csi)·내보내기(export_jsonl)·
+실시간(realtime/)이 모두 이 모듈을 통해 `.csi` 를 읽는다.
 C 쪽 정본은 esp32s3_csi_recv_poc/main/app_main.c 의 csi_frame_header_t.
 
 세션 레이아웃::
 
     mac_collector_output/raw/<YYYYMMDD>/<HHMMSS>_<label>_s<session_id>/
-        device_<id>.csi              # 40B 헤더 + raw I/Q 프레임을 그대로 이어붙인 바이너리
+        device_<id>.csi              # 44B 헤더 + raw I/Q 프레임을 그대로 이어붙인 바이너리
         session.json                 # 매니페스트 (라벨 SSOT)
         session_meta_snapshot.yaml   # 수집 시점 session_meta.yaml 스냅샷
 
@@ -25,7 +25,7 @@ from typing import Iterator
 
 import numpy as np
 
-# ── 프레임 규격 (v3) ────────────────────────────────────────────────────────────
+# ── 프레임 규격 (v4) ────────────────────────────────────────────────────────────
 FRAME_MAGIC = 0x4353          # 'CS' — LE 바이트로 b"\x53\x43"
 MAGIC_BYTES = b"\x53\x43"
 FRAME_VERSION = 4

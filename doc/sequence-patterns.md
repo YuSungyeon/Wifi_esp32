@@ -1,12 +1,17 @@
 # `seq`와 `tx_seq` 패턴 기준
 
-> 상태: **CURRENT** — 값의 생성 방식과 해석은 현재 firmware 기준
+> 상태: §1~5·§7~8 **CURRENT** — 값의 생성 방식과 해석은 현재 firmware 기준.
+> §6 **HISTORICAL** — frame v2·구 JSONL 레이아웃 시절 데이터의 집계
 > 데이터 확인 범위: `mac_collector_output/raw/20260616/session_1` ~ `session_30`
 > 확인일: 2026-08-10
+>
+> 이 문서의 "JSONL"은 분석 당시의 저장 파일을 가리킨다. 지금은 reader가 같은 field를 `.csi`에
+> 저장하고 JSONL은 그 내보내기다 — `seq`·`tx_seq` 패턴의 해석은 두 형식에서 같다. v4 frame은
+> 여기에 `boot_id`(재부팅 판정)와 CRC-32(헤더 손상 차단)를 더했다([CSI 저장 데이터 규격](data-schema.md)).
 
 ## 1. 이 문서의 목적
 
-JSONL에는 순번이 두 개 있다.
+수집 record에는 순번이 두 개 있다.
 
 - `seq`: 한 RX가 CSI callback을 처리한 순서
 - `tx_seq`: TX가 ESP-NOW frame을 송신한 순서
@@ -36,7 +41,7 @@ CSI callback 수신
   → 현재 g_frame_seq를 binary header의 seq에 기록
   → g_frame_seq를 1 증가
   → binary frame을 ring buffer에 넣기
-  → USB reader가 JSONL에 기록
+  → USB reader가 `.csi`에 기록 (분석 당시에는 JSONL)
 ```
 
 특징은 다음과 같다.
@@ -82,7 +87,8 @@ JSONL의 `tx_seq`에 기록한다.
 받았지만 ring buffer drop, USB 전송, reader 재동기화 등의 구간에서 JSONL에
 남지 않았을 수 있다. JSONL만으로 정확한 손실 위치를 구분할 수는 없다.
 
-RX 재부팅 후보는 현재 전처리 설계에서 다음 조건으로 찾는다.
+RX 재부팅 후보는 JSONL 기반 전처리 설계에서 다음 조건으로 찾는다(JSONL에는 `boot_id`가 없다).
+`.csi`를 읽는 도구(`measure_csi_hz.py`·`realtime/`)는 `boot_id` 변화로 판정한다.
 
 ```text
 current_seq < previous_seq
@@ -198,7 +204,9 @@ RX만 재부팅되고 TX는 계속 송신한 패턴이다. RX boot segment를 �
 
 이 표의 원시 `seq` 감소 90회를 “유효 수집 중 RX가 90번 재부팅됐다”로 해석하면
 안 된다. 각 JSONL 앞에는 이전 RX 실행에서 남은 2~5개 record가 붙어 있고, 그
-뒤에 현재 수집용 RX boot가 시작하는 형태가 대부분이다.
+뒤에 현재 수집용 RX boot가 시작하는 형태가 대부분이다. (당시 reader는 포트를 열며
+DTR/RTS로 보드를 리셋했고 백로그를 비우지 않았다. 2026-08-26 이후 reader는 두 가지 모두
+하지 않으므로 v4 세션에는 이 패턴이 없다 — [firmware.md](firmware.md) §9.)
 
 - 정상 또는 손상된 형태로 새 RX boot 경계가 확인된 파일: 89개
 - 현재 수집 구간 없이 이전 record 3개만 저장된 파일: session 22 / RX 102

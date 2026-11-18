@@ -2,15 +2,17 @@
 
 > 상태: **CURRENT**
 > `*_poc` 디렉터리 이름은 유지하지만 이 두 프로젝트가 현재 공식 firmware다.
+> RX의 ESP-NOW 업링크 모드와 싱크 firmware는 [실시간 경로](realtime-uplink.md)가 정본이다.
 
 ## 1. 프로젝트
 
 | 역할 | 프로젝트 | source |
 |---|---|---|
 | TX | `esp32s3_csi_send_poc` | [`main/app_main.c`](../esp32s3_csi_send_poc/main/app_main.c) |
-| RX | `esp32s3_csi_recv_poc` | [`main/app_main.c`](../esp32s3_csi_recv_poc/main/app_main.c) |
+| RX | `esp32s3_csi_recv_poc` | [`main/app_main.c`](../esp32s3_csi_recv_poc/main/app_main.c) — `CSI_UPLINK_ENABLED=0`(USB, 기본) / `1`(업링크) |
+| SINK | `esp32s3_csi_sink` | [`main/app_main.c`](../esp32s3_csi_sink/main/app_main.c) — 업링크 → USB 전달, 조명 LED |
 
-두 firmware는 AP/STA association이나 IP network를 만들지 않는다. 양쪽 모두 STA mode에서 channel 11을 고정하고 ESP-NOW frame으로 CSI를 유도한다.
+세 firmware 모두 AP/STA association이나 IP network를 만들지 않는다. 모두 STA mode에서 channel 11을 고정하고 ESP-NOW frame으로 CSI를 유도한다.
 
 ## 2. 공통 RF 설정
 
@@ -18,7 +20,7 @@
 |---|---|
 | Wi-Fi mode | STA |
 | association | 없음 |
-| synthetic STA MAC | `1a:00:00:00:00:00` |
+| synthetic STA MAC | `1a:00:00:00:00:00` (업링크 모드 RX는 `1a:..:<CSI_RX_ID>`, 싱크는 `1a:..:ff`) |
 | channel | 11 |
 | bandwidth | HT20 |
 | secondary channel | none |
@@ -172,7 +174,7 @@ LLTF only + HT20 조합에서 기대 raw CSI는 128 bytes다.
 ```text
 128 raw bytes
   = 64 I/Q pair
-  = reader 변환 후 amplitude 64개
+  = host가 `.csi`를 읽을 때 계산하는 amplitude 64개 (유효 톤 52개)
 ```
 
 RX firmware는 amplitude 변환, z-score, moving average, outlier clip을 하지 않는다. raw signed int8 I/Q bytes를 그대로 Mac으로 전송한다.
@@ -204,7 +206,7 @@ H[k] = I[k] + jQ[k]
 
 - `I`: In-phase 성분
 - `Q`: Quadrature 성분
-- `|H[k]| = sqrt(I[k]² + Q[k]²)`: 현재 Mac reader가 저장하는 amplitude
+- `|H[k]| = sqrt(I[k]² + Q[k]²)`: amplitude. reader는 raw I/Q만 저장하고, amplitude는 host가 읽을 때 `scripts/csi_store.py`가 계산한다
 
 사람이나 물체가 TX와 RX 사이에서 움직이면 직접 경로와 반사 경로가 바뀐다. 그러면 같은 LLTF를 보내도 `Y[k]`가 달라지고, 결과적으로 `H[k]`, I/Q, amplitude가 변한다. 따라서 LLTF는 움직임 그 자체가 아니라 **움직임으로 인해 변한 무선 채널을 측정하기 위한 기준**이다.
 
@@ -238,13 +240,18 @@ wifi_csi_rx_cb
   → source MAC 검사
   → callback count 증가
   → tx_seq 추출
-  → 32-byte header + raw CSI 생성
-  → 64KiB no-split ring buffer에 non-blocking push
+  → 44-byte v4 header(CRC-32) + raw CSI 생성
+  → 64KiB no-split ring buffer에 non-blocking push (가득 차면 가장 오래된 frame을 버림)
 
-uart_writer_task
+uart_writer_task                  (USB 모드)
   → ring buffer receive
   → usb_serial_jtag_write_bytes
   → USB frame count 증가
+
+uplink_writer_task                (업링크 모드, CSI_UPLINK_ENABLED=1)
+  → ring buffer receive
+  → (CSI_UPLINK_OFFSET_MS > 0이면 송신 시점 대기)
+  → esp_now_send → 싱크
 ```
 
 주요 상수:
@@ -256,9 +263,10 @@ uart_writer_task
 | `CSI_RINGBUF_BYTES` | 64KiB | callback/USB decoupling |
 | `CSI_USJ_TX_BUF_BYTES` | 16KiB | USB driver TX buffer |
 | `CSI_TX_SEQ_OFFSET` | 15 | `wifi_csi_info_t.payload` 내 TX count offset |
-| `POC_DUMP_CSV` | 0 | CSV 출력 비활성, binary mode |
+| `CSI_IDENT_PERIOD_MS` | 2000 | IDENT frame 주기 |
 
-Ring buffer가 가득 차면 callback은 기다리지 않고 `g_ringbuf_drop`을 증가시킨다.
+Ring buffer가 가득 차면 callback은 기다리지 않는다. 가장 오래된 frame을 꺼내 버리고 새 frame을 넣으며(keep-newest, §9)
+버린 수만큼 `g_ringbuf_drop`을 증가시킨다.
 
 ## 6. Binary stream
 
@@ -271,10 +279,12 @@ CRC-32와 함께 USB로 보낸다.
 
 정확한 field 계약은 [serial frame schema](data-schema.md)를 참조한다.
 
-5초 진단 로그:
+5초 진단 로그 — USB 모드에서는 console primary인 GPIO43 UART로만 나오고 USB로는 나오지 않는다(§9).
+host는 같은 카운터를 IDENT frame으로 받는다.
 
 ```text
-5s: cb=N (+M, X.XHz) uart=K (+L, Y.YHz) ringbuf_drop=D
+5s: cb=N (+M, X.XHz) uart=K (+L, Y.YHz) ringbuf_drop=D partial=P          (USB 모드)
+5s: cb=N (+M, X.XHz) uplink_ok=K fail=F ringbuf_drop=D                    (업링크 모드, USB 포트에 텍스트로 나옴)
 ```
 
 정상 상태에서는 callback과 USB frame 증가량이 비슷하고 `ringbuf_drop=0`이어야 한다.

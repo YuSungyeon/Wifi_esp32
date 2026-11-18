@@ -119,7 +119,7 @@ def idf_environment_hints() -> List[str]:
 
 
 def idf_diagnose(repo_root: Path = REPO_ROOT) -> str:
-    """사전 점검·실패 메시지용 짧은 진단 텍스트."""
+    """실패 메시지용 짧은 ESP-IDF 진단 텍스트."""
     lines = ["ESP-IDF 환경 진단:"]
     idf = resolve_idf_path(repo_root)
     lines.append(f"  IDF_PATH: {idf} ({'OK' if (idf / 'export.sh').is_file() else 'export.sh 없음'})")

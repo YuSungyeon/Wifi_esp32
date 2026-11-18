@@ -1,7 +1,7 @@
 # 빠른 시작
 
 > 상태: **CURRENT**
-> 공식 경로: ESP-NOW TX → CSI RX → USB-Serial-JTAG → JSONL
+> 공식 경로: ESP-NOW TX → CSI RX → USB-Serial-JTAG → `.csi` (JSONL은 학습 전처리용으로 따로 내보낸다)
 
 ## 1. 최초 준비
 
@@ -62,7 +62,7 @@ python scripts/meshsense_gui.py
 
 127.0.0.1 에만 열리는 로컬 웹 UI다. 표준 라이브러리만 쓴다.
 
-탭은 넷이고 이름이 곧 할 일이다 — **수집 · 세션 · 학습 · 실시간**.
+탭은 다섯이고 이름이 곧 할 일이다 — **수집 · 세션 · 학습 · 실시간 · 연동**.
 
 1. **수집** — 맨 위 한 줄이 준비 상태다. 초록이면 바로 시작하고, 막히면 그 줄을 펼쳐
    보드 등록·플래시를 **그 자리에서** 한다. 보드가 2초마다 보내는 IDENT 로 확인하므로
@@ -76,14 +76,20 @@ python scripts/meshsense_gui.py
 3. **학습** — 날짜를 골라 학습한다. 못 고르는 날짜는 이유가 적혀 있다.
    버튼이 세션 수와 예상 시간을 말한다.
 4. **실시간** — 모델을 고르고 `실시간 측정`. 수집과 판단이 함께 시작된다.
+5. **연동** — 집 상태 서비스 홈페이지에서 받은 연동 코드로 이 컴퓨터를 연결한다
+   ([집 상태 서비스](plans/2026-10-23-home-service.md) §4.3).
+
+실시간 측정을 무선(RX 업링크 + 싱크)으로 할 때의 플래시는 [실시간 경로](realtime-uplink.md)를 따른다 —
+제어판·CLI 플래시는 USB 모드 RX만 만든다.
 
 ### 터미널
 
 ```bash
-python3 scripts/meshsense_cli.py      # [1] USB 수집
+python3 scripts/meshsense_cli.py
 ```
 
-`[1] 보드 플래시` / `[2] 수집` / `[3] 세션 메타 편집` / `[4] 보드 관리`.
+`[1] 보드 플래시` / `[2] 수집` / `[3] 블록 순서 뽑기` / `[4] 세션 보기` / `[5] 모델 학습` /
+`[6] 실시간` / `[7] 세션 메타 편집` / `[8] 보드 관리` / `[9] 종료`.
 
 TX 는 전원만 있으면 동작하므로 USB 포트가 모자라면 충전기에 꽂아두고 RX 만 연결한다
 ([firmware.md](firmware.md) §9).
@@ -109,25 +115,27 @@ RX 가 2대 이상이면 마지막 줄의 `cross-RX 공통 tx_seq` 가 98% 이�
 ## 6. 수동 실행
 
 CLI를 쓰지 않을 경우 TX/RX firmware를 각각 build/flash한 뒤 RX마다 reader를 실행한다.
+reader는 이미 만들어진 세션 디렉터리에 쓴다(`csi_session.create_session()`이 만든다).
 
 ```bash
+python3 scripts/csi_serial_reader.py --identify --port /dev/cu.usbmodem102   # 어느 RX인지 확인만
 python3 scripts/csi_serial_reader.py \
   --port /dev/cu.usbmodem102 \
-  --device-id 101 \
-  --session-id 31 \
-  --output-dir mac_collector_output
+  --session-dir mac_collector_output/raw/<YYYYMMDD>/<HHMMSS>_<label>_s<id>
 ```
 
-수동 reader는 session metadata snapshot을 자동 복사하지 않는다. 재현 가능한 실험에는 CLI 사용을 권장한다.
+`device_id`는 IDENT로 자동 식별된다(`--device-id`는 덮어쓰기용). 수동 reader는 session metadata
+snapshot·registry snapshot을 복사하지 않고 `session.json`도 마무리하지 않는다. 재현 가능한 실험에는
+제어판이나 CLI를 사용한다.
 
 ## 7. 실패 시 확인 순서
 
 1. TX 전원과 100Hz 송신 로그
 2. RX firmware flash 여부
 3. RX monitor 종료 여부
-4. USB port와 registry MAC 일치
+4. reader log의 IDENT 줄 — eFuse MAC이 `device_registry.csv`의 `sta_mac`과 일치하는지
 5. `pyserial` 설치
 6. `session_meta.yaml` 존재 여부
-7. reader log의 `invalid`, `seq_drop`, `last_tx_seq`
+7. reader log의 `crc_fail`, `invalid`, `resync`와 TX 재부팅 경고
 
 ESP-IDF·port 오류는 [문제 해결](troubleshooting/README.md)을 참조한다.

@@ -495,7 +495,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--session-dir",
         type=Path,
         required=True,
-        help="session_<id> directory containing device_<id>.jsonl",
+        help="directory containing device_<id>.jsonl — for .csi sessions, the export_jsonl.py "
+             "output mac_collector_output/jsonl/raw/<YYYYMMDD>/session_<id>",
     )
     parser.add_argument(
         "--rx-ids",

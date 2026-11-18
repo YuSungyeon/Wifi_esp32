@@ -16,9 +16,9 @@
 | 4 | [펌웨어](firmware.md) | **CURRENT** — TX/RX 동작과 상수 |
 | 5 | [바이너리·JSONL 데이터 규격](data-schema.md) | **CURRENT CONTRACT** — frame v4·`.csi` 저장소·JSONL 내보내기 |
 | 6 | [실시간 경로](realtime-uplink.md) | **CURRENT** — ESP-NOW 업링크 + USB 싱크 (무선 배치) |
-| 7 | [실시간 상태 판단](realtime-inference.md) | **CURRENT** — 배포된 30초 3분류 모델·0.3초 판단 간격·상태 기계·제어판 |
-| 7b | [제어판·CLI 흐름 설계](control-panel.md) | **CURRENT** — 탭 넷(수집·세션·학습·실시간), 보드·실험 정보·진단을 쓰이는 화면 안으로 (2026-10-18) |
-| 7c | [집 상태 서비스 계획](plans/2026-10-23-home-service.md) | **PLANNED** — 시연용 IoT 조명(싱크보드 LED) + 클라우드(EC2) 긴급 알림, 3일 일정 |
+| 7 | [실시간 상태 판단](realtime-inference.md) | **CURRENT** — 배포 모델 위의 상태 기계·판단 간격·실시간 화면 (모델 수치는 본문) |
+| 7b | [제어판·CLI 흐름 설계](control-panel.md) | **CURRENT** — 탭 다섯(수집·세션·학습·실시간·연동), 보드·실험 정보·진단을 쓰이는 화면 안으로 (2026-10-18, 연동 탭 2026-10-25) |
+| 7c | [집 상태 서비스](plans/2026-10-23-home-service.md) | **CURRENT** — 계획서로 시작해 구현·EC2 배포까지 기록. 시연용 IoT 조명(싱크보드 LED) + 클라우드 긴급 알림 |
 | 8 | [`seq`와 `tx_seq` 패턴](sequence-patterns.md) | **CURRENT** — 두 순번의 차이·이상 패턴·실데이터 집계 |
 | 9 | [공식 전처리 설계](../model_train/docs/preprocessing/design.md) | **CURRENT CONTRACT** — 기존 3초·192차원 기준 모델의 전처리 규칙 |
 | 10 | [후처리](postprocessing.md) | **CURRENT** — 수집률·시각화와 공식 3-RX 모델 pipeline 연결 |
@@ -31,6 +31,7 @@
 | 17 | [진폭·위상 입력 규격 결정](adr-csi-phase-experiment.md) | **ACCEPTED** — 이전 3초 비교 실험의 별도 입력 경로 |
 | 18 | [30초 3분류 입력 규격 결정](adr-robust-three-class-experiment.md) | **ACCEPTED** — 상대 진폭·긴 구간을 쓰는 후속 실험 |
 | 19 | [모델 실험·학습 작업 기록](sprint/2026-09-phase-classification.md) | **HISTORICAL** — 실험·검증·설명 문서의 작업 이력 |
+| 20 | [논문 준비 — 문서 레거시 정리](sprint/2026-11-paper-doc-cleanup.md) | **CURRENT** — 레거시 서술을 고친 범위·근거·남은 것 |
 
 ## 문서 상태 규칙
 
@@ -50,8 +51,11 @@ Wifi_esp32/
 ├── esp-idf/                     ESP-IDF v5.2.2 submodule
 ├── esp32s3_csi_send_poc/        공식 ESP-NOW TX firmware
 ├── esp32s3_csi_recv_poc/        공식 CSI RX firmware (USB / ESP-NOW 업링크)
-├── esp32s3_csi_sink/            실시간 경로 SINK firmware (업링크 → USB)
-├── scripts/                     flash·registry·reader·visualization CLI
+├── esp32s3_csi_sink/            실시간 경로 SINK firmware (업링크 → USB, 조명 LED)
+├── scripts/                     제어판·CLI·registry·reader·visualization
+├── realtime/                    실시간 상태 판단 엔진·화면·집 상태 서비스 로컬 쪽
+├── cloud/                       집 상태 서비스 클라우드(EC2) 서버
+├── tests/                       host 코드 unittest
 ├── mac_collector/               registry·session metadata 보관
 ├── model_train/                 공식 전처리와 모델 학습 코드
 │   └── docs/

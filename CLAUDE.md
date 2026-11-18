@@ -2,7 +2,7 @@
 
 ## Project
 
-MeshSense는 ESP32-S3 기반 Wi-Fi CSI 실내 행동 인식 프로젝트다. 현재 지원하는 수집 방식은 ESP-NOW/USB 한 가지뿐이다.
+MeshSense는 ESP32-S3 기반 Wi-Fi CSI 실내 행동 인식 프로젝트다. CSI 자극은 ESP-NOW 하나뿐이고, RX→Mac 전달은 USB 직결 또는 ESP-NOW 업링크 + USB 싱크(`doc/realtime-uplink.md`) 두 가지다. 둘 다 같은 binary frame v4·같은 reader를 쓴다.
 
 사용자 문서의 시작점은 `doc/README.md`다. 코드 변경 전 `doc/documentation-policy.md`를 따르고, 동작·계약 변경은 문서를 먼저 수정한다.
 
@@ -16,6 +16,7 @@ esp32s3_csi_send_poc (TX)
 esp32s3_csi_recv_poc (RX × N)
   promiscuous CSI, LLTF only
   callback → 64KiB ring buffer → USB-Serial-JTAG
+  (업링크 모드: → ESP-NOW → esp32s3_csi_sink → USB-Serial-JTAG)
        │
        ▼
 scripts/csi_serial_reader.py (RX별 process)
@@ -100,7 +101,7 @@ cd esp32s3_csi_recv_poc && idf.py build
 | 항목 | 값 |
 |---|---|
 | Wi-Fi topology | STA-only, association 없음 |
-| 역할별 MAC | TX `1a:..:00` (CSI 필터 기준) / RX `1a:..:<id>` / SINK `1a:..:ff` |
+| 역할별 MAC | TX `1a:..:00` (CSI 필터 기준) / RX `1a:..:<id>`(업링크 모드, USB 모드는 TX와 같은 값) / SINK `1a:..:ff` |
 | channel / bandwidth | 11 / HT20 |
 | ESP-NOW rate | MCS0 LGI |
 | TX frequency | 100Hz (`usleep(10ms)`) |
